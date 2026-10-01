@@ -1,26 +1,87 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Vercel / Geist tokens.
+ *
+ * Values are the real Geist design-system greys, mapped to semantic names.
+ * Declared as plain custom properties first so the dark scheme can override
+ * them, then exposed to Tailwind with `@theme inline` so utilities emit
+ * var(--…) and the override keeps working at runtime.
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --bg: #ffffff;
+  --surface: #fafafa;
+  --surface-2: #f5f5f5;
+  --hairline: #ebebeb;
+  --hairline-strong: #e4e4e4;
+  --ink: #0a0a0a;
+  --ink-secondary: #666666;
+  --ink-muted: #a1a1a1;
+  --accent: #0070f3;
+  --danger: #ee0e0e;
+  --bubble-in: #f5f5f5;
+  --bubble-out: #0a0a0a;
+  --on-bubble-out: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #000000;
+    --surface: #0a0a0a;
+    --surface-2: #171717;
+    --hairline: #2e2e2e;
+    --hairline-strong: #3d3d3d;
+    --ink: #ededed;
+    --ink-secondary: #a1a1a1;
+    --ink-muted: #666666;
+    --accent: #3291ff;
+    --danger: #ff6166;
+    --bubble-in: #171717;
+    --bubble-out: #ededed;
+    --on-bubble-out: #000000;
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-bubble-in: var(--bubble-in);
+  --color-bubble-out: var(--bubble-out);
+  --color-on-bubble-out: var(--on-bubble-out);
+  --color-whatsapp: #25d366;
+  --color-messenger: #0084ff;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* One visible focus treatment everywhere, Vercel style. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
