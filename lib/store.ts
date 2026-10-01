@@ -1,19 +1,22 @@
 /**
  * Data access layer.
  *
- * Today this is a JSON file so the Meta integration can be exercised without a
- * database. Every read and write goes through this module, so moving to Prisma +
- * SQLite (or Postgres) later means reimplementing these functions only: swap the
- * bodies for Prisma queries and keep the same signatures.
+ * The whole inbox is one JSON value in memory: a JSON file locally, a single
+ * key in Vercel KV when deployed, because a serverless filesystem is read-only.
+ * Every read and write goes through this module, so moving to Prisma + Postgres
+ * later means reimplementing these functions only: swap the bodies for Prisma
+ * queries and keep the same signatures.
  *
  * Mutations run through a promise queue so concurrent webhook deliveries
- * cannot interleave read-modify-write cycles.
+ * cannot interleave read-modify-write cycles. That queue only covers one
+ * instance; see the concurrency note on tx().
  */
 
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { config } from "./config";
 import type {
   Channel,
   Contact,
@@ -28,6 +31,7 @@ import { replyWindow } from "./window";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "inbox.json");
+const KV_KEY = "connectme:inbox";
 
 interface StoreData {
   contacts: Contact[];
@@ -39,7 +43,41 @@ const EMPTY: StoreData = { contacts: [], conversations: [], messages: [] };
 
 let queue: Promise<unknown> = Promise.resolve();
 
+/**
+ * Where the data lives.
+ *
+ * Locally it is a JSON file. Serverless hosts (Vercel, Lambda) have a read-only
+ * filesystem apart from /tmp, which is per-instance and wiped on every cold
+ * start, so there the whole store is kept as one value in Vercel KV instead.
+ */
+const kv = (() => {
+  const url = config.kvRestApiUrl;
+  const token = config.kvRestApiToken;
+  if (!url || !token) return null;
+
+  const send = async (command: string, body?: string): Promise<unknown> => {
+    const response = await fetch(`${url}/${command}/${KV_KEY}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`KV ${command} failed: HTTP ${response.status}`);
+    const json = (await response.json()) as { result: unknown };
+    return json.result;
+  };
+
+  return {
+    read: async (): Promise<string | null> => (await send("get")) as string | null,
+    write: (data: StoreData): Promise<unknown> => send("set", JSON.stringify(data)),
+  };
+})();
+
 async function read(): Promise<StoreData> {
+  if (kv) {
+    const raw = await kv.read();
+    return raw ? (JSON.parse(raw) as StoreData) : structuredClone(EMPTY);
+  }
   try {
     return JSON.parse(await readFile(DATA_FILE, "utf8")) as StoreData;
   } catch (error) {
@@ -49,6 +87,10 @@ async function read(): Promise<StoreData> {
 }
 
 async function write(data: StoreData): Promise<void> {
+  if (kv) {
+    await kv.write(data);
+    return;
+  }
   await mkdir(DATA_DIR, { recursive: true });
   // Write to a temp file and rename so a crash cannot leave a half-written file.
   const tmp = `${DATA_FILE}.tmp`;
@@ -56,7 +98,13 @@ async function write(data: StoreData): Promise<void> {
   await rename(tmp, DATA_FILE);
 }
 
-/** Serializes a read-modify-write cycle against the store. */
+/**
+ * Serializes a read-modify-write cycle against the store.
+ *
+ * Per instance only. Two serverless instances can still race and clobber each
+ * other, so the whole document is rewritten each time. Fine for a handful of
+ * agents, not for high concurrency — a real database fixes it.
+ */
 function tx<T>(fn: (data: StoreData) => T): Promise<T> {
   const run = queue.then(async () => {
     const data = await read();

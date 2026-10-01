@@ -17,11 +17,22 @@ Polling every 3s (no WebSockets), so it runs on a serverless host later unchange
 | Inbox UI (list, thread, polling, mobile) | done |
 | Instagram DMs | placeholder only, ignored on purpose |
 | Templates, media sending, multi-agent assignment | out of scope |
-| **Storage** | **JSON file (`data/inbox.json`), not a database yet** |
+| **Storage** | **one JSON value: `data/inbox.json` locally, a Vercel KV key when deployed** |
 
-Data currently lives in `data/inbox.json` (gitignored) so the Meta integration can be
-exercised without any setup. Every read and write goes through `lib/store.ts`, so
-adding a real database later is a single-file change — see [Adding Prisma](#adding-prisma-later).
+Data is a single JSON document behind `lib/store.ts`. Locally it is written to
+`data/inbox.json` (gitignored) so the Meta integration can be exercised without any
+setup. On a serverless host the filesystem is read-only apart from a per-instance
+`/tmp` that is wiped on every cold start, so there it is kept in Vercel KV instead —
+set `KV_REST_API_URL` and `KV_REST_API_TOKEN` and the store switches over on its own.
+
+**Deploying to Vercel:** create the KV store once, link it, and add those two
+variables to the project.
+
+```bash
+npx vercel kv create connectme
+npx vercel env add KV_REST_API_URL production
+npx vercel env add KV_REST_API_TOKEN production
+```
 
 ---
 
@@ -142,6 +153,9 @@ stored as `failed` with Meta's error.
 | Reply fails with `502` | Meta rejected the send. The exact error is shown on the failed bubble |
 | Messenger reply says "not configured" | `FB_PAGE_ACCESS_TOKEN` is empty |
 | `Missing required environment variable X` | `.env` is missing or truncated. See `lib/config.ts` |
+| `ENOENT ... mkdir '<cwd>/data'` on Vercel | Expected. Serverless filesystem is read-only — set `KV_REST_API_URL` and `KV_REST_API_TOKEN` |
+| Inbox empty after a redeploy | `KV_REST_API_URL` / `KV_REST_API_TOKEN` not set on the deployment, so writes went nowhere |
+| `KV get failed: HTTP 401` | Token wrong or from a different store. Re-copy both values from the KV store's page |
 
 ## Layout
 
@@ -153,7 +167,7 @@ app/api/conversations/**            list / thread / reply
 app/login/page.tsx                  password form
 components/inbox/*                  client UI (list, thread, reply box, window bar)
 lib/config.ts                       all env access, throws with a clear message
-lib/store.ts                        ALL data access. Swap this for Prisma later
+lib/store.ts                        ALL data access. JSON file locally, Vercel KV deployed
 lib/auth.ts lib/session.ts          token signing, cookie reading, guards
 lib/meta/types.ts                   strict webhook payload types
 lib/meta/verify.ts                  HMAC signature check, timing-safe compares
@@ -243,3 +257,8 @@ npx prisma migrate dev --name init
 Reimplement the functions in `lib/store.ts` as Prisma queries, keeping the same
 signatures, and add a unique index on `(channel, externalId)` for `Message` so
 deduplication is enforced by the database instead of in application code.
+
+Use Postgres, not SQLite: Vercel has no writable filesystem, so SQLite would hit
+the same problem this document already solved with KV. Neon or Vercel Postgres both
+work. This also removes the single-document write clobbering that `tx()` still has
+between instances.

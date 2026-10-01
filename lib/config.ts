@@ -61,6 +61,20 @@ export const config = {
     return read("ADMIN_PASSWORD");
   },
 
+  /**
+   * Vercel KV / Upstash REST endpoint. When both are set the store keeps its
+   * data there instead of in a local JSON file. Absent locally, so local dev
+   * keeps working without any setup.
+   */
+  get kvRestApiUrl(): string | undefined {
+    return readOptional("KV_REST_API_URL")?.replace(/\/$/, "");
+  },
+
+  /** Bearer token paired with KV_REST_API_URL. */
+  get kvRestApiToken(): string | undefined {
+    return readOptional("KV_REST_API_TOKEN");
+  },
+
   /** Secret used to sign the session cookie. */
   get sessionSecret(): string {
     const secret = read("SESSION_SECRET");
