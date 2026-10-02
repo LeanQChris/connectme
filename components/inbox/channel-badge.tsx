@@ -80,10 +80,16 @@ const CHANNEL_ICON: Record<Channel, ReactNode> = {
 };
 
 /** Monochrome brand glyph, tinted by the surrounding chrome. */
-export function ChannelIcon({ channel, className = "" }: { channel: Channel; className?: string }) {
+export function ChannelIcon({
+  channel,
+  className = "h-[18px] w-[18px]",
+}: {
+  channel: Channel;
+  className?: string;
+}) {
   return (
     <svg
-      className={`h-[18px] w-[18px] fill-current ${className}`}
+      className={`fill-current ${className}`}
       viewBox="0 0 24 24"
       aria-hidden
     >
