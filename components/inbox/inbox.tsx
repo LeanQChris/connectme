@@ -63,7 +63,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
 
   function back() {
     setSelectedId(null);
-    window.history.pushState(null, "", "/");
+    window.history.pushState(null, "", "/inbox");
   }
 
   async function handleSend(text: string) {

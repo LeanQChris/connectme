@@ -8,14 +8,15 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
  * Next 16 renamed `middleware.ts` to `proxy.ts`. It runs on the Node.js runtime
  * and cannot run its own `runtime` config.
  *
- * Public paths: /login, /api/login (to log in) and /api/webhook (Meta calls it
- * and it authenticates itself with the X-Hub-Signature-256 header).
+ * Public paths: / (home page), /login, /api/login, and /api/webhook.
  */
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/webhook"];
+const PUBLIC_PATHS = ["/", "/login", "/api/login", "/api/webhook"];
 
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  if (pathname === "/") return true;
+  return PUBLIC_PATHS.some((path) => path !== "/" && (pathname === path || pathname.startsWith(`${path}/`)));
 }
+
 
 export async function proxy(request: NextRequest): Promise<Response> {
   const { pathname } = request.nextUrl;

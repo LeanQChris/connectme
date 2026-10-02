@@ -27,7 +27,7 @@ export default function LoginPage() {
         return;
       }
 
-      const next = new URLSearchParams(window.location.search).get("next") ?? "/";
+      const next = new URLSearchParams(window.location.search).get("next") ?? "/inbox";
       router.replace(next);
       router.refresh();
     } catch {
