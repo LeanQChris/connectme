@@ -109,7 +109,7 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
   }
 }
 
-import { fetchMessengerUserProfile } from "./client";
+import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./client";
 
 export async function handleMessenger(body: PageWebhookBody): Promise<void> {
   for (const entry of body.entry ?? []) {
@@ -149,6 +149,20 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
         type = "text";
       } else {
         type = "other";
+      }
+
+      // If mediaUrl is still missing but message was an attachment, query Graph API
+      if (!mediaUrl && (message.attachments?.length || type !== "text")) {
+        try {
+          const attachData = await fetchMessengerMessageAttachment(mid);
+          if (attachData.mediaUrl) {
+            mediaUrl = attachData.mediaUrl;
+            type = attachData.type;
+            if (!text && attachData.text) text = attachData.text;
+          }
+        } catch {
+          // ignore
+        }
       }
 
       // Fetch user profile name and profile picture from Graph API

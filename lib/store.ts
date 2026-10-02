@@ -124,7 +124,7 @@ function contactLabel(contact: Contact): string {
   return contact.name?.trim() || contact.externalId;
 }
 
-import { fetchMessengerUserProfile } from "./meta/client";
+import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./meta/client";
 
 function summarize(conv: Conversation, data: StoreData): ConversationSummary | null {
   const contact = data.contacts.find((c) => c.id === conv.contactId);
@@ -196,10 +196,10 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
       };
       data.contacts.push(contact);
     } else {
-      if (input.senderName?.trim() && !contact.name?.trim()) {
+      if (input.senderName?.trim()) {
         contact.name = input.senderName.trim();
       }
-      if (input.senderAvatarUrl && !contact.avatarUrl) {
+      if (input.senderAvatarUrl) {
         contact.avatarUrl = input.senderAvatarUrl;
       }
     }
@@ -288,7 +288,12 @@ export async function updateOutboundStatus(
 async function backfillProfiles(data: StoreData): Promise<boolean> {
   let changed = false;
   for (const contact of data.contacts) {
-    if (contact.channel === "messenger" && (!contact.name || !contact.avatarUrl)) {
+    const isMissingOrNumericName =
+      !contact.name ||
+      contact.name === contact.externalId ||
+      /^\d+$/.test(contact.name.trim());
+
+    if (contact.channel === "messenger" && (isMissingOrNumericName || !contact.avatarUrl)) {
       try {
         const profile = await fetchMessengerUserProfile(contact.externalId);
         if (profile.name && contact.name !== profile.name) {
@@ -321,6 +326,31 @@ export async function listConversations(channel?: Channel): Promise<Conversation
   });
 }
 
+async function backfillMessages(messages: Message[]): Promise<boolean> {
+  let changed = false;
+  for (const message of messages) {
+    if (
+      message.channel === "messenger" &&
+      message.externalId &&
+      (!message.mediaUrl || message.text === "[attachment]")
+    ) {
+      try {
+        const attach = await fetchMessengerMessageAttachment(message.externalId);
+        if (attach.mediaUrl && message.mediaUrl !== attach.mediaUrl) {
+          message.mediaUrl = attach.mediaUrl;
+          message.type = attach.type;
+          if (attach.text) message.text = attach.text;
+          else if (message.text === "[attachment]") message.text = null;
+          changed = true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return changed;
+}
+
 export async function getConversation(id: string): Promise<ConversationDetail | null> {
   return tx(async (data) => {
     await backfillProfiles(data);
@@ -331,6 +361,9 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
     const messages = data.messages
       .filter((m) => m.conversationId === id)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    
+    await backfillMessages(messages);
+
     return { conversation: summary, messages };
   });
 }
