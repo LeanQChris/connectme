@@ -1,3 +1,4 @@
+import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 
 import ThemeToggle from "@/components/inbox/theme-toggle";
@@ -6,7 +7,9 @@ import Logo from "@/components/logo";
 /** Single place to change when a real contact address and jurisdiction are known. */
 export const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? "support@connectme.app";
 
-export function PageFrame({ children }: { children: React.ReactNode }) {
+export async function PageFrame({ children }: { children: React.ReactNode }) {
+  const { userId } = await auth();
+
   return (
     <div className="flex min-h-[100dvh] flex-col bg-canvas text-ink">
       <header className="sticky top-0 z-50 flex h-12 items-center justify-between border-b border-hairline bg-canvas/80 px-4 backdrop-blur-md">
@@ -47,9 +50,15 @@ export function PageFrame({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4 font-mono text-[11px]">
-            <Link href="/sign-in" className="transition-colors hover:text-ink">
-              Sign in
-            </Link>
+            {userId ? (
+              <Link href="/inbox" className="transition-colors hover:text-ink">
+                Inbox
+              </Link>
+            ) : (
+              <Link href="/sign-in" className="transition-colors hover:text-ink">
+                Sign in
+              </Link>
+            )}
             <span>·</span>
             <Link href="/about" className="transition-colors hover:text-ink">
               About

@@ -152,6 +152,19 @@ body {
   scrollbar-width: none;
 }
 
+/* One orchestrated page-load reveal for the landing hero.
+   Paired with motion-safe: so it never fires for reduced-motion visitors. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Mesh Gradient utility */
 .mesh-gradient {
   background-image: 
