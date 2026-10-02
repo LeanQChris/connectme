@@ -1,0 +1,121 @@
+"use client";
+
+import { memo } from "react";
+import { CHANNELS, type Channel } from "@/core/types";
+import { ChannelIcon, channelMeta } from "@/components/ui/channel-badge";
+
+const ALL = "";
+const ARCHIVED = "archived";
+
+type Item = { value: string; label: string; channel?: Channel };
+
+/**
+ * Provider dock: one 40px app-style tile per channel (plus All / Archived).
+ * Idle = muted glyph on a hairline tile, active = brand-filled tile.
+ * Only displays channels that are currently connected in Settings.
+ */
+const ChannelRail = memo(function ChannelRail({
+  value,
+  onChange,
+  counts,
+  connected,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  counts: Record<string, number>;
+  connected?: Record<Channel, boolean>;
+}) {
+  const activeChannels = CHANNELS.filter(
+    (channel) => (connected ? connected[channel] : true)
+  );
+
+  const items: Item[] = [
+    { value: ALL, label: "All" },
+    ...activeChannels.map((channel) => ({
+      value: channel,
+      label: channelMeta(channel).label,
+      channel,
+    })),
+  ];
+
+  function tileClass(item: Item, active: boolean) {
+    if (!active) {
+      return "border border-hairline bg-canvas-elevated text-mute hover:border-hairline-strong hover:bg-surface-well hover:text-ink";
+    }
+    return item.channel
+      ? `${channelMeta(item.channel).tile} text-white shadow-[0_1px_2px_rgba(0,0,0,0.14)]`
+      : "bg-ink text-on-primary shadow-[0_1px_2px_rgba(0,0,0,0.14)]";
+  }
+
+  function renderItem(item: Item) {
+    const active = value === item.value;
+    const n = item.value === ALL ? (counts.total ?? 0) : (counts[item.value] ?? 0);
+
+    return (
+      <button
+        key={item.value || "all"}
+        type="button"
+        title={item.label}
+        aria-label={item.label}
+        aria-current={active}
+        onClick={() => onChange(item.value)}
+        className={`group relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-[9px] sm:rounded-[10px] transition-all active:scale-95 ${tileClass(
+          item,
+          active,
+        )}`}
+      >
+        {item.channel ? (
+          <ChannelIcon channel={item.channel} className="h-[18px] w-[18px] sm:h-[19px] sm:w-[19px]" />
+        ) : (
+          <svg
+            className="h-[17px] w-[17px] sm:h-[18px] sm:w-[18px] stroke-current"
+            fill="none"
+            strokeWidth="1.6"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            {item.value === ARCHIVED ? (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 7h18v3H3V7zm1 5h16v7a2 2 0 01-2 2H6a2 2 0 01-2-2v-7zm6 3h4"
+              />
+            ) : (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 5h16v11H8l-4 4V5z"
+              />
+            )}
+          </svg>
+        )}
+
+        {n > 0 && (
+          <span
+            className={`absolute -right-1 -bottom-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full px-1 font-mono text-[9px] font-bold tabular-nums shadow-[0_0_0_2px_var(--canvas)] ${
+              active ? "bg-ink text-on-primary" : "bg-hairline-strong text-ink"
+            }`}
+          >
+            {n > 99 ? "99+" : n}
+          </span>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <nav
+      aria-label="Providers"
+      className="flex w-[52px] sm:w-[60px] shrink-0 select-none flex-col items-center gap-1.5 border-r border-hairline bg-canvas py-3 overflow-y-auto no-scrollbar"
+    >
+      {items.map(renderItem)}
+
+      <span aria-hidden className="my-1 h-px w-5 sm:w-6 bg-hairline" />
+
+      {renderItem({ value: ARCHIVED, label: "Archived" })}
+    </nav>
+  );
+});
+
+export default ChannelRail;
+export { ARCHIVED };
