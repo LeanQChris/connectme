@@ -48,11 +48,22 @@ export async function POST(
     );
   }
 
-  const tenant: Tenant = { ...(await tenantSecrets(auth.userId)), userId: auth.userId };
-  const detail = await getConversation(auth.userId, id, tenant);
+  const baseSecrets = await tenantSecrets(auth.userId);
+  const { getAccountAccessToken } = await import("@/lib/tenant");
+  const detail = await getConversation(auth.userId, id, {
+    pageAccessToken: baseSecrets.pageAccessToken,
+    graphVersion: baseSecrets.graphVersion,
+  });
   if (!detail) return Response.json({ error: "Conversation not found" }, { status: 404 });
 
   const { conversation } = detail;
+  const accountToken = await getAccountAccessToken(auth.userId, conversation.accountId);
+  const tenant: Tenant = {
+    ...baseSecrets,
+    userId: auth.userId,
+    pageAccessToken: accountToken || baseSecrets.pageAccessToken,
+  };
+
   if (!conversation.window.open) {
     return Response.json({ error: WINDOW_CLOSED_MESSAGE }, { status: 409 });
   }

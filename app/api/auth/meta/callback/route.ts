@@ -7,9 +7,8 @@ import {
   subscribePageToWebhook,
   verifyOAuthState,
 } from "@/lib/meta/oauth";
-import { encryptSecrets } from "@/lib/secrets";
-import { getCredentials, saveCredentials } from "@/lib/store";
-import { tenantSecrets } from "@/lib/tenant";
+import { addOrUpdateConnectedAccounts } from "@/lib/tenant";
+import type { ConnectedAccount } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -44,7 +43,7 @@ export async function GET(request: Request): Promise<Response> {
     // 2. Exchange for long-lived user token (~60 days)
     const longLivedUserToken = await getLongLivedUserToken(shortLivedToken);
 
-    // 3. Fetch user's managed Facebook Pages and Instagram accounts
+    // 3. Fetch all user's managed Facebook Pages and Instagram accounts
     const pages = await getAccountsAndPages(longLivedUserToken);
 
     if (pages.length === 0) {
@@ -55,41 +54,52 @@ export async function GET(request: Request): Promise<Response> {
       return NextResponse.redirect(settingsUrl);
     }
 
-    // Select the first page connected
-    const selectedPage = pages[0];
-    const pageId = selectedPage.id;
-    const pageName = selectedPage.name;
-    const pageAccessToken = selectedPage.access_token;
-    const instagramUsername = selectedPage.instagram_business_account?.username ?? null;
+    const newAccounts: ConnectedAccount[] = [];
+    const now = new Date().toISOString();
 
-    // 4. Automatically subscribe the Page to our App's Webhooks
-    await subscribePageToWebhook(pageId, pageAccessToken);
+    // 4. Process all pages
+    for (const page of pages) {
+      const pageId = page.id;
+      const pageName = page.name;
+      const pageAccessToken = page.access_token;
 
-    // 5. Update tenant's credentials
-    const current = await tenantSecrets(userId);
-    const existingRecord = await getCredentials(userId);
+      // Automatically subscribe the Page to our App's Webhooks
+      await subscribePageToWebhook(pageId, pageAccessToken).catch((subErr) => {
+        console.warn(`[oauth] Failed to auto-subscribe page ${pageId}:`, subErr);
+      });
 
-    const updatedSecrets = {
-      ...current,
-      pageAccessToken,
-      metaAppSecret: current.metaAppSecret || config.metaAppSecret || "",
-      webhookVerifyToken: current.webhookVerifyToken || config.metaWebhookVerifyToken || "connectme_verify",
-    };
+      // Add Facebook Page
+      newAccounts.push({
+        id: `meta_page_${pageId}`,
+        provider: "meta",
+        channel: "messenger",
+        name: pageName,
+        externalId: pageId,
+        token: pageAccessToken,
+        connectedAt: now,
+      });
 
-    await saveCredentials({
-      userId,
-      encrypted: encryptSecrets(updatedSecrets),
-      waPhoneNumberId: existingRecord?.waPhoneNumberId || updatedSecrets.waPhoneNumberId || undefined,
-      pageId,
-      pageName,
-      instagramUsername: instagramUsername || undefined,
-      telegramBotId: existingRecord?.telegramBotId,
-      discordBotId: existingRecord?.discordBotId,
-      updatedAt: new Date().toISOString(),
-    });
+      // Add connected Instagram account if available
+      if (page.instagram_business_account?.id) {
+        const igId = page.instagram_business_account.id;
+        const igHandle = page.instagram_business_account.username || `${pageName} (Instagram)`;
+        newAccounts.push({
+          id: `meta_ig_${igId}`,
+          provider: "meta",
+          channel: "instagram",
+          name: igHandle.startsWith("@") ? igHandle : `@${igHandle}`,
+          externalId: igId,
+          token: pageAccessToken,
+          connectedAt: now,
+        });
+      }
+    }
+
+    // 5. Store all connected accounts into tenant record
+    await addOrUpdateConnectedAccounts(userId, newAccounts);
 
     settingsUrl.searchParams.set("connected", "meta");
-    settingsUrl.searchParams.set("page", pageName);
+    settingsUrl.searchParams.set("count", String(newAccounts.length));
     return NextResponse.redirect(settingsUrl);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to complete Meta authorization.";

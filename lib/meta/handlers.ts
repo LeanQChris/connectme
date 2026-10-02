@@ -272,6 +272,7 @@ export async function handleMessenger(
         const inserted = await recordInbound({
           userId: tenant.userId,
           channel: "messenger",
+          accountId: entry?.id,
           externalId: mid,
           senderExternalId: senderId,
           senderName,
@@ -291,22 +292,63 @@ export async function handleMessenger(
 }
 
 /**
- * INSTAGRAM PLACEHOLDER — not implemented yet.
+ * Instagram Messaging (classic, Facebook Login).
  *
- * To add Instagram DMs:
- *  1. Add lib/channels/instagram.ts implementing ChannelAdapter (same shape as
- *     messenger.ts, POST /{ig-user-id}/messages) and register it in the channel
- *     registry (lib/channels/index.ts).
- *  2. Replace this body with the equivalent of handleMessenger (Instagram
- *     messaging events use the same sender.id / message.mid / message.text
- *     shape, and the same is_echo rule).
- *  3. Add "instagram" to the IG_PAGE_ACCESS_TOKEN entry in lib/config.ts and to
- *     .env.example.
+ * Same payload shape as Messenger: `sender.id` is the Instagram-scoped id of
+ * the customer, and `is_echo` marks our own outgoing messages. Attachments come
+ * with their payload URL inline, so no extra Graph call is needed.
  */
 export async function handleInstagram(
-  _tenant: TenantContext,
+  tenant: TenantContext,
   body: InstagramWebhookBody,
 ): Promise<void> {
-  const count = body.entry?.reduce((total, entry) => total + (entry?.messaging?.length ?? 0), 0) ?? 0;
-  console.log(`[webhook] instagram: ignoring ${count} event(s), not implemented yet`);
+  for (const entry of body.entry ?? []) {
+    for (const event of entry?.messaging ?? []) {
+      const message = event?.message;
+      if (!message) continue;
+
+      if (message.is_echo) continue;
+
+      const senderId = event.sender?.id;
+      const mid = message.mid;
+      if (!senderId || !mid) {
+        console.warn("[webhook] instagram event without sender/mid, skipped");
+        continue;
+      }
+
+      const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now();
+      const firstAttachment = message.attachments?.[0];
+      let mediaUrl: string | null = null;
+      let type: MessageType = "text";
+      let text = message.text ?? null;
+
+      if (firstAttachment) {
+        type = mapType(firstAttachment.type);
+        mediaUrl = firstAttachment.payload?.url ?? null;
+        if (!text) text = firstAttachment.title ?? firstAttachment.payload?.title ?? null;
+      } else if (message.text === undefined) {
+        type = "other";
+      }
+
+      try {
+        const inserted = await recordInbound({
+          userId: tenant.userId,
+          channel: "instagram",
+          accountId: entry?.id,
+          externalId: mid,
+          senderExternalId: senderId,
+          senderName: null,
+          senderAvatarUrl: null,
+          text: text || placeholder(type),
+          mediaUrl,
+          type,
+          createdAt: new Date(timestamp),
+        });
+        if (inserted) console.log(`[webhook] instagram inbound ${mid} (${type})`);
+        else console.log(`[webhook] instagram duplicate ${mid}, ignored`);
+      } catch (error) {
+        console.error("[webhook] failed to store instagram message:", error);
+      }
+    }
+  }
 }

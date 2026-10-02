@@ -7,9 +7,10 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 
-import { decryptSecrets, telegramBotId } from "./secrets";
-import { getCredentials, upsertUser } from "./store";
+import { decryptSecrets, encryptSecrets, telegramBotId } from "./secrets";
+import { getCredentials, saveCredentials, upsertUser } from "./store";
 import type {
+  ConnectedAccount,
   ConnectionFlag,
   CredentialRecord,
   ProviderSecrets,
@@ -65,22 +66,48 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
   );
 }
 
-function connectedFlags(secrets: ProviderSecrets): Record<ConnectionFlag, boolean> {
+function connectedFlags(
+  secrets: ProviderSecrets,
+  accounts: ConnectedAccount[] = [],
+): Record<ConnectionFlag, boolean> {
   return {
-    whatsapp: Boolean(secrets.waPhoneNumberId && secrets.waAccessToken),
-    messenger: Boolean(secrets.pageAccessToken),
-    instagram: Boolean(secrets.pageAccessToken),
-    telegram: Boolean(secrets.telegramBotToken),
-    discord: Boolean(secrets.discordBotToken),
+    whatsapp:
+      Boolean(secrets.waPhoneNumberId && secrets.waAccessToken) ||
+      accounts.some((a) => a.channel === "whatsapp"),
+    messenger:
+      Boolean(secrets.pageAccessToken) ||
+      accounts.some((a) => a.channel === "messenger"),
+    instagram:
+      Boolean(secrets.pageAccessToken) ||
+      accounts.some((a) => a.channel === "instagram"),
+    telegram:
+      Boolean(secrets.telegramBotToken) ||
+      accounts.some((a) => a.channel === "telegram"),
+    discord:
+      Boolean(secrets.discordBotToken) ||
+      accounts.some((a) => a.channel === "discord"),
   };
 }
 
 /** Everything the settings UI needs, minus the secrets themselves. */
 export async function tenantSettings(userId: string): Promise<TenantSettings> {
   const [record, secrets] = await Promise.all([getCredentials(userId), tenantSecrets(userId)]);
+  const rawAccounts = record?.accounts ?? [];
+  // Strip tokens before passing to UI
+  const safeAccounts: ConnectedAccount[] = rawAccounts.map((a) => ({
+    id: a.id,
+    provider: a.provider,
+    channel: a.channel,
+    name: a.name,
+    externalId: a.externalId,
+    avatarUrl: a.avatarUrl ?? null,
+    connectedAt: a.connectedAt,
+  }));
+
   return {
     secrets,
-    connected: connectedFlags(secrets),
+    accounts: safeAccounts,
+    connected: connectedFlags(secrets, rawAccounts),
     pageId: record?.pageId ?? null,
     pageName: record?.pageName ?? null,
     instagramUsername: record?.instagramUsername ?? null,
@@ -106,6 +133,7 @@ export async function settingsPayload(
 
   return {
     settings: {
+      accounts: settings.accounts,
       connected: settings.connected,
       pageId: settings.pageId,
       pageName: settings.pageName,
@@ -124,6 +152,80 @@ export async function settingsPayload(
       discord: `${origin}/api/webhook/discord`,
     },
   };
+}
+
+/** Resolves the specific access token for a connected account or fallback. */
+export async function getAccountAccessToken(
+  userId: string,
+  externalIdOrAccountId: string | null | undefined,
+): Promise<string | null> {
+  const record = await getCredentials(userId);
+  if (externalIdOrAccountId && record?.accounts) {
+    const matched = record.accounts.find(
+      (a) => a.id === externalIdOrAccountId || a.externalId === externalIdOrAccountId,
+    );
+    if (matched?.token) return matched.token;
+  }
+  const secrets = await tenantSecrets(userId);
+  return secrets.pageAccessToken || null;
+}
+
+/** Adds or updates connected accounts for a tenant. */
+export async function addOrUpdateConnectedAccounts(
+  userId: string,
+  newAccounts: ConnectedAccount[],
+): Promise<void> {
+  const record = await getCredentials(userId);
+  const currentAccounts = record?.accounts ?? [];
+  const merged = [...currentAccounts];
+
+  for (const account of newAccounts) {
+    const idx = merged.findIndex((a) => a.externalId === account.externalId && a.channel === account.channel);
+    if (idx >= 0) {
+      merged[idx] = { ...merged[idx], ...account };
+    } else {
+      merged.push(account);
+    }
+  }
+
+  const secrets = await tenantSecrets(userId);
+  await saveCredentials({
+    userId,
+    encrypted: encryptSecrets(secrets),
+    accounts: merged,
+    waPhoneNumberId: record?.waPhoneNumberId || secrets.waPhoneNumberId || undefined,
+    pageId: merged.find((a) => a.channel === "messenger")?.externalId ?? record?.pageId,
+    pageName: merged.find((a) => a.channel === "messenger")?.name ?? record?.pageName,
+    instagramUsername: merged.find((a) => a.channel === "instagram")?.name ?? record?.instagramUsername,
+    telegramBotId: record?.telegramBotId,
+    discordBotId: record?.discordBotId,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/** Removes a specific connected account from a tenant. */
+export async function removeConnectedAccount(
+  userId: string,
+  accountId: string,
+): Promise<void> {
+  const record = await getCredentials(userId);
+  if (!record?.accounts) return;
+
+  const filtered = record.accounts.filter((a) => a.id !== accountId && a.externalId !== accountId);
+  const secrets = await tenantSecrets(userId);
+
+  await saveCredentials({
+    userId,
+    encrypted: encryptSecrets(secrets),
+    accounts: filtered,
+    waPhoneNumberId: record.waPhoneNumberId,
+    pageId: filtered.find((a) => a.channel === "messenger")?.externalId,
+    pageName: filtered.find((a) => a.channel === "messenger")?.name,
+    instagramUsername: filtered.find((a) => a.channel === "instagram")?.name,
+    telegramBotId: record.telegramBotId,
+    discordBotId: record.discordBotId,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 /**

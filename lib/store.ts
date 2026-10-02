@@ -186,6 +186,8 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     id: conv.id,
     contactId: contact.id,
     channel: contact.channel,
+    accountId: conv.accountId ?? null,
+    accountName: conv.accountName ?? null,
     contactName: contactLabel(contact),
     contactExternalId: contact.externalId,
     avatarUrl: contact.avatarUrl ?? null,
@@ -208,6 +210,8 @@ export interface InboundInput {
   /** Owning tenant; webhooks resolve this before calling. */
   userId: string;
   channel: Channel;
+  accountId?: string | null;
+  accountName?: string | null;
   /** Platform id: WhatsApp message id / Messenger PSID. Dedup key. */
   externalId: string;
   /** Platform id of the sender: WhatsApp wa_id / Messenger PSID. */
@@ -284,6 +288,8 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
         id: randomUUID(),
         userId: input.userId,
         contactId: contact.id,
+        accountId: input.accountId ?? null,
+        accountName: input.accountName ?? null,
         lastMessageAt: input.createdAt.toISOString(),
         lastInboundAt: input.createdAt.toISOString(),
         unreadCount: 0,
@@ -294,6 +300,9 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
         createdAt: input.createdAt.toISOString(),
       };
       data.conversations.push(conversation);
+    } else {
+      if (input.accountId) conversation.accountId = input.accountId;
+      if (input.accountName) conversation.accountName = input.accountName;
     }
 
     data.messages.push({
@@ -702,9 +711,21 @@ export async function credentialsByRoutingId(field: {
   telegramBotId?: string;
 }): Promise<CredentialRecord[]> {
   const data = await read();
-  return data.credentials.filter((c) =>
-    (field.waPhoneNumberId ? c.waPhoneNumberId === field.waPhoneNumberId : true) &&
-    (field.pageId ? c.pageId === field.pageId : true) &&
-    (field.telegramBotId ? c.telegramBotId === field.telegramBotId : true),
-  );
+  return data.credentials.filter((c) => {
+    // 1. Check multi-accounts list
+    const hasAccountMatch = c.accounts?.some((acc) => {
+      if (field.pageId && acc.externalId === field.pageId) return true;
+      if (field.waPhoneNumberId && acc.externalId === field.waPhoneNumberId) return true;
+      if (field.telegramBotId && acc.externalId === field.telegramBotId) return true;
+      return false;
+    });
+    if (hasAccountMatch) return true;
+
+    // 2. Legacy fallback
+    return (
+      (field.waPhoneNumberId ? c.waPhoneNumberId === field.waPhoneNumberId : true) &&
+      (field.pageId ? c.pageId === field.pageId : true) &&
+      (field.telegramBotId ? c.telegramBotId === field.telegramBotId : true)
+    );
+  });
 }

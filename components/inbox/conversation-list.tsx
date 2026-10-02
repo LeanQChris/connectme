@@ -156,12 +156,20 @@ export default function ConversationList({
                       </span>
                     </div>
 
-                    {(hasRealName || conversation.assignee) && (
-                      <div className="flex items-center gap-1.5">
+                    {(hasRealName || conversation.assignee || conversation.accountName) && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {hasRealName && (
                           <p className="truncate font-mono text-[10px] text-mute">
                             {conversation.contactExternalId}
                           </p>
+                        )}
+                        {conversation.accountName && (
+                          <span
+                            title={`Received via ${conversation.accountName}`}
+                            className="shrink-0 rounded bg-surface-well px-1.5 py-px font-mono text-[9px] text-mute"
+                          >
+                            {conversation.accountName}
+                          </span>
                         )}
                         {conversation.assignee && (
                           <span

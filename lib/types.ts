@@ -49,6 +49,8 @@ export interface Conversation {
   id: string;
   userId: string;
   contactId: string;
+  accountId?: string | null;
+  accountName?: string | null;
   lastMessageAt: string;
   lastInboundAt: string | null;
   unreadCount: number;
@@ -87,6 +89,8 @@ export interface ConversationSummary {
   id: string;
   contactId: string;
   channel: Channel;
+  accountId?: string | null;
+  accountName?: string | null;
   /** Contact display name, falling back to the platform id. */
   contactName: string;
   contactExternalId: string;
@@ -133,6 +137,18 @@ export interface TenantUser {
   createdAt: string;
 }
 
+/** A connected social messaging account (Facebook Page, Instagram handle, etc.) */
+export interface ConnectedAccount {
+  id: string;
+  provider: "meta" | "telegram" | "discord";
+  channel: Channel;
+  name: string;
+  externalId: string;
+  token?: string;
+  avatarUrl?: string | null;
+  connectedAt: string;
+}
+
 /**
  * A tenant's provider credentials, decrypted for the duration of one request.
  * Everything here comes from that tenant's own settings form.
@@ -174,6 +190,8 @@ export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram"
 export interface CredentialRecord {
   userId: string;
   encrypted: string;
+  /** List of all connected multi-accounts for this tenant. */
+  accounts?: ConnectedAccount[];
   /** Meta messaging phone number id; routes whatsapp_business_account events. */
   waPhoneNumberId?: string;
   /** Facebook Page id; routes `page` and `instagram` events. */
@@ -191,6 +209,7 @@ export interface CredentialRecord {
 
 export interface TenantSettings {
   secrets: ProviderSecrets;
+  accounts: ConnectedAccount[];
   connected: Record<ConnectionFlag, boolean>;
   pageId: string | null;
   pageName: string | null;
@@ -203,6 +222,7 @@ export interface TenantSettings {
 /** Settings payload: rendered on the server, then refreshed by the API. */
 export interface SettingsPayload {
   settings: {
+    accounts: ConnectedAccount[];
     connected: Record<ConnectionFlag, boolean>;
     pageId: string | null;
     pageName: string | null;

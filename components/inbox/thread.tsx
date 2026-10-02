@@ -463,6 +463,14 @@ export default function Thread({
               >
                 {channelInfo.label}
               </span>
+              {conversation.accountName && (
+                <span
+                  title={`Received via ${conversation.accountName}`}
+                  className="inline-flex items-center rounded-full border border-hairline bg-surface-well px-2 py-0.2 font-mono text-[10px] text-body"
+                >
+                  via {conversation.accountName}
+                </span>
+              )}
               {archived && (
                 <span className="inline-flex items-center rounded-full bg-surface-well px-2 py-0.2 font-mono text-[10px] font-medium tracking-wide uppercase text-mute">
                   Archived
