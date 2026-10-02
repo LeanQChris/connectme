@@ -63,24 +63,31 @@ export const config = {
   /** Central Meta Platform App ID for 1-click OAuth & Embedded Signup. */
   get metaAppId(): string | undefined {
     return (
+      readOptional("APP_ID") ??
+      readOptional("NEXT_PUBLIC_APP_ID") ??
       readOptional("META_APP_ID") ??
       readOptional("NEXT_PUBLIC_META_APP_ID") ??
-      readOptional("APP_ID") ??
-      readOptional("NEXT_PUBLIC_APP_ID")
+      readOptional("FACEBOOK_APP_ID") ??
+      readOptional("FB_APP_ID")
     );
   },
 
   /** Central Meta Platform App Secret used to exchange tokens & verify webhooks. */
   get metaAppSecret(): string | undefined {
-    return readOptional("META_APP_SECRET") ?? readOptional("APP_SECRET");
+    return (
+      readOptional("APP_SECRET") ??
+      readOptional("META_APP_SECRET") ??
+      readOptional("FACEBOOK_APP_SECRET") ??
+      readOptional("FB_APP_SECRET")
+    );
   },
 
   /** Central webhook verify token configured in the Meta App Developer Dashboard. */
   get metaWebhookVerifyToken(): string | undefined {
     return (
-      readOptional("META_WEBHOOK_VERIFY_TOKEN") ??
       readOptional("WEBHOOK_VERIFY_TOKEN") ??
-      readOptional("VERIFY_TOKEN")
+      readOptional("VERIFY_TOKEN") ??
+      readOptional("META_WEBHOOK_VERIFY_TOKEN")
     );
   },
 

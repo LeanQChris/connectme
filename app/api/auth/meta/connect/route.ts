@@ -14,7 +14,7 @@ export async function GET(request: Request): Promise<Response> {
 
   if (!config.metaAppId) {
     return NextResponse.json(
-      { error: "META_APP_ID is not configured on the server." },
+      { error: "APP_ID is not configured in server environment (.env). Restart your server if you just added it." },
       { status: 500 },
     );
   }

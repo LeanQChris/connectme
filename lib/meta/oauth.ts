@@ -55,7 +55,7 @@ export function verifyOAuthState(state: string): { userId: string } | null {
 export function getMetaAuthorizationUrl(userId: string, redirectUri: string): string {
   const appId = config.metaAppId;
   if (!appId) {
-    throw new Error("META_APP_ID is not configured in server environment.");
+    throw new Error("APP_ID is not configured in server environment.");
   }
 
   const state = createOAuthState(userId);
@@ -80,7 +80,7 @@ export async function exchangeCodeForUserToken(
   const appId = config.metaAppId;
   const appSecret = config.metaAppSecret;
   if (!appId || !appSecret) {
-    throw new Error("META_APP_ID or META_APP_SECRET is missing.");
+    throw new Error("APP_ID or APP_SECRET is missing.");
   }
 
   const url = new URL(graphUrl(config.graphVersion, "oauth/access_token"));
@@ -105,7 +105,7 @@ export async function getLongLivedUserToken(shortLivedToken: string): Promise<st
   const appId = config.metaAppId;
   const appSecret = config.metaAppSecret;
   if (!appId || !appSecret) {
-    throw new Error("META_APP_ID or META_APP_SECRET is missing.");
+    throw new Error("APP_ID or APP_SECRET is missing.");
   }
 
   const url = new URL(graphUrl(config.graphVersion, "oauth/access_token"));
