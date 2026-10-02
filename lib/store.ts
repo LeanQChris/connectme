@@ -285,8 +285,11 @@ export async function updateOutboundStatus(
   });
 }
 
-async function backfillProfiles(data: StoreData): Promise<boolean> {
-  let changed = false;
+export async function listConversations(channel?: Channel): Promise<ConversationSummary[]> {
+  const data = await read();
+  let updatedAny = false;
+
+  // Resolve profiles for any contact missing a real name or avatar
   for (const contact of data.contacts) {
     const isMissingOrNumericName =
       !contact.name ||
@@ -298,27 +301,21 @@ async function backfillProfiles(data: StoreData): Promise<boolean> {
         const profile = await fetchMessengerUserProfile(contact.externalId);
         if (profile.name && contact.name !== profile.name) {
           contact.name = profile.name;
-          changed = true;
+          updatedAny = true;
         }
         if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
           contact.avatarUrl = profile.avatarUrl;
-          changed = true;
+          updatedAny = true;
         }
       } catch {
-        // Continue if profile fetch fails
+        // ignore
       }
     }
   }
-  return changed;
-}
 
-export async function listConversations(channel?: Channel): Promise<ConversationSummary[]> {
-  const data = await read();
-  
-  // Background profile backfill if needed
-  void backfillProfiles(data).then((changed) => {
-    if (changed) void tx(() => {}); // Persist backfill changes in background
-  });
+  if (updatedAny) {
+    void write(data);
+  }
 
   return data.conversations
     .map((conv) => summarize(conv, data))
@@ -360,17 +357,45 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
   const data = await read();
   const conversation = data.conversations.find((c) => c.id === id);
   if (!conversation) return null;
-  const summary = summarize(conversation, data);
-  if (!summary) return null;
+
+  const contact = data.contacts.find((c) => c.id === conversation.contactId);
+  let updatedAny = false;
+
+  if (contact && contact.channel === "messenger") {
+    const isMissingOrNumericName =
+      !contact.name ||
+      contact.name === contact.externalId ||
+      /^\d+$/.test(contact.name.trim());
+
+    if (isMissingOrNumericName || !contact.avatarUrl) {
+      try {
+        const profile = await fetchMessengerUserProfile(contact.externalId);
+        if (profile.name && contact.name !== profile.name) {
+          contact.name = profile.name;
+          updatedAny = true;
+        }
+        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
+          contact.avatarUrl = profile.avatarUrl;
+          updatedAny = true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   const messages = data.messages
     .filter((m) => m.conversationId === id)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   // Quick parallel attachment backfill
-  const changed = await backfillMessages(messages);
-  if (changed) {
-    void write(data); // persist updated attachments
+  const changedMsg = await backfillMessages(messages);
+  if (updatedAny || changedMsg) {
+    void write(data); // persist updated profile and attachments
   }
+
+  const summary = summarize(conversation, data);
+  if (!summary) return null;
 
   return { conversation: summary, messages };
 }

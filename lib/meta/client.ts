@@ -69,30 +69,41 @@ export async function fetchMessengerUserProfile(
   psid: string,
   accessToken?: string,
 ): Promise<{ name: string | null; avatarUrl: string | null }> {
-  if (profileCache.has(psid)) {
-    return profileCache.get(psid)!;
+  const cached = profileCache.get(psid);
+  if (cached && (cached.name || cached.avatarUrl)) {
+    return cached;
   }
 
   const token = accessToken ?? config.fbPageAccessToken ?? process.env.FB_PAGE_ACCESS_TOKEN?.trim();
   if (!token) return { name: null, avatarUrl: null };
 
+  const version = config.graphVersion || "v21.0";
+
+  // Try fetching standard profile fields
   try {
-    const version = config.graphVersion || "v21.0";
-    const url = `https://graph.facebook.com/${version}/${psid}?fields=first_name,last_name,name,profile_pic&access_token=${token}`;
-    const response = await fetch(url, {
+    let url = `https://graph.facebook.com/${version}/${psid}?fields=first_name,last_name,name,profile_pic&access_token=${token}`;
+    let response = await fetch(url, {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
 
+    // Fallback if full fields query fails
+    if (!response.ok) {
+      url = `https://graph.facebook.com/${version}/${psid}?fields=first_name,last_name,profile_pic&access_token=${token}`;
+      response = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+    }
+
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
       console.warn(`[meta] profile fetch HTTP ${response.status} for PSID ${psid}: ${errText}`);
-      // Cache empty result for 30s to prevent spamming failed calls
-      const empty = { name: null, avatarUrl: null };
-      profileCache.set(psid, empty);
-      return empty;
+      return { name: null, avatarUrl: null };
     }
+
     const data = (await response.json()) as {
       first_name?: string;
       last_name?: string;
@@ -109,7 +120,11 @@ export async function fetchMessengerUserProfile(
       name: fullName,
       avatarUrl: data.profile_pic ?? null,
     };
-    profileCache.set(psid, result);
+
+    if (result.name || result.avatarUrl) {
+      profileCache.set(psid, result);
+    }
+
     return result;
   } catch (error) {
     console.warn(`[meta] failed to fetch profile for PSID ${psid}:`, error);
