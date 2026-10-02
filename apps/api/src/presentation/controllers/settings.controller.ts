@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Body, Headers, Inject } from "@nestjs/common";
+import { Controller, Get, Post, Query, Body, Inject } from "@nestjs/common";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
 import { AesVaultService } from "@connectme/channels";
 import {
@@ -7,6 +7,8 @@ import {
   ConnectedAccountDto,
   Channel,
 } from "@connectme/contracts";
+import { TenantId } from "../auth/tenant-id.decorator";
+import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
 
 @Controller("api/settings")
 export class SettingsController {
@@ -16,15 +18,8 @@ export class SettingsController {
     private readonly aesVault: AesVaultService,
   ) {}
 
-  private async resolveTenantId(headerTenantId?: string): Promise<string> {
-    if (headerTenantId) return headerTenantId;
-    const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-    return defaultTenant.id;
-  }
-
   @Get()
-  async getSettings(@Headers("x-tenant-id") headerTenantId: string): Promise<SettingsPayloadDto> {
-    const tenantId = await this.resolveTenantId(headerTenantId);
+  async getSettings(@TenantId() tenantId: string): Promise<SettingsPayloadDto> {
     const creds = await this.tenantRepo.getCredentials(tenantId);
     const accounts = await this.tenantRepo.findConnectedAccounts(tenantId);
 
@@ -77,10 +72,9 @@ export class SettingsController {
 
   @Post()
   async saveSettings(
-    @Headers("x-tenant-id") headerTenantId: string,
+    @TenantId() tenantId: string,
     @Body() body: { secrets: ProviderSecretsDto },
   ) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
     const s = body.secrets || {};
 
     const partial: any = {};
@@ -101,10 +95,9 @@ export class SettingsController {
 
   @Post("verify")
   async verifyConnection(
-    @Headers("x-tenant-id") headerTenantId: string,
+    @TenantId() tenantId: string,
     @Body() body: { channel: string },
   ) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
     const creds = await this.tenantRepo.getCredentials(tenantId);
     if (!creds) return { ok: false, detail: "No credentials saved." };
 
@@ -115,7 +108,7 @@ export class SettingsController {
         if (!creds.waPhoneNumberId || !creds.waAccessTokenEnc) {
           return { ok: false, detail: "Phone number id and access token are both required." };
         }
-        const token = this.aesVault.decrypt<string>(creds.waAccessTokenEnc) || creds.waAccessTokenEnc;
+        const token = decryptStrict(this.aesVault, creds.waAccessTokenEnc);
         const url = `https://graph.facebook.com/${graphVersion}/${creds.waPhoneNumberId}?fields=display_phone_number,verified_name&access_token=${encodeURIComponent(token)}`;
         const res = await fetch(url).catch(() => null);
         const data = await res?.json().catch(() => ({}));
@@ -127,7 +120,7 @@ export class SettingsController {
         if (!creds.pageAccessTokenEnc) {
           return { ok: false, detail: "Page access token is required." };
         }
-        const token = this.aesVault.decrypt<string>(creds.pageAccessTokenEnc) || creds.pageAccessTokenEnc;
+        const token = decryptStrict(this.aesVault, creds.pageAccessTokenEnc);
         const url = `https://graph.facebook.com/${graphVersion}/me?fields=id,name&access_token=${encodeURIComponent(token)}`;
         const res = await fetch(url).catch(() => null);
         const data = await res?.json().catch(() => ({}));
@@ -138,7 +131,7 @@ export class SettingsController {
         if (!creds.telegramTokenEnc) {
           return { ok: false, detail: "Telegram bot token is required." };
         }
-        const token = this.aesVault.decrypt<string>(creds.telegramTokenEnc) || creds.telegramTokenEnc;
+        const token = decryptStrict(this.aesVault, creds.telegramTokenEnc);
         const res = await fetch(`https://api.telegram.org/bot${token}/getMe`).catch(() => null);
         const data = await res?.json().catch(() => ({}));
         if (!res?.ok || !data.ok) return { ok: false, detail: data?.description || "Telegram bot verification failed" };
@@ -148,7 +141,7 @@ export class SettingsController {
         if (!creds.discordBotTokenEnc) {
           return { ok: false, detail: "Discord bot token is required." };
         }
-        const token = this.aesVault.decrypt<string>(creds.discordBotTokenEnc) || creds.discordBotTokenEnc;
+        const token = decryptStrict(this.aesVault, creds.discordBotTokenEnc);
         const res = await fetch("https://discord.com/api/v10/users/@me", {
           headers: { Authorization: `Bot ${token}` },
         }).catch(() => null);
@@ -163,14 +156,13 @@ export class SettingsController {
 
   @Get("telegram/setup")
   async setupTelegram(
-    @Headers("x-tenant-id") headerTenantId: string,
+    @TenantId() tenantId: string,
     @Query("url") domainUrl?: string,
   ) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
     const creds = await this.tenantRepo.getCredentials(tenantId);
     if (!creds?.telegramTokenEnc) return { error: "Telegram bot token not configured" };
 
-    const token = this.aesVault.decrypt<string>(creds.telegramTokenEnc) || creds.telegramTokenEnc;
+    const token = decryptStrict(this.aesVault, creds.telegramTokenEnc);
     const botId = token.split(":")[0];
 
     if (!domainUrl) {
@@ -183,18 +175,20 @@ export class SettingsController {
     }
 
     const webhookUrl = `${domainUrl.replace(/\/$/, "")}/api/webhook/telegram/${botId}`;
-    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+    const secretToken = creds.webhookVerifyToken || "connectme_verify_token";
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&secret_token=${encodeURIComponent(secretToken)}`,
+    );
     const data = await res.json().catch(() => ({}));
     return { result: data, webhookUrl };
   }
 
   @Get("discord/setup")
-  async setupDiscord(@Headers("x-tenant-id") headerTenantId: string) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
+  async setupDiscord(@TenantId() tenantId: string) {
     const creds = await this.tenantRepo.getCredentials(tenantId);
     if (!creds?.discordBotTokenEnc) return { error: "Discord bot token not configured" };
 
-    const token = this.aesVault.decrypt<string>(creds.discordBotTokenEnc) || creds.discordBotTokenEnc;
+    const token = decryptStrict(this.aesVault, creds.discordBotTokenEnc);
     const meRes = await fetch("https://discord.com/api/v10/users/@me", {
       headers: { Authorization: `Bot ${token}` },
     });

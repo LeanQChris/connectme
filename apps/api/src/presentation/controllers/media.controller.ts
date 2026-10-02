@@ -3,17 +3,22 @@ import {
   Get,
   Post,
   Body,
-  Headers,
   Query,
   Res,
   Inject,
   Logger,
   NotFoundException,
+  BadRequestException,
 } from "@nestjs/common";
 import type { Response } from "express";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
 import { AesVaultService } from "@connectme/channels";
 import { S3PresignService } from "../../infrastructure/storage/s3-presign.service";
+import { TenantId } from "../auth/tenant-id.decorator";
+import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
+import { isAllowedMediaHost } from "../../infrastructure/security/allowed-media-hosts";
+
+const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
 
 @Controller("api/media")
 export class MediaController {
@@ -32,14 +37,9 @@ export class MediaController {
    */
   @Post("presign")
   async presign(
-    @Headers("x-tenant-id") headerTenantId: string,
+    @TenantId() tenantId: string,
     @Body() body: { filename?: string; contentType?: string },
   ) {
-    const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant(
-      "system",
-      "admin@connectme.local",
-    );
-    const tenantId = headerTenantId || defaultTenant.id;
     const safeName = (body?.filename || "upload.bin")
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .slice(0, 80);
@@ -48,24 +48,26 @@ export class MediaController {
   }
 
   /**
-   * Proxies Meta/WhatsApp media downloads using the tenant's Bearer token
+   * Proxies Meta/WhatsApp media downloads using the tenant's Bearer token.
+   * Only allow-listed hosts may be fetched to prevent SSRF.
    */
   @Get()
   async getMedia(
+    @TenantId() tenantId: string,
     @Query("id") mediaId: string,
     @Query("url") directUrl: string,
-    @Query("tenantId") queryTenantId: string,
     @Res() res: Response,
   ) {
-    const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-    const tenantId = queryTenantId || defaultTenant.id;
-    const creds = await this.tenantRepo.getCredentials(tenantId);
+    if (directUrl && !isAllowedMediaHost(directUrl)) {
+      throw new BadRequestException("Media host is not allowed.");
+    }
 
+    const creds = await this.tenantRepo.getCredentials(tenantId);
     if (!creds?.waAccessTokenEnc) {
       throw new NotFoundException("WhatsApp credentials not found for media download");
     }
 
-    const token = this.aesVault.decrypt<string>(creds.waAccessTokenEnc) || creds.waAccessTokenEnc;
+    const token = decryptStrict(this.aesVault, creds.waAccessTokenEnc);
 
     try {
       let downloadUrl = directUrl;
@@ -81,19 +83,32 @@ export class MediaController {
       if (!downloadUrl) {
         throw new NotFoundException("Could not retrieve media URL");
       }
+      if (!isAllowedMediaHost(downloadUrl)) {
+        throw new BadRequestException("Resolved media host is not allowed.");
+      }
 
       const mediaRes = await fetch(downloadUrl, {
         headers: { Authorization: `Bearer ${token}` },
+        redirect: "error",
       });
+
+      const declaredLength = Number(mediaRes.headers.get("content-length") || "0");
+      if (declaredLength > MAX_MEDIA_BYTES) {
+        throw new BadRequestException("Media exceeds the maximum allowed size.");
+      }
 
       const contentType = mediaRes.headers.get("content-type") || "application/octet-stream";
       res.setHeader("Content-Type", contentType);
 
       const buffer = Buffer.from(await mediaRes.arrayBuffer());
+      if (buffer.byteLength > MAX_MEDIA_BYTES) {
+        throw new BadRequestException("Media exceeds the maximum allowed size.");
+      }
       return res.send(buffer);
     } catch (err: any) {
+      if (err instanceof BadRequestException || err instanceof NotFoundException) throw err;
       this.logger.error(`Media proxy error: ${err.message}`, err.stack);
-      return res.status(500).json({ error: err.message });
+      return res.status(502).json({ error: "Media download failed" });
     }
   }
 }

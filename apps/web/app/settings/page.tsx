@@ -38,7 +38,7 @@ const defaultSettingsPayload: SettingsPayload = {
 };
 
 export default async function SettingsPage() {
-  const { userId } = await auth();
+  const { userId, getToken } = await auth();
 
   if (!userId) {
     return <div className="min-h-[100dvh] bg-canvas" />;
@@ -46,8 +46,9 @@ export default async function SettingsPage() {
 
   let initial: SettingsPayload = defaultSettingsPayload;
   try {
+    const token = await getToken();
     const res = await fetch(`${envConfig.apiUrl}/api/settings`, {
-      headers: { "x-tenant-id": userId },
+      headers: token ? { authorization: `Bearer ${token}` } : {},
       cache: "no-store",
     });
 

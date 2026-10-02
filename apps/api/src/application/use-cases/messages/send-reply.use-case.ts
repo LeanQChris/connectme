@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException, Inject } from "@nestjs/common";
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  BadGatewayException,
+  Inject,
+} from "@nestjs/common";
 import {
   MessageDirection,
   MessageStatus,
@@ -73,6 +79,7 @@ export class SendReplyUseCase {
       authorName: input.author || "Agent",
     });
 
+    let delivered = true;
     try {
       let externalId: string | null = null;
       const ctx = {
@@ -106,16 +113,25 @@ export class SendReplyUseCase {
       msg.status = MessageStatus.DELIVERED;
       await this.messageRepo.updateStatus(msg.id, MessageStatus.DELIVERED);
     } catch (err: any) {
+      delivered = false;
       msg.status = MessageStatus.FAILED;
       msg.errorDetail = err.message || "Failed to dispatch message to channel";
       await this.messageRepo.updateStatus(msg.id, MessageStatus.FAILED, msg.errorDetail ?? undefined);
     }
 
-    // Update conversation last message timestamp & snippet
-    await this.convRepo.updateLastMessage(input.tenantId, conv.id, input.text || "Attachment", false);
+    if (delivered) {
+      // Update conversation last message timestamp & snippet
+      await this.convRepo.updateLastMessage(input.tenantId, conv.id, input.text || "Attachment", false);
+    }
 
-    // Real-time broadcast
+    // Real-time broadcast (including failed messages, so the UI reflects reality)
     this.realtimeGateway.broadcastNewMessage(input.tenantId, conv.id, msg);
+
+    if (!delivered) {
+      throw new BadGatewayException(
+        msg.errorDetail || `Failed to deliver message on ${conv.channel.toLowerCase()}`,
+      );
+    }
 
     return msg;
   }

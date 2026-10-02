@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { io, Socket } from "socket.io-client";
 import { envConfig } from "@/core/config/env.config";
@@ -102,28 +103,41 @@ export function useUploadPostMedia() {
 }
 
 /** Invalidates scheduled queries when the worker emits an update. */
-export function useSchedulingRealtime(tenantId = "system") {
+export function useSchedulingRealtime() {
   const queryClient = useQueryClient();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const socket = io(envConfig.socketUrl, {
-      transports: ["websocket", "polling"],
-      reconnectionAttempts: 5,
-    });
-    socketRef.current = socket;
+    if (!isLoaded || !isSignedIn) return;
 
-    socket.on("connect", () => {
-      socket.emit("join:tenant", { tenantId });
-    });
+    let cancelled = false;
 
-    socket.on("scheduled:update", () => {
-      void queryClient.invalidateQueries({ queryKey: ["scheduled-posts"] });
-      void queryClient.invalidateQueries({ queryKey: ["scheduled-messages"] });
-    });
+    (async () => {
+      const token = await getToken();
+      if (!token || cancelled) return;
+
+      const socket = io(envConfig.socketUrl, {
+        transports: ["websocket", "polling"],
+        reconnectionAttempts: 5,
+        auth: { token },
+      });
+      socketRef.current = socket;
+
+      socket.on("connect", () => {
+        socket.emit("join:tenant");
+      });
+
+      socket.on("scheduled:update", () => {
+        void queryClient.invalidateQueries({ queryKey: ["scheduled-posts"] });
+        void queryClient.invalidateQueries({ queryKey: ["scheduled-messages"] });
+      });
+    })();
 
     return () => {
-      socket.disconnect();
+      cancelled = true;
+      socketRef.current?.disconnect();
+      socketRef.current = null;
     };
-  }, [tenantId, queryClient]);
+  }, [isLoaded, isSignedIn, getToken, queryClient]);
 }

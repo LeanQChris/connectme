@@ -8,11 +8,24 @@ import {
   ConnectedSocket,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { Logger } from "@nestjs/common";
+import { Logger, Inject } from "@nestjs/common";
+import { ClerkTokenVerifier } from "../auth/clerk-token-verifier.service";
+import { IConversationRepository } from "../../domain/repositories/i-conversation.repository";
+
+function socketOrigins(): string[] | boolean {
+  const configured = (process.env.CORS_ORIGINS || process.env.NEXT_PUBLIC_APP_URL || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (process.env.NODE_ENV !== "production") configured.push("http://localhost:3000");
+  const unique = Array.from(new Set(configured));
+  return unique.length ? unique : false;
+}
 
 @WebSocketGateway({
   cors: {
-    origin: "*",
+    origin: socketOrigins(),
+    credentials: true,
   },
 })
 export class InboxRealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -21,33 +34,51 @@ export class InboxRealtimeGateway implements OnGatewayConnection, OnGatewayDisco
 
   private readonly logger = new Logger(InboxRealtimeGateway.name);
 
-  handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+  constructor(
+    private readonly verifier: ClerkTokenVerifier,
+    @Inject("IConversationRepository")
+    private readonly convRepo: IConversationRepository,
+  ) {}
+
+  async handleConnection(client: Socket) {
+    const token = client.handshake.auth?.token;
+    if (typeof token !== "string" || !token) {
+      this.disconnect(client, "Missing session token");
+      return;
+    }
+
+    try {
+      const session = await this.verifier.verify(token);
+      client.data.tenantId = session.sub;
+      client.join(`tenant:${session.sub}`);
+      this.logger.debug(`Client ${client.id} authenticated for tenant ${session.sub}`);
+    } catch {
+      this.disconnect(client, "Invalid session token");
+    }
   }
 
   handleDisconnect(client: Socket) {
-    this.logger.log(`Client disconnected: ${client.id}`);
+    this.logger.debug(`Client disconnected: ${client.id}`);
   }
 
   @SubscribeMessage("join:tenant")
-  handleJoinTenant(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { tenantId: string },
-  ) {
-    if (data?.tenantId) {
-      client.join(`tenant:${data.tenantId}`);
-      this.logger.debug(`Client ${client.id} joined room tenant:${data.tenantId}`);
-    }
+  handleJoinTenant(@ConnectedSocket() client: Socket) {
+    const tenantId = client.data?.tenantId;
+    if (tenantId) client.join(`tenant:${tenantId}`);
   }
 
   @SubscribeMessage("join:conversation")
-  handleJoinConversation(
+  async handleJoinConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
-    if (data?.conversationId) {
-      client.join(`conv:${data.conversationId}`);
-    }
+    const tenantId = client.data?.tenantId;
+    if (!tenantId || !data?.conversationId) return;
+
+    const conversation = await this.convRepo.findById(tenantId, data.conversationId);
+    if (!conversation) return;
+
+    client.join(`conv:${data.conversationId}`);
   }
 
   broadcastNewMessage(tenantId: string, conversationId: string, message: unknown) {
@@ -69,5 +100,11 @@ export class InboxRealtimeGateway implements OnGatewayConnection, OnGatewayDisco
   broadcastScheduledUpdate(tenantId: string, item: unknown) {
     if (!this.server) return;
     this.server.to(`tenant:${tenantId}`).emit("scheduled:update", item);
+  }
+
+  private disconnect(client: Socket, reason: string) {
+    this.logger.warn(`Rejecting socket ${client.id}: ${reason}`);
+    client.emit("unauthorized", { reason });
+    client.disconnect(true);
   }
 }

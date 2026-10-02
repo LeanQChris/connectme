@@ -7,9 +7,13 @@ export class AesVaultService {
   private readonly masterKey: string;
 
   constructor() {
-    this.masterKey =
-      process.env.ENCRYPTION_KEY ||
-      "dev-master-encryption-key-for-local-development-only-32ch";
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) {
+      throw new Error(
+        "ENCRYPTION_KEY is not set. Generate one with `openssl rand -hex 32` and set it identically for the API and worker.",
+      );
+    }
+    this.masterKey = key;
   }
 
   encrypt<T = unknown>(data: T): string {

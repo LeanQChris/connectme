@@ -1,31 +1,21 @@
-import { Controller, Post, Body, Headers, Inject } from "@nestjs/common";
-import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
+import { Controller, Post, Body } from "@nestjs/common";
 import { SendReplyUseCase } from "../../application/use-cases/messages/send-reply.use-case";
 import { AddInternalNoteUseCase } from "../../application/use-cases/messages/add-internal-note.use-case";
 import { SendMessageDto, AddInternalNoteDto } from "@connectme/contracts";
+import { TenantId } from "../auth/tenant-id.decorator";
 
 @Controller("api/messages")
 export class MessagesController {
   constructor(
-    @Inject("ITenantRepository")
-    private readonly tenantRepo: ITenantRepository,
     private readonly sendReplyUseCase: SendReplyUseCase,
     private readonly addNoteUseCase: AddInternalNoteUseCase,
   ) {}
 
-  private async resolveTenantId(headerTenantId?: string): Promise<string> {
-    if (headerTenantId) return headerTenantId;
-    const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-    return defaultTenant.id;
-  }
-
   @Post()
   async createMessage(
-    @Headers("x-tenant-id") headerTenantId: string,
+    @TenantId() tenantId: string,
     @Body() dto: SendMessageDto & { isNote?: boolean },
   ) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
-
     if (dto.isNote) {
       return this.addNoteUseCase.execute({
         tenantId,
@@ -46,11 +36,7 @@ export class MessagesController {
   }
 
   @Post("note")
-  async createNote(
-    @Headers("x-tenant-id") headerTenantId: string,
-    @Body() dto: AddInternalNoteDto,
-  ) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
+  async createNote(@TenantId() tenantId: string, @Body() dto: AddInternalNoteDto) {
     return this.addNoteUseCase.execute({
       tenantId,
       conversationId: dto.conversationId,

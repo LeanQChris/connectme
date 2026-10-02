@@ -9,13 +9,14 @@ export const metadata = {
 };
 
 export default async function InboxPage() {
-  const { userId } = await auth();
+  const { userId, getToken } = await auth();
 
   // If user is authenticated, check if they have at least one channel configured
   if (userId) {
     try {
+      const token = await getToken();
       const res = await fetch(`${envConfig.apiUrl}/api/settings`, {
-        headers: { "x-tenant-id": userId },
+        headers: token ? { authorization: `Bearer ${token}` } : {},
         cache: "no-store",
       });
 

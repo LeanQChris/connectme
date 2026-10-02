@@ -1,6 +1,8 @@
-import { Controller, Get, Query, Headers, Inject } from "@nestjs/common";
+import { Controller, Get, Query, Inject } from "@nestjs/common";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
 import { AesVaultService } from "@connectme/channels";
+import { TenantId } from "../auth/tenant-id.decorator";
+import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
 
 @Controller("api")
 export class SetupController {
@@ -10,22 +12,12 @@ export class SetupController {
     private readonly aesVault: AesVaultService,
   ) {}
 
-  private async resolveTenantId(headerTenantId?: string): Promise<string> {
-    if (headerTenantId) return headerTenantId;
-    const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-    return defaultTenant.id;
-  }
-
   @Get("telegram/setup")
-  async setupTelegram(
-    @Headers("x-tenant-id") headerTenantId: string,
-    @Query("url") domainUrl?: string,
-  ) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
+  async setupTelegram(@TenantId() tenantId: string, @Query("url") domainUrl?: string) {
     const creds = await this.tenantRepo.getCredentials(tenantId);
     if (!creds?.telegramTokenEnc) return { error: "Telegram bot token not configured" };
 
-    const token = this.aesVault.decrypt<string>(creds.telegramTokenEnc) || creds.telegramTokenEnc;
+    const token = decryptStrict(this.aesVault, creds.telegramTokenEnc);
     const botId = token.split(":")[0];
 
     if (!domainUrl) {
@@ -38,18 +30,20 @@ export class SetupController {
     }
 
     const webhookUrl = `${domainUrl.replace(/\/$/, "")}/api/webhook/telegram/${botId}`;
-    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+    const secretToken = creds.webhookVerifyToken || "connectme_verify_token";
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&secret_token=${encodeURIComponent(secretToken)}`,
+    );
     const data = await res.json().catch(() => ({}));
     return { result: data, webhookUrl };
   }
 
   @Get("discord/setup")
-  async setupDiscord(@Headers("x-tenant-id") headerTenantId: string) {
-    const tenantId = await this.resolveTenantId(headerTenantId);
+  async setupDiscord(@TenantId() tenantId: string) {
     const creds = await this.tenantRepo.getCredentials(tenantId);
     if (!creds?.discordBotTokenEnc) return { error: "Discord bot token not configured" };
 
-    const token = this.aesVault.decrypt<string>(creds.discordBotTokenEnc) || creds.discordBotTokenEnc;
+    const token = decryptStrict(this.aesVault, creds.discordBotTokenEnc);
     const meRes = await fetch("https://discord.com/api/v10/users/@me", {
       headers: { Authorization: `Bot ${token}` },
     });

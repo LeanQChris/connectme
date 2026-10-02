@@ -10,7 +10,7 @@ export interface MessagingWindowState {
 export class MessagingWindowVO {
   constructor(
     public readonly channel: ChannelType,
-    public readonly lastInboundAt: Date | null,
+    public readonly lastInboundAt?: Date | null,
   ) {}
 
   public calculate(now: Date = new Date()): MessagingWindowState {

@@ -35,8 +35,17 @@ export class ProcessInboundDiscordUseCase {
     const acquired = await this.idempotency.acquire(lockKey);
     if (!acquired) return; // Deduplicated
 
-    const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-    const tenantId = defaultTenant.id;
+    const account = interaction.application_id
+      ? await this.tenantRepo.findAccountByExternalId(ChannelType.DISCORD, interaction.application_id)
+      : null;
+    let tenantId = account?.tenantId;
+    if (!tenantId) {
+      const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant(
+        "system",
+        "admin@connectme.local",
+      );
+      tenantId = defaultTenant.id;
+    }
 
     const channelId = interaction.channel_id || "general";
     const user = interaction.member?.user || interaction.user;

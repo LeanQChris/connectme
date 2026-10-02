@@ -8,8 +8,8 @@ import { NextResponse } from "next/server";
  * and cannot run its own `runtime` config.
  *
  * Public: the landing page, the custom /sign-in screen, the About and Privacy
- * pages, provider webhooks and the media proxy (those authenticate by signature,
- * or serve already-uploaded files).
+ * pages, provider webhooks (authenticated by signature), and the Meta OAuth
+ * callback (authenticated by a signed, single-use state parameter).
  */
 function isPublic(pathname: string): boolean {
   return (
@@ -18,17 +18,22 @@ function isPublic(pathname: string): boolean {
     pathname === "/about" ||
     pathname === "/privacy" ||
     pathname.startsWith("/api/webhook") ||
-    pathname.startsWith("/api/media")
+    pathname === "/api/auth/meta/callback"
   );
 }
 
 export default clerkMiddleware(async (auth, request) => {
   if (isPublic(request.nextUrl.pathname)) return;
 
-  const { userId } = await auth();
+  const { userId, getToken } = await auth();
   if (userId) {
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-tenant-id", userId);
+    // Forward the Clerk session token so the API can verify it independently.
+    // The API never trusts the `x-tenant-id` header.
+    const token = await getToken();
+    if (token) {
+      requestHeaders.set("authorization", `Bearer ${token}`);
+    }
     return NextResponse.next({
       request: {
         headers: requestHeaders,

@@ -105,6 +105,7 @@ export interface DiscordInteractionPayload {
   type: number;
   id: string;
   token: string;
+  application_id?: string;
   channel_id?: string;
   guild_id?: string;
   member?: {

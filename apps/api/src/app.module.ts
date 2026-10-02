@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bullmq";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import {
   Tenant,
   User,
@@ -77,12 +79,17 @@ import { ScheduledMessagesController } from "./presentation/controllers/schedule
 
 import { SetupController } from "./presentation/controllers/setup.controller";
 
+// Auth
+import { ClerkAuthGuard } from "./presentation/auth/clerk-auth.guard";
+import { ClerkTokenVerifier } from "./presentation/auth/clerk-token-verifier.service";
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [".env.local", ".env"],
     }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     TypeOrmModule.forRoot({
       type: "postgres",
       url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/connectme",
@@ -132,6 +139,11 @@ import { SetupController } from "./presentation/controllers/setup.controller";
     ScheduledMessagesController,
   ],
   providers: [
+    // Global guards: rate limiting first, then authentication.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ClerkAuthGuard },
+    ClerkTokenVerifier,
+
     // Ports & Adapters DI
     { provide: "ITenantRepository", useClass: TypeOrmTenantRepository },
     { provide: "IContactRepository", useClass: TypeOrmContactRepository },

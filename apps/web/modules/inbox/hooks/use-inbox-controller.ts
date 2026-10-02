@@ -39,7 +39,7 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
   }, [initialSelectedId, selectedId, setSelectedId]);
 
   // Connect to NestJS WebSocket gateway for 0ms live events
-  useRealtimeInbox("system", selectedId);
+  useRealtimeInbox(selectedId);
 
   // React Query cached hooks
   const { data: all = [], isLoading: loadingList } = useConversations();

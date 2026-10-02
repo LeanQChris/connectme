@@ -3,6 +3,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert";
 import { ChannelType } from "../src/domain/value-objects/channel.vo";
 import { MessagingWindowVO } from "../src/domain/value-objects/messaging-window.vo";
+import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { encryptPayload, decryptPayload, verifyHmacSha256, calculateHmacSha256 } from "@connectme/crypto";
 
 describe("Domain Layer: MessagingWindowVO", () => {
@@ -48,10 +49,30 @@ describe("Security & Crypto Layer", () => {
     const payload = { accessToken: "EAAB...", tenantId: "tenant-123" };
 
     const encrypted = encryptPayload(payload, secretKey);
-    assert.ok(encrypted.startsWith("v1."));
+    assert.ok(encrypted.startsWith("v2."));
 
     const decrypted = decryptPayload<typeof payload>(encrypted, secretKey);
     assert.deepStrictEqual(decrypted, payload);
+  });
+
+  test("AES-256-GCM uses a random salt per message", () => {
+    const secretKey = "test-secret-key-32-chars-long!!";
+    const a = encryptPayload("same", secretKey);
+    const b = encryptPayload("same", secretKey);
+    assert.notStrictEqual(a, b);
+    assert.strictEqual(decryptPayload<string>(a, secretKey), "same");
+    assert.strictEqual(decryptPayload<string>(b, secretKey), "same");
+  });
+
+  test("decrypts legacy v1 ciphertext (static salt)", () => {
+    const secretKey = "test-secret-key-32-chars-long!!";
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", scryptSync(secretKey, "connectme-secrets", 32), iv);
+    const body = Buffer.concat([cipher.update("legacy", "utf8"), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    const legacy = ["v1", iv.toString("base64url"), tag.toString("base64url"), body.toString("base64url")].join(".");
+
+    assert.strictEqual(decryptPayload<string>(legacy, secretKey), "legacy");
   });
 
   test("HMAC-SHA256 signature verification succeeds on authentic payload", () => {
