@@ -12,6 +12,7 @@ const KEYS = [
   "webhookVerifyToken",
   "pageAccessToken",
   "telegramBotToken",
+  "discordBotToken",
   "graphVersion",
 ] as const;
 
@@ -46,6 +47,7 @@ export async function GET(request: Request): Promise<Response> {
       connected: settings.connected,
       pageId: settings.pageId,
       telegramBotId: settings.telegramBotId,
+      discordBotId: settings.discordBotId,
       updatedAt: settings.updatedAt,
       // Present so the user can copy it into the Meta webhook form.
       webhookVerifyToken: secrets.webhookVerifyToken,
@@ -53,6 +55,7 @@ export async function GET(request: Request): Promise<Response> {
     webhookUrls: {
       meta: `${origin}/api/webhook`,
       telegram: botId ? `${origin}/api/webhook/telegram/${botId}` : null,
+      discord: `${origin}/api/webhook/discord`,
     },
   });
 }

@@ -197,7 +197,10 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     assignee: conv.assignee ?? null,
     tags: conv.tags ?? [],
     status: conv.status,
-    window: contact.channel === "telegram" ? { open: true, msRemaining: null } : replyWindow(conv.lastInboundAt),
+    window:
+      contact.channel === "telegram" || contact.channel === "discord"
+        ? { open: true, msRemaining: null }
+        : replyWindow(conv.lastInboundAt),
   };
 }
 

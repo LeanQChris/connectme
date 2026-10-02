@@ -1,9 +1,9 @@
 "use client";
 
-import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import UserMenu from "@/components/auth/user-menu";
 import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
 import {
   useAddNote,
@@ -199,6 +199,10 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               <span className="text-[10px] text-mute uppercase">Telegram</span>
             </div>
             <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#5865F2]" />
+              <span className="text-[10px] text-mute uppercase">Discord</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
               <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
               <span className="text-[10px] text-mute uppercase">Instagram</span>
             </div>
@@ -223,7 +227,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
             <span className="hidden sm:inline">Settings</span>
           </Link>
 
-          <UserButton />
+          <UserMenu />
         </div>
       </header>
 

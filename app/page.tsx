@@ -1,4 +1,3 @@
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import Link from "next/link";
 import ThemeToggle from "@/components/inbox/theme-toggle";
 import Logo from "@/components/logo";
@@ -36,23 +35,12 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
 
-          <SignInButton mode="modal">
-            <button
-              type="button"
-              className="flex h-8 items-center rounded-[6px] border border-hairline bg-canvas-elevated px-3 text-[12px] font-medium text-ink shadow-xs transition-colors hover:bg-surface-well"
-            >
-              Sign in
-            </button>
-          </SignInButton>
-
-          <SignUpButton mode="modal">
-            <button
-              type="button"
-              className="flex h-8 items-center rounded-[6px] bg-primary px-3 text-[12px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
-            >
-              Get started →
-            </button>
-          </SignUpButton>
+          <Link
+            href="/sign-in"
+            className="flex h-8 items-center rounded-[6px] bg-primary px-3 text-[12px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
+          >
+            Sign in
+          </Link>
         </div>
       </header>
 
@@ -86,25 +74,21 @@ export default function HomePage() {
             workspace with real-time webhooks, policy compliance, and 0ms cached UI.
           </p>
 
-          {/* Action CTAs (Pills per DESIGN.md marketing buttons) */}
+          {/* Action CTA (pill per DESIGN.md marketing buttons) */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <SignUpButton mode="modal">
-              <button
-                type="button"
-                className="flex h-11 items-center justify-center rounded-full bg-primary px-6 text-[14px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
-              >
-                Start free workspace ↗
-              </button>
-            </SignUpButton>
+            <Link
+              href="/sign-in"
+              className="flex h-11 items-center justify-center rounded-full bg-primary px-6 text-[14px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
+            >
+              Continue with Google ↗
+            </Link>
 
-            <SignInButton mode="modal">
-              <button
-                type="button"
-                className="flex h-11 items-center justify-center rounded-full border border-hairline bg-canvas-elevated px-6 text-[14px] font-medium text-ink shadow-2xs transition-colors hover:bg-surface-well"
-              >
-                Sign in
-              </button>
-            </SignInButton>
+            <a
+              href="#features"
+              className="flex h-11 items-center justify-center rounded-full border border-hairline bg-canvas-elevated px-6 text-[14px] font-medium text-ink shadow-2xs transition-colors hover:bg-surface-well"
+            >
+              See features
+            </a>
           </div>
 
           {/* Live Channels Health Indicator */}
@@ -443,6 +427,14 @@ export default function HomePage() {
             <span>·</span>
             <Link href="/settings" className="hover:text-ink transition-colors">
               Settings
+            </Link>
+            <span>·</span>
+            <Link href="/about" className="hover:text-ink transition-colors">
+              About
+            </Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:text-ink transition-colors">
+              Privacy
             </Link>
             <span>·</span>
             <Link href="/inbox" className="hover:text-ink transition-colors">

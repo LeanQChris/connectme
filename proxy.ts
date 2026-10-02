@@ -7,14 +7,16 @@ import { NextResponse } from "next/server";
  * Next 16 renamed `middleware.ts` to `proxy.ts`. It runs on the Node.js runtime
  * and cannot run its own `runtime` config.
  *
- * Public: the landing page, Clerk's own routes, provider webhooks and the media
- * proxy (those authenticate by signature, or serve already-uploaded files).
+ * Public: the landing page, the custom /sign-in screen, the About and Privacy
+ * pages, provider webhooks and the media proxy (those authenticate by signature,
+ * or serve already-uploaded files).
  */
 function isPublic(pathname: string): boolean {
   return (
     pathname === "/" ||
     pathname.startsWith("/sign-in") ||
-    pathname.startsWith("/sign-up") ||
+    pathname === "/about" ||
+    pathname === "/privacy" ||
     pathname.startsWith("/api/webhook") ||
     pathname.startsWith("/api/media")
   );
@@ -26,7 +28,7 @@ export default clerkMiddleware(async (auth, request) => {
   const { userId } = await auth();
   if (userId) return;
 
-  // API callers get JSON; pages get sent to the Clerk sign-in screen.
+  // API callers get JSON; pages get sent to the custom Google sign-in screen.
   // NextResponse is required here: a static Response has immutable headers,
   // which Clerk cannot append its own headers to.
   if (request.nextUrl.pathname.startsWith("/api/")) {
@@ -34,7 +36,11 @@ export default clerkMiddleware(async (auth, request) => {
   }
 
   const signIn = new URL("/sign-in", request.url);
-  signIn.searchParams.set("redirect_url", request.url);
+  // Path only: the sign-in screen reads it back as a same-origin destination.
+  signIn.searchParams.set(
+    "redirect_url",
+    request.nextUrl.pathname + request.nextUrl.search,
+  );
   return NextResponse.redirect(signIn);
 });
 

@@ -57,6 +57,7 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
       webhookVerifyToken: "",
       pageAccessToken: "",
       telegramBotToken: "",
+      discordBotToken: "",
       graphVersion: GRAPH_VERSION_FALLBACK,
     },
   );
@@ -68,6 +69,7 @@ function connectedFlags(secrets: ProviderSecrets): Record<ConnectionFlag, boolea
     messenger: Boolean(secrets.pageAccessToken),
     instagram: Boolean(secrets.pageAccessToken),
     telegram: Boolean(secrets.telegramBotToken),
+    discord: Boolean(secrets.discordBotToken),
   };
 }
 
@@ -79,6 +81,7 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
     connected: connectedFlags(secrets),
     pageId: record?.pageId ?? null,
     telegramBotId: record?.telegramBotId ?? null,
+    discordBotId: record?.discordBotId ?? null,
     updatedAt: record?.updatedAt ?? null,
   };
 }

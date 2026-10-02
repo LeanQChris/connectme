@@ -90,3 +90,30 @@ export async function verifyTelegram(secrets: ProviderSecrets): Promise<VerifyRe
   const name = payload.result.first_name ?? payload.result.username ?? "bot";
   return { ok: true, detail: `Connected as @${payload.result.username ?? name}` };
 }
+
+export async function verifyDiscord(secrets: ProviderSecrets): Promise<VerifyResult> {
+  const token = secrets.discordBotToken?.trim();
+  if (!token) return { ok: false, detail: "Discord Bot token is required." };
+
+  try {
+    const response = await fetch("https://discord.com/api/v10/users/@me", {
+      headers: { Authorization: `Bot ${token}` },
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      id?: string;
+      username?: string;
+      global_name?: string;
+      message?: string;
+    } | null;
+
+    if (!response.ok || !payload?.id) {
+      return { ok: false, detail: payload?.message ?? `Discord replied HTTP ${response.status}` };
+    }
+
+    const name = payload.global_name || payload.username || "Bot";
+    return { ok: true, detail: `Connected as @${payload.username} (${name})` };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : "Connection failed" };
+  }
+}

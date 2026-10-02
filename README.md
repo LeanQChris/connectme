@@ -2,7 +2,7 @@
 
 > **Unified Multi-Channel Team Inbox** for **WhatsApp Business Cloud API**, **Facebook Messenger**, **Telegram**, and **Instagram Direct**.
 
-ConnectMe is a multi-tenant SaaS: every account signs in with Clerk, connects **its own** WhatsApp / Messenger / Instagram / Telegram credentials in `/settings`, and those tokens are encrypted at rest before they touch the store. Tenants never see each other's conversations.
+ConnectMe is a multi-tenant SaaS: every account signs in with Google (Clerk under the hood, custom UI), connects **its own** WhatsApp / Messenger / Instagram / Telegram credentials in `/settings`, and those tokens are encrypted at rest before they touch the store. Tenants never see each other's conversations.
 
 Built with **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, and the **Vercel Geist Design System**, ConnectMe requires zero database setup locally and deploys seamlessly to serverless environments (Vercel + Vercel KV / Upstash Redis).
 
@@ -10,7 +10,7 @@ Built with **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, and t
 
 ## ✨ Features
 
-- 🔐 **Multi-Tenant SaaS**: Clerk sign-up/sign-in, per-account workspaces, and strict owner scoping on every store read and write.
+- 🔐 **Multi-Tenant SaaS**: Google-only sign-in (one button, no hosted UI), per-account workspaces, and strict owner scoping on every store read and write.
 - 🧾 **Bring Your Own Credentials**: each user pastes their own Meta and Telegram tokens in `/settings`; tokens are encrypted with AES-256-GCM and never returned to the browser.
 - 💬 **Unified Multi-Channel Inbox**: Centralize messages from WhatsApp, Facebook Messenger, Telegram, and Instagram in real time.
 - ⏱️ **24-Hour Reply Window Tracking**: Built-in countdown timer and visual indicators conforming to Meta's 24-hour customer care messaging policies.
@@ -39,7 +39,7 @@ Built with **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, and t
 | **Framework** | [Next.js 16 (App Router)](https://nextjs.org/) + [React 19](https://react.dev/) |
 | **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) + Geist Design Tokens |
 | **State & Polling** | [@tanstack/react-query](https://tanstack.com/query) |
-| **Authentication** | [Clerk](https://clerk.com) (hosted sign-up/sign-in, JWT session cookies) |
+| **Authentication** | [Clerk](https://clerk.com) (Google OAuth only, custom `/sign-in` UI, JWT session cookies) |
 | **Secrets at rest** | AES-256-GCM in `lib/secrets.ts`, keyed by `ENCRYPTION_KEY` |
 | **Channels** | WhatsApp Cloud API, Facebook Messenger Graph API, Telegram Bot API, Instagram Graph API |
 | **Storage Engine** | Local JSON File (`data/inbox.json`) or Vercel KV / Upstash Redis |
@@ -73,7 +73,7 @@ cp .env.example .env
 Only three app-level secrets remain — provider credentials now belong to each user, not the deployer:
 
 ```ini
-# Clerk (sign-up / sign-in). `npx clerk init` writes dev keys to .env.local.
+# Clerk (Google OAuth). `npx clerk init` writes dev keys to .env.local.
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 
@@ -85,6 +85,8 @@ GRAPH_VERSION=v21.0
 KV_REST_API_URL=
 KV_REST_API_TOKEN=
 ```
+
+Enable **Google** in the Clerk dashboard under *Configure → Sign-in methods*, and leave *Require sign-up* off so first-time Google users are provisioned automatically — `/sign-in` is the only auth screen.
 
 > 💡 **Tip:** Generate `ENCRYPTION_KEY` with:
 > ```bash

@@ -3,7 +3,7 @@
  * so this file must stay free of any server-only imports.
  */
 
-export const CHANNELS = ["whatsapp", "messenger", "instagram", "telegram"] as const;
+export const CHANNELS = ["whatsapp", "messenger", "instagram", "telegram", "discord"] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const DIRECTIONS = ["in", "out", "note"] as const;
@@ -149,6 +149,7 @@ export interface ProviderSecrets {
   /** Facebook Page token, used by both Messenger and Instagram. */
   pageAccessToken: string;
   telegramBotToken: string;
+  discordBotToken: string;
   graphVersion: string;
 }
 
@@ -160,11 +161,12 @@ export const EMPTY_SECRETS: ProviderSecrets = {
   webhookVerifyToken: "",
   pageAccessToken: "",
   telegramBotToken: "",
+  discordBotToken: "",
   graphVersion: "",
 };
 
 /** What the settings UI may read back: presence flags, never the secrets. */
-export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram";
+export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram" | "discord";
 
 /** Stored shape: encrypted blob plus the plaintext ids webhooks route on. */
 export interface CredentialRecord {
@@ -176,6 +178,8 @@ export interface CredentialRecord {
   pageId?: string;
   /** Telegram bot id, taken from the token; routes Bot API webhooks. */
   telegramBotId?: string;
+  /** Discord bot / application id; routes Discord webhooks. */
+  discordBotId?: string;
   updatedAt: string;
 }
 
@@ -184,5 +188,6 @@ export interface TenantSettings {
   connected: Record<ConnectionFlag, boolean>;
   pageId: string | null;
   telegramBotId: string | null;
+  discordBotId: string | null;
   updatedAt: string | null;
 }

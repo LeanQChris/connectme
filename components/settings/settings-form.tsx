@@ -2,17 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-type Connected = { whatsapp: boolean; messenger: boolean; instagram: boolean; telegram: boolean };
+type Connected = { whatsapp: boolean; messenger: boolean; instagram: boolean; telegram: boolean; discord: boolean };
 
 interface SettingsPayload {
   settings: {
     connected: Connected;
     pageId: string | null;
     telegramBotId: string | null;
+    discordBotId: string | null;
     updatedAt: string | null;
     webhookVerifyToken: string;
   };
-  webhookUrls: { meta: string; telegram: string | null };
+  webhookUrls: { meta: string; telegram: string | null; discord: string | null };
 }
 
 interface Field {
@@ -31,6 +32,7 @@ const FIELDS: Field[] = [
   { key: "webhookVerifyToken", label: "Webhook verify token", hint: "Anything you choose", secret: false },
   { key: "pageAccessToken", label: "Page access token", hint: "Covers Messenger + Instagram", secret: true },
   { key: "telegramBotToken", label: "Bot token", hint: "From @BotFather", secret: true },
+  { key: "discordBotToken", label: "Bot token", hint: "From Discord Developer Portal → Bot", secret: true },
 ] as const;
 
 const GROUPS = [
@@ -57,6 +59,14 @@ const GROUPS = [
     channels: ["telegram"] as const,
     verify: "telegram" as const,
     keys: ["telegramBotToken"] as const,
+  },
+  {
+    id: "discord",
+    title: "Discord Bot",
+    blurb: "A bot token from the Discord Developer Portal. No 24-hour reply window limit.",
+    channels: ["discord"] as const,
+    verify: "discord" as const,
+    keys: ["discordBotToken"] as const,
   },
 ];
 
@@ -120,7 +130,7 @@ export default function SettingsForm({ origin }: { origin: string }) {
     }
   }
 
-  async function verify(channel: "whatsapp" | "page" | "telegram") {
+  async function verify(channel: "whatsapp" | "page" | "telegram" | "discord") {
     setBusy(`verify-${channel}`);
     setError(null);
     try {

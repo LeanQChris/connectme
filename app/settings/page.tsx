@@ -1,7 +1,7 @@
-import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { headers } from "next/headers";
 
+import UserMenu from "@/components/auth/user-menu";
 import SettingsForm from "@/components/settings/settings-form";
 import { ensureTenantUser } from "@/lib/tenant";
 
@@ -37,7 +37,7 @@ export default async function SettingsPage() {
 
         <div className="flex items-center gap-3">
           <span className="font-mono text-[10px] uppercase tracking-wider text-mute">Settings</span>
-          <UserButton />
+          <UserMenu />
         </div>
       </header>
 

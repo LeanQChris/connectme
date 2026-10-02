@@ -1,9 +1,9 @@
-import { verifyPage, verifyTelegram, verifyWhatsApp } from "@/lib/providers";
+import { verifyDiscord, verifyPage, verifyTelegram, verifyWhatsApp } from "@/lib/providers";
 import { requireUserId, tenantSecrets } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
-const CHANNELS = ["whatsapp", "page", "telegram"] as const;
+const CHANNELS = ["whatsapp", "page", "telegram", "discord"] as const;
 type Channel = (typeof CHANNELS)[number];
 
 /**
@@ -33,6 +33,8 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json(await verifyWhatsApp(secrets));
     case "page":
       return Response.json(await verifyPage(secrets));
+    case "discord":
+      return Response.json(await verifyDiscord(secrets));
     default:
       return Response.json(await verifyTelegram(secrets));
   }

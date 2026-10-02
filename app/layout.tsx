@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} h-full`}>
       <body className="min-h-full bg-bg font-sans text-ink antialiased">
-        <ClerkProvider>
+        <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-in">
           <QueryProvider>{children}</QueryProvider>
         </ClerkProvider>
       </body>

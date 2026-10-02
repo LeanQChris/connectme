@@ -28,26 +28,31 @@ export default function ReplyWindowBar({
 }) {
   const now = useNow(1000);
 
-  if (channel === "telegram") {
+  if (channel === "telegram" || channel === "discord") {
+    const isDiscord = channel === "discord";
+    const brandColor = isDiscord ? "bg-[#5865F2]" : "bg-sky-500";
+    const textColor = isDiscord ? "text-[#5865F2]" : "text-sky-500";
+    const name = isDiscord ? "Discord" : "Telegram";
+
     return (
       <div className="border-b border-hairline bg-canvas px-4 py-2 text-[11px]">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${brandColor}`} />
             </span>
             <span className="font-medium text-body">
               Unlimited Messaging Window Active
             </span>
           </div>
 
-          <span className="font-mono text-[11px] tabular-nums text-sky-500 font-medium">
+          <span className={`font-mono text-[11px] tabular-nums font-medium ${textColor}`}>
             No Time Limit
           </span>
         </div>
 
         <p className="mt-1 leading-snug text-mute">
-          <span className="font-medium text-body">Telegram rule:</span> Telegram bots have no 24-hour window restriction. You can reply anytime.
+          <span className="font-medium text-body">{name} rule:</span> {name} bots have no 24-hour window restriction. You can reply anytime.
         </p>
       </div>
     );
