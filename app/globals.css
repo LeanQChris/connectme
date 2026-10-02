@@ -117,6 +117,8 @@ body {
   color: var(--ink);
   font-family: var(--font-geist-sans), Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* 1px Vercel focus outline */
@@ -139,6 +141,15 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--mute);
+}
+
+/* Hide scrollbar utility for touch-friendly horizontal trays */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Mesh Gradient utility */

@@ -61,13 +61,12 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // One page dropdown per channel; only pages of the channel in view are offered.
+  // Page filter only makes sense inside one channel: "All conversations" mixes
+// Messenger pages and Instagram handles, so the dropdown would be ambiguous.
+  const channelFilter = filter && filter !== ARCHIVED ? filter : "";
   const scopedAccounts = useMemo(
-    () =>
-      filter && filter !== ARCHIVED
-        ? accounts.filter((a) => a.channel === filter)
-        : accounts,
-    [accounts, filter],
+    () => (channelFilter ? accounts.filter((a) => a.channel === channelFilter) : []),
+    [accounts, channelFilter],
   );
 
   // A page picked under one channel is meaningless under another.
@@ -245,7 +244,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               <span className="rounded-full bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] tabular-nums text-mute">
                 {visible.length}
               </span>
-              {scopedAccounts.length > 1 && (
+              {channelFilter && scopedAccounts.length > 1 && (
                 <select
                   value={activeAccountId}
                   aria-label="Filter by page"

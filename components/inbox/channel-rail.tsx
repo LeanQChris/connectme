@@ -59,16 +59,16 @@ export default function ChannelRail({
         aria-label={item.label}
         aria-current={active}
         onClick={() => onChange(item.value)}
-        className={`group relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all ${tileClass(
+        className={`group relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-[9px] sm:rounded-[10px] transition-all active:scale-95 ${tileClass(
           item,
           active,
         )}`}
       >
         {item.channel ? (
-          <ChannelIcon channel={item.channel} className="h-[19px] w-[19px]" />
+          <ChannelIcon channel={item.channel} className="h-[18px] w-[18px] sm:h-[19px] sm:w-[19px]" />
         ) : (
           <svg
-            className="h-[18px] w-[18px] stroke-current"
+            className="h-[17px] w-[17px] sm:h-[18px] sm:w-[18px] stroke-current"
             fill="none"
             strokeWidth="1.6"
             viewBox="0 0 24 24"
@@ -106,11 +106,11 @@ export default function ChannelRail({
   return (
     <nav
       aria-label="Providers"
-      className="flex w-[60px] shrink-0 select-none flex-col items-center gap-1.5 border-r border-hairline bg-canvas py-3"
+      className="flex w-[52px] sm:w-[60px] shrink-0 select-none flex-col items-center gap-1.5 border-r border-hairline bg-canvas py-3 overflow-y-auto no-scrollbar"
     >
       {items.map(renderItem)}
 
-      <span aria-hidden className="my-1 h-px w-6 bg-hairline" />
+      <span aria-hidden className="my-1 h-px w-5 sm:w-6 bg-hairline" />
 
       {renderItem({ value: ARCHIVED, label: "Archived" })}
     </nav>

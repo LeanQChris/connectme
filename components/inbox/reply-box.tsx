@@ -162,7 +162,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             className="fixed inset-0 z-20 cursor-default"
             onClick={() => setShowEmojiPicker(false)}
           />
-          <div className="absolute bottom-full left-3 z-30 mb-2 w-72 rounded-[10px] border border-hairline bg-canvas-elevated p-3 shadow-xl backdrop-blur-md">
+          <div className="absolute bottom-full left-0 sm:left-3 z-30 mb-2 w-[calc(100vw-24px)] sm:w-72 max-w-[320px] rounded-[10px] border border-hairline bg-canvas-elevated p-3 shadow-xl backdrop-blur-md">
             <div className="flex items-center justify-between pb-2 border-b border-hairline mb-2">
               <span className="text-[12px] font-semibold text-ink">Emojis</span>
               <button
@@ -225,7 +225,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
               key={preset}
               type="button"
               onClick={() => setText(preset)}
-              className="max-w-[22ch] truncate rounded-full border border-hairline bg-canvas-elevated px-2.5 py-1 text-[11.5px] text-body transition-colors hover:border-hairline-strong hover:text-ink"
+              className="max-w-[22ch] truncate rounded-full border border-hairline bg-canvas-elevated px-2.5 py-1 text-[11.5px] text-body transition-colors hover:border-hairline-strong hover:text-ink active:bg-surface-well"
               title={preset}
             >
               {preset}
@@ -302,7 +302,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             aria-label="Attach a file"
             disabled={uploading}
             onClick={() => fileRef.current?.click()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink disabled:opacity-40"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well disabled:opacity-40"
           >
             <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -322,7 +322,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             title="Add emoji"
             aria-label="Add emoji"
             onClick={() => setShowEmojiPicker((prev) => !prev)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well"
           >
             <span className="text-base leading-none">😀</span>
           </button>
@@ -345,7 +345,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
               ? "Write an internal note…"
               : "Write a reply… (Press Enter to send)"
           }
-          className="max-h-36 min-h-[36px] flex-1 resize-none bg-transparent px-2.5 py-1.5 text-[13px] text-ink placeholder:text-mute focus:outline-none leading-relaxed"
+          className="max-h-36 min-h-[36px] flex-1 resize-none bg-transparent px-2.5 py-1.5 text-[14px] sm:text-[13px] text-ink placeholder:text-mute focus:outline-none leading-relaxed"
         />
 
         {/* Send Button */}
@@ -353,7 +353,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
           type="button"
           onClick={() => void submit()}
           disabled={pending || uploading || (!text.trim() && !attachment)}
-          className={`flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[6px] px-3.5 text-[13px] font-medium transition-opacity hover:opacity-90 active:opacity-95 disabled:cursor-not-allowed disabled:opacity-30 ${
+          className={`flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[6px] px-3 sm:px-3.5 text-[12.5px] sm:text-[13px] font-medium transition-opacity hover:opacity-90 active:opacity-95 disabled:cursor-not-allowed disabled:opacity-30 ${
             noteMode ? "bg-warning text-ink" : "bg-primary text-on-primary"
           }`}
         >
@@ -374,7 +374,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
 
       {/* Footer bar: quick emojis and mode toggle */}
       <div className="mt-1.5 flex items-center justify-between gap-3 px-1 text-[11px] text-mute">
-        <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
           {!noteMode && (
             <div className="flex items-center gap-1">
               {QUICK_EMOJIS.map((emoji) => (

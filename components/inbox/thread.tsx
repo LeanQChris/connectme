@@ -60,7 +60,7 @@ function AssigneePicker({
       <select
         value={current}
         onChange={(event) => onChange(event.target.value === "unassigned" ? null : event.target.value)}
-        className="h-8 appearance-none rounded-[6px] border border-hairline bg-canvas-elevated pl-2 pr-6 text-[12px] text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink focus:outline-none"
+        className="h-8 max-w-[84px] xs:max-w-[96px] sm:max-w-none appearance-none rounded-[6px] border border-hairline bg-canvas-elevated pl-2 pr-5 sm:pr-6 text-[11.5px] sm:text-[12px] text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink focus:outline-none truncate"
       >
         {TEAM.map((member) => (
           <option key={member} value={member}>
@@ -433,13 +433,13 @@ export default function Thread({
       )}
 
       {/* Thread Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline bg-canvas-elevated px-4">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline bg-canvas-elevated px-2.5 sm:px-4 gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <button
             type="button"
             onClick={onBack}
             aria-label="Back to conversations"
-            className="-ml-1 rounded-[6px] p-1 text-body transition-colors hover:bg-surface-well hover:text-ink md:hidden"
+            className="-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-body transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well md:hidden"
           >
             <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -454,37 +454,37 @@ export default function Thread({
           />
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="truncate text-[14px] font-semibold tracking-[-0.02em] text-ink">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h2 className="truncate text-[13px] sm:text-[14px] font-semibold tracking-[-0.02em] text-ink">
                 {conversation.contactName}
               </h2>
               <span
-                className={`inline-flex items-center rounded-full px-2 py-0.2 font-mono text-[10px] font-medium tracking-wide uppercase ${channelInfo.soft}`}
+                className={`inline-flex items-center rounded-full px-1.5 sm:px-2 py-0.2 font-mono text-[9.5px] sm:text-[10px] font-medium tracking-wide uppercase shrink-0 ${channelInfo.soft}`}
               >
                 {channelInfo.label}
               </span>
               {conversation.accountName && (
                 <span
                   title={`Received on ${conversation.accountName} · ${channelInfo.label}`}
-                  className={`inline-flex max-w-[160px] items-center truncate rounded-[4px] px-2 py-0.2 font-mono text-[10px] font-medium ${channelInfo.soft}`}
+                  className={`hidden xs:inline-flex max-w-[80px] sm:max-w-[160px] items-center truncate rounded-[4px] px-1.5 sm:px-2 py-0.2 font-mono text-[9.5px] sm:text-[10px] font-medium ${channelInfo.soft}`}
                 >
                   {conversation.accountName}
                 </span>
               )}
               {archived && (
-                <span className="inline-flex items-center rounded-full bg-surface-well px-2 py-0.2 font-mono text-[10px] font-medium tracking-wide uppercase text-mute">
+                <span className="inline-flex items-center rounded-full bg-surface-well px-1.5 sm:px-2 py-0.2 font-mono text-[9.5px] sm:text-[10px] font-medium tracking-wide uppercase text-mute shrink-0">
                   Archived
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 text-[11px] text-mute">
-              <span className="font-mono">{conversation.contactExternalId}</span>
+            <div className="flex items-center gap-1.5 text-[10.5px] sm:text-[11px] text-mute">
+              <span className="truncate font-mono">{conversation.contactExternalId}</span>
               <button
                 type="button"
                 onClick={copyId}
                 title="Copy ID"
-                className="rounded p-0.5 text-mute hover:bg-surface-well hover:text-ink transition-colors"
+                className="rounded p-0.5 text-mute hover:bg-surface-well hover:text-ink transition-colors shrink-0"
               >
                 {copied ? (
                   <span className="font-mono text-[10px] text-emerald-500 font-medium">Copied!</span>
@@ -503,7 +503,7 @@ export default function Thread({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {firstResponse !== null && (
             <span
               className={`hidden items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] tabular-nums lg:flex ${
@@ -533,7 +533,7 @@ export default function Thread({
             type="button"
             onClick={() => onArchive(archived ? "open" : "closed")}
             title={archived ? "Restore to inbox" : "Archive conversation"}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink"
+            className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2 sm:px-2.5 text-[12px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink active:scale-95"
           >
             <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -603,21 +603,41 @@ export default function Thread({
                 : 0;
 
             if (isNote) {
+              // Notes are team-only, so they break the message rhythm entirely:
+              // a hairline-ruled band that spans the column, dashed to say
+              // "never sent". No bubble, no avatar, no tick column.
               return (
-                <div key={message.id} className="my-3 flex justify-center">
-                  <div className="group max-w-[80%] rounded-[10px] border border-warning/30 bg-warning/10 px-3 py-2 sm:max-w-[70%]">
-                    <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-warning">
-                      <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 3H8a2 2 0 00-2 2v14a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2z" />
-                      </svg>
-                      Note{message.author ? ` · ${message.author}` : ""}
+                <div
+                  key={message.id}
+                  className={`flex items-stretch gap-2.5 sm:gap-3 ${
+                    runStart ? "mt-4" : "mt-1.5"
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className="w-0.5 shrink-0 self-stretch rounded-full bg-warning/45"
+                  />
+                  <div className="group min-w-0 flex-1 border-y border-dashed border-warning/25 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 font-mono text-[9.5px] font-medium uppercase tracking-[0.08em] text-warning">
+                        Internal note
+                      </span>
+                      {message.author && (
+                        <span className="truncate font-mono text-[10px] text-body">
+                          {message.author}
+                        </span>
+                      )}
+                      <span
+                        aria-hidden
+                        className="h-px flex-1 bg-hairline opacity-0 transition-opacity group-hover:opacity-100"
+                      />
+                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-mute opacity-70 transition-opacity group-hover:opacity-100">
+                        {formatTime(message.createdAt)}
+                      </span>
                     </div>
-                    <p className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-body select-text">
+                    <p className="mt-1 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-body select-text">
                       {message.text}
                     </p>
-                    <div className="mt-1 text-right font-mono text-[10px] tabular-nums text-mute opacity-70 group-hover:opacity-100">
-                      {formatTime(message.createdAt)}
-                    </div>
                   </div>
                 </div>
               );

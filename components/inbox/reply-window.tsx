@@ -35,18 +35,18 @@ export default function ReplyWindowBar({
     const name = isDiscord ? "Discord" : "Telegram";
 
     return (
-      <div className="border-b border-hairline bg-canvas px-4 py-2 text-[11px]">
-        <div className="flex items-center justify-between gap-3">
+      <div className="border-b border-hairline bg-canvas px-3 sm:px-4 py-2 text-[11px]">
+        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1 xs:gap-3">
           <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className={`relative inline-flex h-2 w-2 rounded-full ${brandColor}`} />
             </span>
-            <span className="font-medium text-body">
+            <span className="font-medium text-body truncate">
               Unlimited Messaging Window Active
             </span>
           </div>
 
-          <span className={`font-mono text-[11px] tabular-nums font-medium ${textColor}`}>
+          <span className={`font-mono text-[10.5px] sm:text-[11px] tabular-nums font-medium ${textColor} shrink-0`}>
             No Time Limit
           </span>
         </div>
@@ -66,10 +66,10 @@ export default function ReplyWindowBar({
   const urgent = open && percent <= 25;
 
   return (
-    <div className="border-b border-hairline bg-canvas px-4 py-2 text-[11px]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
+    <div className="border-b border-hairline bg-canvas px-3 sm:px-4 py-2 text-[11px]">
+      <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1 xs:gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0">
             {open && (
               <span
                 className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
@@ -84,7 +84,7 @@ export default function ReplyWindowBar({
             />
           </span>
           <span
-            className={`font-medium ${
+            className={`font-medium truncate ${
               open ? (urgent ? "text-warning" : "text-body") : "text-error"
             }`}
           >
@@ -92,7 +92,7 @@ export default function ReplyWindowBar({
           </span>
         </div>
 
-        <span className="font-mono text-[11px] tabular-nums text-mute">
+        <span className="font-mono text-[10.5px] sm:text-[11px] tabular-nums text-mute shrink-0">
           {open ? formatLeft(msLeft) : "Window Expired"}
         </span>
       </div>

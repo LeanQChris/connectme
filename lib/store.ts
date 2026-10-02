@@ -174,9 +174,34 @@ function contactLabel(contact: Contact): string {
 
 import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./meta/client";
 
+/**
+ * Page/handle name for a conversation.
+ *
+ * Webhooks only know the platform page id, so `conversation.accountId` may hold
+ * either that or our own `meta_page_…` id. Match both, then fall back to whatever
+ * name was stamped at intake.
+ */
+function accountNameOf(
+  conv: Conversation,
+  data: StoreData,
+): { accountId: string | null; accountName: string | null } {
+  if (!conv.accountId) {
+    return { accountId: null, accountName: conv.accountName ?? null };
+  }
+  const account = data.credentials
+    .find((c) => c.userId === conv.userId)
+    ?.accounts?.find((a) => a.id === conv.accountId || a.externalId === conv.accountId);
+
+  return {
+    accountId: account?.id ?? conv.accountId,
+    accountName: account?.name ?? conv.accountName ?? null,
+  };
+}
+
 function summarize(conv: Conversation, data: StoreData): ConversationSummary | null {
   const contact = data.contacts.find((c) => c.id === conv.contactId && c.userId === conv.userId);
   if (!contact) return null;
+  const account = accountNameOf(conv, data);
   // Notes are internal, so they must never become the inbox preview.
   const last = data.messages
     .filter((m) => m.conversationId === conv.id && m.direction !== "note")
@@ -186,8 +211,8 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     id: conv.id,
     contactId: contact.id,
     channel: contact.channel,
-    accountId: conv.accountId ?? null,
-    accountName: conv.accountName ?? null,
+    accountId: account.accountId,
+    accountName: account.accountName,
     contactName: contactLabel(contact),
     contactExternalId: contact.externalId,
     avatarUrl: contact.avatarUrl ?? null,
@@ -256,6 +281,16 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
       return false;
     }
 
+    // The webhook only carries the platform page id; resolve our own account
+    // record so the conversation keeps its page name even if Settings changes.
+    const account = input.accountId
+      ? data.credentials
+          .find((c) => c.userId === input.userId)
+          ?.accounts?.find((a) => a.id === input.accountId || a.externalId === input.accountId)
+      : undefined;
+    const accountId = account?.id ?? input.accountId ?? null;
+    const accountName = input.accountName ?? account?.name ?? null;
+
     const key = contactKey(input.channel, input.senderExternalId);
     let contact = data.contacts.find(
       (c) => c.userId === input.userId && contactKey(c.channel, c.externalId) === key,
@@ -288,8 +323,8 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
         id: randomUUID(),
         userId: input.userId,
         contactId: contact.id,
-        accountId: input.accountId ?? null,
-        accountName: input.accountName ?? null,
+        accountId,
+        accountName,
         lastMessageAt: input.createdAt.toISOString(),
         lastInboundAt: input.createdAt.toISOString(),
         unreadCount: 0,
@@ -301,8 +336,8 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
       };
       data.conversations.push(conversation);
     } else {
-      if (input.accountId) conversation.accountId = input.accountId;
-      if (input.accountName) conversation.accountName = input.accountName;
+      if (accountId) conversation.accountId = accountId;
+      if (accountName) conversation.accountName = accountName;
     }
 
     data.messages.push({

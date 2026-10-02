@@ -106,12 +106,12 @@ export default function AboutPage() {
               {STACK.map(([label, value]) => (
                 <div
                   key={label}
-                  className="flex items-baseline justify-between gap-6 bg-canvas-elevated px-4 py-2.5"
+                  className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-0.5 sm:gap-6 bg-canvas-elevated px-4 py-2.5"
                 >
-                  <dt className="font-mono text-[11px] uppercase tracking-wider text-mute">
+                  <dt className="font-mono text-[11px] uppercase tracking-wider text-mute shrink-0">
                     {label}
                   </dt>
-                  <dd className="text-right text-[13px] text-ink">{value}</dd>
+                  <dd className="text-left sm:text-right text-[13px] text-ink">{value}</dd>
                 </div>
               ))}
             </dl>

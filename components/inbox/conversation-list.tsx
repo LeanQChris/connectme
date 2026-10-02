@@ -104,7 +104,7 @@ export default function ConversationList({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search names and messages…"
-            className="h-8 w-full rounded-[6px] border border-hairline bg-canvas-elevated pl-8 pr-3 text-[12px] text-ink placeholder:text-mute focus:border-ink focus:outline-none transition-colors"
+            className="h-8 w-full rounded-[6px] border border-hairline bg-canvas-elevated pl-8 pr-3 text-[14px] sm:text-[12px] text-ink placeholder:text-mute focus:border-ink focus:outline-none transition-colors"
           />
           {searching && isFetching && (
             <span className="absolute right-2.5 font-mono text-[10px] text-mute">…</span>
@@ -131,7 +131,7 @@ export default function ConversationList({
                   type="button"
                   onClick={() => onSelect(conversation.id)}
                   aria-current={selected}
-                  className={`group relative flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors ${
+                  className={`group relative flex w-full items-center gap-3 px-3 py-2.5 sm:px-3.5 sm:py-3 text-left transition-colors active:bg-surface-well ${
                     selected
                       ? "bg-canvas-elevated shadow-[inset_2px_0_0_var(--ink)]"
                       : "hover:bg-surface-well"
