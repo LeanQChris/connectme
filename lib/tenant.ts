@@ -55,6 +55,7 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
       waPhoneNumberId: record?.waPhoneNumberId ?? "",
       waAccessToken: "",
       waAppId: "",
+      waAppSecret: "",
       metaAppSecret: "",
       webhookVerifyToken: "",
       pageAccessToken: "",
@@ -142,6 +143,8 @@ export async function settingsPayload(
       discordBotId: settings.discordBotId,
       updatedAt: settings.updatedAt,
       webhookVerifyToken: settings.secrets.webhookVerifyToken,
+      waPhoneNumberId: settings.secrets.waPhoneNumberId || null,
+      waAppId: settings.secrets.waAppId || null,
     },
     oauth: {
       metaConfigured: Boolean(config.metaAppId),
@@ -246,8 +249,16 @@ export async function authenticateMetaWebhook(
   const candidates = await credentialsByRoutingId(ids);
   for (const candidate of candidates) {
     const secrets = await tenantSecrets(candidate.userId);
-    // Check candidate's tenant-specific secret first
-    if (secrets.metaAppSecret && verifyWebhookSignature(rawBody, signature, secrets.metaAppSecret)) {
+    // Check candidate's tenant-specific secret (WhatsApp app secret or general Meta app secret)
+    const secretsToCheck = [secrets.waAppSecret, secrets.metaAppSecret].filter(Boolean) as string[];
+    let verified = false;
+    for (const secret of secretsToCheck) {
+      if (verifyWebhookSignature(rawBody, signature, secret)) {
+        verified = true;
+        break;
+      }
+    }
+    if (verified) {
       return candidate;
     }
     // Check platform's central app secret (for 1-click OAuth users)

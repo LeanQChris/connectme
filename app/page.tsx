@@ -1,10 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 
-import UserMenu from "@/components/auth/user-menu";
 import { ChannelIcon, channelMeta } from "@/components/inbox/channel-badge";
-import ThemeToggle from "@/components/inbox/theme-toggle";
 import Logo from "@/components/logo";
+import SiteHeader from "@/components/site/site-header";
 import type { Channel } from "@/lib/types";
 
 export const metadata = {
@@ -13,11 +12,7 @@ export const metadata = {
     "ConnectMe puts WhatsApp, Messenger, Instagram, Telegram and Discord into a single agent inbox, with reply-window countdowns and per-page routing.",
 };
 
-const INBOX_ROUTES = [
-  { label: "Inbox", href: "/inbox" },
-  { label: "Channels", href: "#channels" },
-  { label: "How it works", href: "#setup" },
-];
+
 
 /** What actually lands in the queue from each connected account. */
 const CHANNELS: {
@@ -260,55 +255,11 @@ function ConsolePreview() {
 }
 
 export default async function HomePage() {
-  // The landing page is public, but a signed-in visitor should never be asked
-  // to sign in again.
   const { userId } = await auth();
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-canvas text-ink">
-      <header className="sticky top-0 z-50 flex h-12 shrink-0 items-center justify-between border-b border-hairline bg-canvas/80 px-4 backdrop-blur-md">
-        <div className="flex items-center gap-2.5">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex h-6 w-6 items-center justify-center rounded-[6px] border border-hairline bg-primary text-on-primary">
-              <Logo className="h-3.5 w-3.5" />
-            </span>
-            <span className="text-[13px] font-semibold tracking-[-0.02em]">ConnectMe</span>
-          </Link>
-          <span className="hidden rounded-[4px] border border-hairline bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-mute sm:inline">
-            Unified inbox
-          </span>
-        </div>
-
-        <nav className="hidden items-center gap-5 text-[12px] font-medium text-body md:flex">
-          {INBOX_ROUTES.slice(1).map((item) => (
-            <a key={item.href} href={item.href} className="transition-colors hover:text-ink">
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          {userId ? (
-            <>
-              <Link
-                href="/inbox"
-                className="flex h-8 items-center rounded-[6px] bg-primary px-3 text-[12px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90"
-              >
-                Open inbox
-              </Link>
-              <UserMenu />
-            </>
-          ) : (
-            <Link
-              href="/sign-in"
-              className="flex h-8 items-center rounded-[6px] bg-primary px-3 text-[12px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90"
-            >
-              Sign in
-            </Link>
-          )}
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1">
         {/* Hero: the thesis is the console, not a promise about it. */}

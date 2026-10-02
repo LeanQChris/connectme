@@ -8,6 +8,7 @@ const KEYS = [
   "waPhoneNumberId",
   "waAccessToken",
   "waAppId",
+  "waAppSecret",
   "metaAppSecret",
   "webhookVerifyToken",
   "pageAccessToken",
@@ -67,6 +68,10 @@ export async function PUT(request: Request): Promise<Response> {
   await saveCredentials({
     userId: auth.userId,
     encrypted: encryptSecrets(secrets),
+    accounts: record?.accounts,
+    pageName: record?.pageName,
+    instagramUsername: record?.instagramUsername,
+    discordBotId: record?.discordBotId,
     waPhoneNumberId: secrets.waPhoneNumberId || undefined,
     pageId: pageId || undefined,
     telegramBotId: botId ?? undefined,

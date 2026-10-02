@@ -1,8 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 
-import ThemeToggle from "@/components/inbox/theme-toggle";
 import Logo from "@/components/logo";
+import SiteHeader from "@/components/site/site-header";
 
 /** Single place to change when a real contact address and jurisdiction are known. */
 export const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? "support@connectme.app";
@@ -12,30 +12,7 @@ export async function PageFrame({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-canvas text-ink">
-      <header className="sticky top-0 z-50 flex h-12 items-center justify-between border-b border-hairline bg-canvas/80 px-4 backdrop-blur-md">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-6 w-6 items-center justify-center rounded-[6px] border border-hairline bg-primary text-on-primary shadow-2xs">
-            <Logo className="h-3.5 w-3.5" />
-          </div>
-          <span className="text-[13px] font-semibold tracking-[-0.02em]">ConnectMe</span>
-        </Link>
-
-        <div className="flex items-center gap-3">
-          <Link
-            href="/about"
-            className="hidden text-[12px] font-medium text-body transition-colors hover:text-ink sm:block"
-          >
-            About
-          </Link>
-          <Link
-            href="/privacy"
-            className="hidden text-[12px] font-medium text-body transition-colors hover:text-ink sm:block"
-          >
-            Privacy
-          </Link>
-          <ThemeToggle />
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1">{children}</main>
 

@@ -158,6 +158,8 @@ export interface ProviderSecrets {
   waAccessToken: string;
   /** Meta App id; WhatsApp attachment uploads are addressed by it. */
   waAppId: string;
+  /** WhatsApp-specific App Secret (if using a dedicated WhatsApp Meta App). */
+  waAppSecret?: string;
   /** Used to verify X-Hub-Signature-256 on Meta webhooks. */
   metaAppSecret: string;
   /** Must match the verify token configured on the Meta webhook. */
@@ -174,6 +176,7 @@ export const EMPTY_SECRETS: ProviderSecrets = {
   waPhoneNumberId: "",
   waAccessToken: "",
   waAppId: "",
+  waAppSecret: "",
   metaAppSecret: "",
   webhookVerifyToken: "",
   pageAccessToken: "",
@@ -232,6 +235,8 @@ export interface SettingsPayload {
     updatedAt: string | null;
     /** Copyable only — the tokens themselves are never sent back. */
     webhookVerifyToken: string;
+    waPhoneNumberId?: string | null;
+    waAppId?: string | null;
   };
   oauth: {
     metaConfigured: boolean;
