@@ -4,6 +4,7 @@ import Link from "next/link";
 import Logo from "@/components/ui/logo";
 import ThemeToggle from "@/components/ui/theme-toggle";
 import UserMenu from "@/modules/auth/components/user-menu";
+import { PwaInstallButton } from "@/components/pwa/pwa-install-button";
 
 interface InboxHeaderProps {
   onBackToRoot: () => void;
@@ -33,6 +34,7 @@ export function InboxHeader({ onBackToRoot }: InboxHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        <PwaInstallButton variant="badge" />
         <ThemeToggle />
 
         <Link

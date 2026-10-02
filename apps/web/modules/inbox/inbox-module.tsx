@@ -5,6 +5,7 @@ import { channelMeta } from "@/components/ui/channel-badge";
 import { useInboxController } from "./hooks/use-inbox-controller";
 import { InboxHeader } from "./components/inbox-header";
 import { InboxEmptyView } from "./components/inbox-empty-view";
+import { NotificationPromptBanner } from "@/components/pwa/notification-prompt-banner";
 import ChannelRail from "./components/channel-rail";
 import ConversationList from "./components/conversation-list";
 import Thread from "./components/thread";
@@ -43,6 +44,9 @@ export default function InboxModule({ initialSelectedId }: InboxModuleProps) {
     <div className="flex h-[100dvh] flex-col bg-canvas text-ink selection:bg-ink selection:text-on-primary">
       {/* 48px Geist Navbar */}
       <InboxHeader onBackToRoot={back} />
+
+      {/* Web Notifications Opt-In Banner */}
+      <NotificationPromptBanner />
 
       <div className="flex min-h-0 flex-1">
         {/* Conversations Sidebar */}

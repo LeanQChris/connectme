@@ -6,6 +6,7 @@ import { WhatsappSettings } from "./whatsapp-settings";
 import { MetaSettings } from "./meta-settings";
 import { TelegramSettings } from "./telegram-settings";
 import { DiscordSettings } from "./discord-settings";
+import { NotificationsSettings } from "./notifications-settings";
 import { WebhooksSettings } from "./webhooks-settings";
 import type { SettingsPayload } from "@/core/types";
 
@@ -229,6 +230,8 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
           onRegisterSlash={registerDiscord}
         />
       )}
+
+      {activeTab === "notifications" && <NotificationsSettings />}
 
       {activeTab === "webhooks" && <WebhooksSettings data={data} metaUrl={metaUrl} />}
     </div>
