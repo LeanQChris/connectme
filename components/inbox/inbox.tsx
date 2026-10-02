@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { UserButton } from "@clerk/nextjs";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
@@ -28,7 +29,6 @@ interface InboxProps {
 }
 
 export default function Inbox({ initialSelectedId }: InboxProps) {
-  const router = useRouter();
   const [filter, setFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
 
@@ -155,12 +155,6 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     statusMutation.mutate({ id: selectedId, status });
   }
 
-  async function logout() {
-    await fetch("/api/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
-  }
-
   return (
     <div className="flex h-[100dvh] flex-col bg-canvas text-ink selection:bg-ink selection:text-on-primary">
       {/* 48px Geist Navbar (per DESIGN.md nav-bar) */}
@@ -215,21 +209,22 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
         <div className="flex items-center gap-2">
           <ThemeToggle />
 
-          <button
-            type="button"
-            onClick={() => void logout()}
+          <Link
+            href="/settings"
             className="flex h-8 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body transition-colors hover:bg-surface-well hover:text-ink shadow-2xs"
           >
             <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth="2"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                strokeWidth="1.8"
+                d="M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"
               />
             </svg>
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
+            <span className="hidden sm:inline">Settings</span>
+          </Link>
+
+          <UserButton />
         </div>
       </header>
 

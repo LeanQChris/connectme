@@ -1,3 +1,4 @@
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import Link from "next/link";
 import ThemeToggle from "@/components/inbox/theme-toggle";
 
@@ -36,12 +37,23 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
 
-          <Link
-            href="/inbox"
-            className="flex h-8 items-center rounded-[6px] bg-primary px-3 text-[12px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
-          >
-            Launch App →
-          </Link>
+          <SignInButton mode="modal">
+            <button
+              type="button"
+              className="flex h-8 items-center rounded-[6px] border border-hairline bg-canvas-elevated px-3 text-[12px] font-medium text-ink shadow-xs transition-colors hover:bg-surface-well"
+            >
+              Sign in
+            </button>
+          </SignInButton>
+
+          <SignUpButton mode="modal">
+            <button
+              type="button"
+              className="flex h-8 items-center rounded-[6px] bg-primary px-3 text-[12px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
+            >
+              Get started →
+            </button>
+          </SignUpButton>
         </div>
       </header>
 
@@ -77,19 +89,23 @@ export default function HomePage() {
 
           {/* Action CTAs (Pills per DESIGN.md marketing buttons) */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/inbox"
-              className="flex h-11 items-center justify-center rounded-full bg-primary px-6 text-[14px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
-            >
-              Open Workspace ↗
-            </Link>
+            <SignUpButton mode="modal">
+              <button
+                type="button"
+                className="flex h-11 items-center justify-center rounded-full bg-primary px-6 text-[14px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
+              >
+                Start free workspace ↗
+              </button>
+            </SignUpButton>
 
-            <Link
-              href="/login"
-              className="flex h-11 items-center justify-center rounded-full border border-hairline bg-canvas-elevated px-6 text-[14px] font-medium text-ink shadow-2xs transition-colors hover:bg-surface-well"
-            >
-              Admin Sign In
-            </Link>
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                className="flex h-11 items-center justify-center rounded-full border border-hairline bg-canvas-elevated px-6 text-[14px] font-medium text-ink shadow-2xs transition-colors hover:bg-surface-well"
+              >
+                Sign in
+              </button>
+            </SignInButton>
           </div>
 
           {/* Live Channels Health Indicator */}
@@ -404,7 +420,7 @@ export default function HomePage() {
               href="/inbox"
               className="flex h-11 items-center justify-center rounded-full bg-primary px-8 text-[14px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 active:opacity-95"
             >
-              Open ConnectMe Workspace →
+              Open workspace →
             </Link>
           </div>
         </div>
@@ -424,8 +440,12 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-4 font-mono text-[11px]">
-            <Link href="/login" className="hover:text-ink transition-colors">
+            <Link href="/sign-in" className="hover:text-ink transition-colors">
               Sign in
+            </Link>
+            <span>·</span>
+            <Link href="/settings" className="hover:text-ink transition-colors">
+              Settings
             </Link>
             <span>·</span>
             <Link href="/inbox" className="hover:text-ink transition-colors">

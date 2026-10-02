@@ -1,6 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
-
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 /**
  * Auth gate for the whole app.
@@ -8,33 +7,36 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
  * Next 16 renamed `middleware.ts` to `proxy.ts`. It runs on the Node.js runtime
  * and cannot run its own `runtime` config.
  *
- * Public paths: / (home page), /login, /api/login, and /api/webhook.
+ * Public: the landing page, Clerk's own routes, provider webhooks and the media
+ * proxy (those authenticate by signature, or serve already-uploaded files).
  */
-const PUBLIC_PATHS = ["/", "/login", "/api/login", "/api/webhook", "/api/telegram", "/api/media"];
-
 function isPublic(pathname: string): boolean {
-  if (pathname === "/") return true;
-  return PUBLIC_PATHS.some((path) => path !== "/" && (pathname === path || pathname.startsWith(`${path}/`)));
+  return (
+    pathname === "/" ||
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/api/webhook") ||
+    pathname.startsWith("/api/media")
+  );
 }
 
+export default clerkMiddleware(async (auth, request) => {
+  if (isPublic(request.nextUrl.pathname)) return;
 
-export async function proxy(request: NextRequest): Promise<Response> {
-  const { pathname } = request.nextUrl;
+  const { userId } = await auth();
+  if (userId) return;
 
-  if (isPublic(pathname)) return NextResponse.next();
-
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (await verifySessionToken(token)) return NextResponse.next();
-
-  // API callers get JSON; pages get sent to the login screen.
-  if (pathname.startsWith("/api/")) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // API callers get JSON; pages get sent to the Clerk sign-in screen.
+  // NextResponse is required here: a static Response has immutable headers,
+  // which Clerk cannot append its own headers to.
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const login = new URL("/login", request.url);
-  login.searchParams.set("next", pathname);
-  return NextResponse.redirect(login);
-}
+  const signIn = new URL("/sign-in", request.url);
+  signIn.searchParams.set("redirect_url", request.url);
+  return NextResponse.redirect(signIn);
+});
 
 export const config = {
   // Skip static assets and anything with a file extension.

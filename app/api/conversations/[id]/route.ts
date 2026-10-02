@@ -1,5 +1,5 @@
 import { getConversation, resetUnread, setStatus, updateConversationMeta } from "@/lib/store";
-import { requireSession } from "@/lib/session";
+import { requireUserId, tenantSecrets } from "@/lib/tenant";
 import { CONVERSATION_STATUSES, type ConversationStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -8,15 +8,16 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const guard = await requireSession();
-  if (guard) return guard;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const { id } = await context.params;
-  const detail = await getConversation(id);
+  const tenant = await tenantSecrets(auth.userId);
+  const detail = await getConversation(auth.userId, id, tenant);
   if (!detail) return Response.json({ error: "Conversation not found" }, { status: 404 });
 
   // Opening a thread marks it read.
-  await resetUnread(id);
+  await resetUnread(auth.userId, id);
 
   return Response.json({
     conversation: {
@@ -33,10 +34,11 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const guard = await requireSession();
-  if (guard) return guard;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const { id } = await context.params;
+  const tenant = await tenantSecrets(auth.userId);
 
   let payload: { status?: unknown; assignee?: unknown; tags?: unknown };
   try {
@@ -61,13 +63,13 @@ export async function PATCH(
     if (!CONVERSATION_STATUSES.includes(payload.status as ConversationStatus)) {
       return Response.json({ error: "status must be 'open' or 'closed'" }, { status: 400 });
     }
-    if (!(await setStatus(id, payload.status as ConversationStatus))) {
+    if (!(await setStatus(auth.userId, id, payload.status as ConversationStatus))) {
       return Response.json({ error: "Conversation not found" }, { status: 404 });
     }
   }
 
   if (assignee !== undefined || tags !== undefined) {
-    const summary = await updateConversationMeta(id, { assignee, tags });
+    const summary = await updateConversationMeta(auth.userId, id, { assignee, tags });
     if (!summary) return Response.json({ error: "Conversation not found" }, { status: 404 });
     return Response.json({ conversation: summary });
   }
@@ -76,6 +78,6 @@ export async function PATCH(
     return Response.json({ error: "Nothing to update" }, { status: 400 });
   }
 
-  const detail = await getConversation(id);
+  const detail = await getConversation(auth.userId, id, tenant);
   return Response.json({ conversation: detail?.conversation });
 }

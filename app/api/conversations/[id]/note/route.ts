@@ -1,5 +1,5 @@
 import { recordNote } from "@/lib/store";
-import { requireSession } from "@/lib/session";
+import { requireUserId } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -10,8 +10,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const guard = await requireSession();
-  if (guard) return guard;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const { id } = await context.params;
 
@@ -33,7 +33,7 @@ export async function POST(
 
   const author = typeof payload.author === "string" && payload.author.trim() ? payload.author.trim() : "agent";
 
-  const result = await recordNote(id, text, author);
+  const result = await recordNote(auth.userId, id, text, author);
   if (!result) return Response.json({ error: "Conversation not found" }, { status: 404 });
 
   return Response.json(result, { status: 201 });

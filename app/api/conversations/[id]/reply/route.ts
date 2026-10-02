@@ -1,6 +1,7 @@
+import type { Tenant } from "@/lib/channels";
 import { ChannelNotConfiguredError, getChannel, MetaSendError } from "@/lib/channels";
 import { getConversation, recordOutbound } from "@/lib/store";
-import { requireSession } from "@/lib/session";
+import { requireUserId, tenantSecrets } from "@/lib/tenant";
 import type { MessageType } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -18,8 +19,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const guard = await requireSession();
-  if (guard) return guard;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const { id } = await context.params;
 
@@ -47,7 +48,8 @@ export async function POST(
     );
   }
 
-  const detail = await getConversation(id);
+  const tenant: Tenant = { ...(await tenantSecrets(auth.userId)), userId: auth.userId };
+  const detail = await getConversation(auth.userId, id, tenant);
   if (!detail) return Response.json({ error: "Conversation not found" }, { status: 404 });
 
   const { conversation } = detail;
@@ -75,6 +77,7 @@ export async function POST(
   }
 
   const outbound = {
+    userId: auth.userId,
     channel: conversation.channel,
     contactExternalId: conversation.contactExternalId,
     text,
@@ -86,6 +89,7 @@ export async function POST(
   try {
     const result = sendMedia
       ? await adapter.sendMedia!({
+          tenant,
           contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
           text,
           mediaUrl: mediaUrl!,
@@ -93,6 +97,7 @@ export async function POST(
           type: (declaredType ?? "document") as AttachmentType,
         })
       : await adapter.sendText({
+          tenant,
           contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
           text,
         });

@@ -1,13 +1,12 @@
-import { config } from "../config";
 import { ChannelNotConfiguredError } from "../meta/client";
 
 const telegramProfileCache = new Map<string, { name: string | null; avatarUrl: string | null }>();
 
 export async function sendTelegramMessage(
+  token: string,
   chatId: string | number,
   text: string,
 ): Promise<{ messageId: string }> {
-  const token = config.telegramBotToken;
   if (!token) {
     throw new ChannelNotConfiguredError(
       "Telegram is not configured. Set TELEGRAM_BOT_TOKEN to enable replies.",
@@ -61,12 +60,12 @@ export async function sendTelegramMessage(
  * so the bytes never pass through this process.
  */
 export async function sendTelegramAttachment(
+  token: string,
   chatId: string | number,
   mediaUrl: string,
   type: "image" | "audio" | "video" | "document",
   caption?: string,
 ): Promise<{ messageId: string }> {
-  const token = config.telegramBotToken;
   if (!token) {
     throw new ChannelNotConfiguredError(
       "Telegram is not configured. Set TELEGRAM_BOT_TOKEN to enable replies.",
@@ -100,8 +99,10 @@ export async function sendTelegramAttachment(
   return { messageId: String(data.result.message_id) };
 }
 
-export async function getTelegramFileUrl(fileId: string): Promise<string | null> {
-  const token = config.telegramBotToken;
+export async function getTelegramFileUrl(
+  token: string,
+  fileId: string,
+): Promise<string | null> {
   if (!token || !fileId) return null;
 
   try {
@@ -118,6 +119,7 @@ export async function getTelegramFileUrl(fileId: string): Promise<string | null>
 }
 
 export async function fetchTelegramUserProfile(
+  token: string,
   userId: number | string,
   firstName?: string,
   lastName?: string,
@@ -131,7 +133,6 @@ export async function fetchTelegramUserProfile(
     return { name: cached.name || fullName, avatarUrl: cached.avatarUrl };
   }
 
-  const token = config.telegramBotToken;
   if (!token) {
     return { name: fullName, avatarUrl: null };
   }
@@ -150,7 +151,7 @@ export async function fetchTelegramUserProfile(
     if (firstPhotoArray && firstPhotoArray.length > 0) {
       // Pick highest resolution photo
       const largest = firstPhotoArray[firstPhotoArray.length - 1];
-      avatarUrl = await getTelegramFileUrl(largest.file_id);
+      avatarUrl = await getTelegramFileUrl(token, largest.file_id);
     }
 
     const result = { name: fullName, avatarUrl };

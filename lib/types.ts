@@ -36,6 +36,8 @@ export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export interface Contact {
   id: string;
+  /** Owning tenant. Contacts are never shared between accounts. */
+  userId: string;
   channel: Channel;
   externalId: string;
   name: string | null;
@@ -45,6 +47,7 @@ export interface Contact {
 
 export interface Conversation {
   id: string;
+  userId: string;
   contactId: string;
   lastMessageAt: string;
   lastInboundAt: string | null;
@@ -119,4 +122,67 @@ export interface UploadedMedia {
   mimeType: string;
   name: string;
   size: number;
+}
+
+/** Local mirror of the Clerk user, created on first authenticated request. */
+export interface TenantUser {
+  /** Clerk user id, e.g. user_2abc… */
+  userId: string;
+  email: string;
+  name: string | null;
+  createdAt: string;
+}
+
+/**
+ * A tenant's provider credentials, decrypted for the duration of one request.
+ * Everything here comes from that tenant's own settings form.
+ */
+export interface ProviderSecrets {
+  waPhoneNumberId: string;
+  waAccessToken: string;
+  /** Meta App id; WhatsApp attachment uploads are addressed by it. */
+  waAppId: string;
+  /** Used to verify X-Hub-Signature-256 on Meta webhooks. */
+  metaAppSecret: string;
+  /** Must match the verify token configured on the Meta webhook. */
+  webhookVerifyToken: string;
+  /** Facebook Page token, used by both Messenger and Instagram. */
+  pageAccessToken: string;
+  telegramBotToken: string;
+  graphVersion: string;
+}
+
+export const EMPTY_SECRETS: ProviderSecrets = {
+  waPhoneNumberId: "",
+  waAccessToken: "",
+  waAppId: "",
+  metaAppSecret: "",
+  webhookVerifyToken: "",
+  pageAccessToken: "",
+  telegramBotToken: "",
+  graphVersion: "",
+};
+
+/** What the settings UI may read back: presence flags, never the secrets. */
+export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram";
+
+/** Stored shape: encrypted blob plus the plaintext ids webhooks route on. */
+export interface CredentialRecord {
+  userId: string;
+  encrypted: string;
+  /** Meta messaging phone number id; routes whatsapp_business_account events. */
+  waPhoneNumberId?: string;
+  /** Facebook Page id; routes `page` and `instagram` events. */
+  pageId?: string;
+  /** Telegram bot id, taken from the token; routes Bot API webhooks. */
+  telegramBotId?: string;
+  updatedAt: string;
+}
+
+export interface TenantSettings {
+  secrets: ProviderSecrets;
+  connected: Record<ConnectionFlag, boolean>;
+  pageId: string | null;
+  telegramBotId: string | null;
+  updatedAt: string | null;
 }

@@ -1,28 +1,32 @@
-import { config } from "../config";
 import { ChannelNotConfiguredError } from "../meta/client";
 import { sendTelegramAttachment, sendTelegramMessage } from "../telegram/client";
-import type { ChannelAdapter, SendResult } from "./types";
+import type { ChannelAdapter, SendResult, Tenant } from "./types";
 
 export const telegramAdapter: ChannelAdapter = {
   channel: "telegram",
 
-  isConfigured() {
-    return Boolean(config.telegramBotToken);
+  isConfigured(tenant: Tenant) {
+    return Boolean(tenant.telegramBotToken);
   },
 
-  async sendText({ contact, text }): Promise<SendResult> {
-    if (!config.telegramBotToken) {
+  async sendText({ tenant, contact, text }): Promise<SendResult> {
+    if (!tenant.telegramBotToken) {
       throw new ChannelNotConfiguredError(
-        "Telegram is not configured. Set TELEGRAM_BOT_TOKEN to enable replies.",
+        "Telegram is not connected. Add your bot token in Settings.",
       );
     }
 
-    const { messageId } = await sendTelegramMessage(contact.externalId, text);
+    const { messageId } = await sendTelegramMessage(
+      tenant.telegramBotToken,
+      contact.externalId,
+      text,
+    );
     return { externalId: messageId };
   },
 
-  async sendMedia({ contact, mediaUrl, type, text }): Promise<SendResult> {
+  async sendMedia({ tenant, contact, mediaUrl, type, text }): Promise<SendResult> {
     const { messageId } = await sendTelegramAttachment(
+      tenant.telegramBotToken,
       contact.externalId,
       mediaUrl,
       type,

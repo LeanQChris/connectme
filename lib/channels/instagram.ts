@@ -1,7 +1,7 @@
-import { config, graphUrl } from "../config";
+import { graphUrl } from "../config";
 import { postGraphJson } from "../meta/client";
 import { ChannelNotConfiguredError } from "../meta/client";
-import type { ChannelAdapter, SendResult } from "./types";
+import type { ChannelAdapter, SendResult, Tenant } from "./types";
 
 interface InstagramSendResponse {
   message_id?: string;
@@ -11,28 +11,32 @@ interface InstagramSendResponse {
 export const instagramAdapter: ChannelAdapter = {
   channel: "instagram",
 
-  isConfigured() {
-    return Boolean(config.fbPageAccessToken);
+  isConfigured(tenant: Tenant) {
+    return Boolean(tenant.pageAccessToken);
   },
 
-  async sendText({ contact, text }): Promise<SendResult> {
-    const accessToken = config.fbPageAccessToken;
+  async sendText({ tenant, contact, text }): Promise<SendResult> {
+    const accessToken = tenant.pageAccessToken;
     if (!accessToken) {
       throw new ChannelNotConfiguredError(
         "Instagram is not configured. Set FB_PAGE_ACCESS_TOKEN to enable replies.",
       );
     }
 
-    const payload = (await postGraphJson(graphUrl("me/messages"), accessToken, {
-      recipient: { id: contact.externalId },
-      message: { text },
-    })) as InstagramSendResponse;
+    const payload = (await postGraphJson(
+      graphUrl(tenant.graphVersion, "me/messages"),
+      accessToken,
+      {
+        recipient: { id: contact.externalId },
+        message: { text },
+      },
+    )) as InstagramSendResponse;
 
     return { externalId: payload?.message_id ?? null };
   },
 
-  async sendMedia({ contact, mediaUrl, type }): Promise<SendResult> {
-    const accessToken = config.fbPageAccessToken;
+  async sendMedia({ tenant, contact, mediaUrl, type }): Promise<SendResult> {
+    const accessToken = tenant.pageAccessToken;
     if (!accessToken) {
       throw new ChannelNotConfiguredError("Instagram is not configured.");
     }
@@ -42,12 +46,16 @@ export const instagramAdapter: ChannelAdapter = {
       throw new Error("Instagram only supports image and audio attachments.");
     }
 
-    const payload = (await postGraphJson(graphUrl("me/messages"), accessToken, {
-      recipient: { id: contact.externalId },
-      message: {
-        attachment: { type: attachmentType, payload: { url: mediaUrl } },
+    const payload = (await postGraphJson(
+      graphUrl(tenant.graphVersion, "me/messages"),
+      accessToken,
+      {
+        recipient: { id: contact.externalId },
+        message: {
+          attachment: { type: attachmentType, payload: { url: mediaUrl } },
+        },
       },
-    })) as InstagramSendResponse;
+    )) as InstagramSendResponse;
 
     return { externalId: payload?.message_id ?? null };
   },

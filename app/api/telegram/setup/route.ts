@@ -1,45 +1,53 @@
-import { config } from "@/lib/config";
+import { telegramBotId } from "@/lib/secrets";
+import { requireUserId, tenantSecrets } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
 /**
- * Convenience endpoint to register or check the Telegram webhook.
- * Usage: GET /api/telegram/setup?url=https://your-domain.com/api/webhook/telegram
+ * Registers (or inspects) this tenant's Telegram webhook.
+ *
+ * The bot id is part of the URL so the webhook route can resolve the tenant
+ * without any shared secret. Usage:
+ *   GET /api/telegram/setup                       -> current webhook info
+ *   GET /api/telegram/setup?url=https://<domain>  -> register it
  */
 export async function GET(request: Request): Promise<Response> {
-  const token = config.telegramBotToken;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
+  const secrets = await tenantSecrets(auth.userId);
+  const token = secrets.telegramBotToken;
   if (!token) {
     return Response.json(
-      { error: "TELEGRAM_BOT_TOKEN is not configured in .env" },
+      { error: "Add your Telegram bot token in Settings first." },
       { status: 400 },
     );
   }
 
-  const urlParam = new URL(request.url).searchParams.get("url");
+  const botId = telegramBotId(token);
+  if (!botId) {
+    return Response.json({ error: "That bot token does not look valid." }, { status: 400 });
+  }
 
-  // If no URL provided, just return current webhook info
-  if (!urlParam) {
-    const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
-    const info = await infoRes.json();
+  const base = new URL(request.url).searchParams.get("url");
+
+  if (!base) {
+    const info = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).catch(() => null);
     return Response.json({
       status: "info",
-      webhook: info,
-      instruction: "To register, call: /api/telegram/setup?url=https://<your-public-url>/api/webhook/telegram",
+      botId,
+      webhook: info ? await info.json().catch(() => null) : null,
+      expectedUrl: `${new URL(request.url).origin}/api/webhook/telegram/${botId}`,
     });
   }
 
-  // Set the webhook URL
-  const webhookUrl = urlParam.endsWith("/api/webhook/telegram")
-    ? urlParam
-    : `${urlParam.replace(/\/$/, "")}/api/webhook/telegram`;
+  const origin = base.replace(/\/$/, "");
+  const webhookUrl = `${origin}/api/webhook/telegram/${botId}`;
 
   const setRes = await fetch(
     `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`,
   );
-  const data = await setRes.json();
+  const data = await setRes.json().catch(() => ({}));
 
-  return Response.json({
-    result: data,
-    webhookUrl,
-  });
+  return Response.json({ result: data, webhookUrl });
 }

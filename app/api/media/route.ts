@@ -1,13 +1,12 @@
-import { config } from "@/lib/config";
-import { requireSession } from "@/lib/session";
+import { requireUserId, tenantSecrets } from "@/lib/tenant";
 import { readUpload, saveUpload } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
 /** Stores an outbound attachment and returns the URL the UI should send on. */
 export async function POST(request: Request): Promise<Response> {
-  const guard = await requireSession();
-  if (guard) return guard;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
@@ -47,9 +46,14 @@ export async function GET(request: Request): Promise<Response> {
   const mediaId = searchParams.get("id");
   const directUrl = searchParams.get("url");
 
-  const token = config.waAccessToken;
+  // Meta media URLs are fetched with the requesting tenant's own token.
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
+  const tenant = await tenantSecrets(auth.userId);
+  const token = tenant.waAccessToken;
   if (!token) {
-    return new Response("WhatsApp access token not configured", { status: 400 });
+    return new Response("WhatsApp is not connected for this account", { status: 400 });
   }
 
   try {
@@ -58,7 +62,7 @@ export async function GET(request: Request): Promise<Response> {
     // If media ID is provided, query Graph API for the download URL
     if (mediaId && !downloadUrl) {
       const metaRes = await fetch(
-        `https://graph.facebook.com/${config.graphVersion}/${mediaId}`,
+        `https://graph.facebook.com/${tenant.graphVersion}/${mediaId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },

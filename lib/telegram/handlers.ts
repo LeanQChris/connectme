@@ -3,7 +3,11 @@ import type { MessageType } from "../types";
 import { fetchTelegramUserProfile, getTelegramFileUrl } from "./client";
 import type { TelegramUpdate } from "./types";
 
-export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void> {
+export async function handleTelegramUpdate(
+  token: string,
+  userId: string,
+  update: TelegramUpdate,
+): Promise<void> {
   const message = update.message || update.edited_message;
   if (!message || !message.chat) return;
 
@@ -17,7 +21,8 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   if (from) {
     try {
       const profile = await fetchTelegramUserProfile(
-        from.id,
+        token,
+        String(from.id),
         from.first_name,
         from.last_name,
         from.username,
@@ -39,21 +44,21 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
   if (message.photo && message.photo.length > 0) {
     type = "image";
     const largestPhoto = message.photo[message.photo.length - 1];
-    mediaUrl = await getTelegramFileUrl(largestPhoto.file_id);
+    mediaUrl = await getTelegramFileUrl(token, largestPhoto.file_id);
     if (!text) text = message.caption || null;
   } else if (message.voice) {
     type = "audio";
-    mediaUrl = await getTelegramFileUrl(message.voice.file_id);
+    mediaUrl = await getTelegramFileUrl(token, message.voice.file_id);
   } else if (message.audio) {
     type = "audio";
-    mediaUrl = await getTelegramFileUrl(message.audio.file_id);
+    mediaUrl = await getTelegramFileUrl(token, message.audio.file_id);
   } else if (message.video) {
     type = "video";
-    mediaUrl = await getTelegramFileUrl(message.video.file_id);
+    mediaUrl = await getTelegramFileUrl(token, message.video.file_id);
     if (!text) text = message.caption || null;
   } else if (message.document) {
     type = "document";
-    mediaUrl = await getTelegramFileUrl(message.document.file_id);
+    mediaUrl = await getTelegramFileUrl(token, message.document.file_id);
     if (!text) text = message.document.file_name || message.caption || null;
   } else if (message.text) {
     type = "text";
@@ -63,6 +68,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
 
   try {
     const inserted = await recordInbound({
+      userId,
       channel: "telegram",
       externalId: messageId,
       senderExternalId: chatId,

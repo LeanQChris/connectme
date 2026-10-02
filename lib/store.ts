@@ -25,9 +25,11 @@ import type {
   ConversationSummary,
   ConversationStatus,
   Message,
+  CredentialRecord,
   MessageStatus,
   MessageType,
   SearchHit,
+  TenantUser,
 } from "./types";
 import { replyWindow } from "./window";
 
@@ -36,12 +38,20 @@ const DATA_FILE = path.join(DATA_DIR, "inbox.json");
 const KV_KEY = "connectme:inbox";
 
 interface StoreData {
+  users: TenantUser[];
+  credentials: CredentialRecord[];
   contacts: Contact[];
   conversations: Conversation[];
   messages: Message[];
 }
 
-const EMPTY: StoreData = { contacts: [], conversations: [], messages: [] };
+const EMPTY: StoreData = {
+  users: [],
+  credentials: [],
+  contacts: [],
+  conversations: [],
+  messages: [],
+};
 
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -75,13 +85,40 @@ const kv = (() => {
   };
 })();
 
+/**
+ * One-time migration for stores written before multi-tenancy: records had no
+ * owner, so they are attached to the earliest account that exists.
+ */
+function normalize(data: Partial<StoreData>): StoreData {
+  const merged: StoreData = {
+    users: data.users ?? [],
+    credentials: data.credentials ?? [],
+    contacts: data.contacts ?? [],
+    conversations: data.conversations ?? [],
+    messages: data.messages ?? [],
+  };
+
+  const owner = [...merged.users].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]?.userId;
+  if (!owner) return merged;
+
+  for (const contact of merged.contacts) {
+    if (!contact.userId) contact.userId = owner;
+  }
+  for (const conversation of merged.conversations) {
+    if (!conversation.userId) conversation.userId = owner;
+    if (!Array.isArray(conversation.tags)) conversation.tags = [];
+  }
+
+  return merged;
+}
+
 async function read(): Promise<StoreData> {
   if (kv) {
     const raw = await kv.read();
-    return raw ? (JSON.parse(raw) as StoreData) : structuredClone(EMPTY);
+    return raw ? normalize(JSON.parse(raw) as Partial<StoreData>) : structuredClone(EMPTY);
   }
   try {
-    return JSON.parse(await readFile(DATA_FILE, "utf8")) as StoreData;
+    return normalize(JSON.parse(await readFile(DATA_FILE, "utf8")) as Partial<StoreData>);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
     throw error;
@@ -122,6 +159,15 @@ function contactKey(channel: Channel, externalId: string): string {
   return `${channel}:${externalId}`;
 }
 
+/** Every read and write below is scoped by owner; a wrong userId finds nothing. */
+function conversationsOf(data: StoreData, userId: string): Conversation[] {
+  return data.conversations.filter((c) => c.userId === userId);
+}
+
+function findConversation(data: StoreData, userId: string, id: string): Conversation | undefined {
+  return data.conversations.find((c) => c.id === id && c.userId === userId);
+}
+
 function contactLabel(contact: Contact): string {
   return contact.name?.trim() || contact.externalId;
 }
@@ -129,7 +175,7 @@ function contactLabel(contact: Contact): string {
 import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./meta/client";
 
 function summarize(conv: Conversation, data: StoreData): ConversationSummary | null {
-  const contact = data.contacts.find((c) => c.id === conv.contactId);
+  const contact = data.contacts.find((c) => c.id === conv.contactId && c.userId === conv.userId);
   if (!contact) return null;
   // Notes are internal, so they must never become the inbox preview.
   const last = data.messages
@@ -156,6 +202,8 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
 }
 
 export interface InboundInput {
+  /** Owning tenant; webhooks resolve this before calling. */
+  userId: string;
   channel: Channel;
   /** Platform id: WhatsApp message id / Messenger PSID. Dedup key. */
   externalId: string;
@@ -170,6 +218,7 @@ export interface InboundInput {
 }
 
 export interface OutboundInput {
+  userId: string;
   channel: Channel;
   contactExternalId: string;
   externalId: string | null;
@@ -184,16 +233,30 @@ export interface OutboundInput {
 /** True when the message was new, false when it was already stored. */
 export async function recordInbound(input: InboundInput): Promise<boolean> {
   return tx((data) => {
+    const conversationIds = new Set(
+      conversationsOf(data, input.userId).map((c) => c.id),
+    );
+
     // Meta retries deliveries; dedupe on the platform message id.
-    if (data.messages.some((m) => m.channel === input.channel && m.externalId === input.externalId)) {
+    if (
+      data.messages.some(
+        (m) =>
+          conversationIds.has(m.conversationId) &&
+          m.channel === input.channel &&
+          m.externalId === input.externalId,
+      )
+    ) {
       return false;
     }
 
     const key = contactKey(input.channel, input.senderExternalId);
-    let contact = data.contacts.find((c) => contactKey(c.channel, c.externalId) === key);
+    let contact = data.contacts.find(
+      (c) => c.userId === input.userId && contactKey(c.channel, c.externalId) === key,
+    );
     if (!contact) {
       contact = {
         id: randomUUID(),
+        userId: input.userId,
         channel: input.channel,
         externalId: input.senderExternalId,
         name: input.senderName?.trim() || null,
@@ -210,10 +273,13 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
       }
     }
 
-    let conversation = data.conversations.find((c) => c.contactId === contact.id);
+    let conversation = data.conversations.find(
+      (c) => c.userId === input.userId && c.contactId === contact.id,
+    );
     if (!conversation) {
       conversation = {
         id: randomUUID(),
+        userId: input.userId,
         contactId: contact.id,
         lastMessageAt: input.createdAt.toISOString(),
         lastInboundAt: input.createdAt.toISOString(),
@@ -253,10 +319,15 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
 export async function recordOutbound(input: OutboundInput): Promise<Message | null> {
   return tx((data) => {
     const contact = data.contacts.find(
-      (c) => c.channel === input.channel && c.externalId === input.contactExternalId,
+      (c) =>
+        c.userId === input.userId &&
+        c.channel === input.channel &&
+        c.externalId === input.contactExternalId,
     );
     if (!contact) return null;
-    const conversation = data.conversations.find((c) => c.contactId === contact.id);
+    const conversation = data.conversations.find(
+      (c) => c.userId === input.userId && c.contactId === contact.id,
+    );
     if (!conversation) return null;
 
     const message: Message = {
@@ -280,14 +351,20 @@ export async function recordOutbound(input: OutboundInput): Promise<Message | nu
 
 /** Applies a delivery status update from Meta to a stored outbound message. */
 export async function updateOutboundStatus(
+  userId: string,
   channel: Channel,
   externalId: string,
   status: MessageStatus,
   error?: string | null,
 ): Promise<boolean> {
   return tx((data) => {
+    const owned = new Set(conversationsOf(data, userId).map((c) => c.id));
     const message = data.messages.find(
-      (m) => m.channel === channel && m.externalId === externalId && m.direction === "out",
+      (m) =>
+        owned.has(m.conversationId) &&
+        m.channel === channel &&
+        m.externalId === externalId &&
+        m.direction === "out",
     );
     if (!message) return false;
     message.status = status;
@@ -296,20 +373,32 @@ export async function updateOutboundStatus(
   });
 }
 
-export async function listConversations(channel?: Channel): Promise<ConversationSummary[]> {
+export async function listConversations(
+  userId: string,
+  tenant: { pageAccessToken: string; graphVersion: string },
+  channel?: Channel,
+): Promise<ConversationSummary[]> {
   const data = await read();
   let updatedAny = false;
 
   // Resolve profiles for any contact missing a real name or avatar
-  for (const contact of data.contacts) {
+  for (const contact of data.contacts.filter((c) => c.userId === userId)) {
     const isMissingOrNumericName =
       !contact.name ||
       contact.name === contact.externalId ||
       /^\d+$/.test(contact.name.trim());
 
-    if (contact.channel === "messenger" && (isMissingOrNumericName || !contact.avatarUrl)) {
+    if (
+      contact.channel === "messenger" &&
+      (isMissingOrNumericName || !contact.avatarUrl) &&
+      tenant.pageAccessToken
+    ) {
       try {
-        const profile = await fetchMessengerUserProfile(contact.externalId);
+        const profile = await fetchMessengerUserProfile(
+          contact.externalId,
+          tenant.pageAccessToken,
+          tenant.graphVersion,
+        );
         if (profile.name && contact.name !== profile.name) {
           contact.name = profile.name;
           updatedAny = true;
@@ -328,14 +417,18 @@ export async function listConversations(channel?: Channel): Promise<Conversation
     void write(data);
   }
 
-  return data.conversations
+  return conversationsOf(data, userId)
     .map((conv) => summarize(conv, data))
     .filter((summary): summary is ConversationSummary => summary !== null)
     .filter((summary) => !channel || summary.channel === channel)
     .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
 }
 
-async function backfillMessages(messages: Message[]): Promise<boolean> {
+async function backfillMessages(
+  messages: Message[],
+  pageAccessToken: string,
+  graphVersion: string,
+): Promise<boolean> {
   const missing = messages.filter(
     (m) =>
       m.channel === "messenger" &&
@@ -348,7 +441,11 @@ async function backfillMessages(messages: Message[]): Promise<boolean> {
   await Promise.all(
     missing.map(async (message) => {
       try {
-        const attach = await fetchMessengerMessageAttachment(message.externalId!);
+        const attach = await fetchMessengerMessageAttachment(
+          message.externalId!,
+          pageAccessToken,
+          graphVersion,
+        );
         if (attach.mediaUrl && message.mediaUrl !== attach.mediaUrl) {
           message.mediaUrl = attach.mediaUrl;
           message.type = attach.type;
@@ -364,9 +461,13 @@ async function backfillMessages(messages: Message[]): Promise<boolean> {
   return changed;
 }
 
-export async function getConversation(id: string): Promise<ConversationDetail | null> {
+export async function getConversation(
+  userId: string,
+  id: string,
+  tenant: { pageAccessToken: string; graphVersion: string },
+): Promise<ConversationDetail | null> {
   const data = await read();
-  const conversation = data.conversations.find((c) => c.id === id);
+  const conversation = findConversation(data, userId, id);
   if (!conversation) return null;
 
   const contact = data.contacts.find((c) => c.id === conversation.contactId);
@@ -378,9 +479,13 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
       contact.name === contact.externalId ||
       /^\d+$/.test(contact.name.trim());
 
-    if (isMissingOrNumericName || !contact.avatarUrl) {
+    if ((isMissingOrNumericName || !contact.avatarUrl) && tenant.pageAccessToken) {
       try {
-        const profile = await fetchMessengerUserProfile(contact.externalId);
+        const profile = await fetchMessengerUserProfile(
+          contact.externalId,
+          tenant.pageAccessToken,
+          tenant.graphVersion,
+        );
         if (profile.name && contact.name !== profile.name) {
           contact.name = profile.name;
           updatedAny = true;
@@ -400,7 +505,11 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   // Quick parallel attachment backfill
-  const changedMsg = await backfillMessages(messages);
+  const changedMsg = await backfillMessages(
+    messages,
+    tenant.pageAccessToken,
+    tenant.graphVersion,
+  );
   if (updatedAny || changedMsg) {
     void write(data); // persist updated profile and attachments
   }
@@ -411,9 +520,9 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
   return { conversation: summary, messages };
 }
 
-export async function resetUnread(id: string): Promise<void> {
+export async function resetUnread(userId: string, id: string): Promise<void> {
   return tx((data) => {
-    const conversation = data.conversations.find((c) => c.id === id);
+    const conversation = findConversation(data, userId, id);
     if (conversation) {
       conversation.unreadCount = 0;
       conversation.lastReadAt = new Date().toISOString();
@@ -422,9 +531,13 @@ export async function resetUnread(id: string): Promise<void> {
 }
 
 /** Archives or restores a conversation. Returns false when the id is unknown. */
-export async function setStatus(id: string, status: ConversationStatus): Promise<boolean> {
+export async function setStatus(
+  userId: string,
+  id: string,
+  status: ConversationStatus,
+): Promise<boolean> {
   return tx((data) => {
-    const conversation = data.conversations.find((c) => c.id === id);
+    const conversation = findConversation(data, userId, id);
     if (!conversation) return false;
     conversation.status = status;
     if (status === "closed") conversation.unreadCount = 0;
@@ -439,11 +552,12 @@ export interface ConversationMetaPatch {
 
 /** Assigns an owner and/or replaces tags. Returns the fresh summary. */
 export async function updateConversationMeta(
+  userId: string,
   id: string,
   patch: ConversationMetaPatch,
 ): Promise<ConversationSummary | null> {
   return tx((data) => {
-    const conversation = data.conversations.find((c) => c.id === id);
+    const conversation = findConversation(data, userId, id);
     if (!conversation) return null;
     if (patch.assignee !== undefined) conversation.assignee = patch.assignee;
     if (patch.tags !== undefined) conversation.tags = patch.tags;
@@ -456,12 +570,13 @@ export async function updateConversationMeta(
  * deliberately leaves lastMessageAt alone so it cannot reorder the inbox.
  */
 export async function recordNote(
+  userId: string,
   id: string,
   text: string,
   author: string,
 ): Promise<{ message: Message; conversation: ConversationSummary } | null> {
   return tx((data) => {
-    const conversation = data.conversations.find((c) => c.id === id);
+    const conversation = findConversation(data, userId, id);
     if (!conversation) return null;
     const contact = data.contacts.find((c) => c.id === conversation.contactId);
     if (!contact) return null;
@@ -491,14 +606,18 @@ export async function recordNote(
  * Searches contact names, platform ids and message bodies. One hit per
  * conversation, ordered by the newest matching message.
  */
-export async function searchConversations(query: string, limit = 40): Promise<SearchHit[]> {
+export async function searchConversations(
+  userId: string,
+  query: string,
+  limit = 40,
+): Promise<SearchHit[]> {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
 
   const data = await read();
   const hits: SearchHit[] = [];
 
-  for (const conv of data.conversations) {
+  for (const conv of conversationsOf(data, userId)) {
     const contact = data.contacts.find((c) => c.id === conv.contactId);
     if (!contact) continue;
 
@@ -531,4 +650,58 @@ function snippet(text: string, needle: string, radius = 48): string {
   const start = Math.max(0, at - radius);
   const end = Math.min(text.length, at + needle.length + radius);
   return `${start > 0 ? "…" : ""}${text.slice(start, end).trim()}${end < text.length ? "…" : ""}`;
+}
+
+/* ------------------------------------------------------------------ tenancy */
+
+/** Creates or refreshes the local mirror of a Clerk user. */
+export async function upsertUser(input: {
+  userId: string;
+  email: string;
+  name: string | null;
+}): Promise<TenantUser> {
+  return tx((data) => {
+    const existing = data.users.find((u) => u.userId === input.userId);
+    if (existing) {
+      existing.email = input.email || existing.email;
+      existing.name = input.name ?? existing.name;
+      return existing;
+    }
+    const user: TenantUser = { ...input, createdAt: new Date().toISOString() };
+    data.users.push(user);
+    return user;
+  });
+}
+
+/** Stores an already-encrypted credential blob plus its public routing ids. */
+export async function saveCredentials(record: CredentialRecord): Promise<void> {
+  return tx((data) => {
+    const at = data.credentials.findIndex((c) => c.userId === record.userId);
+    if (at === -1) data.credentials.push(record);
+    else data.credentials[at] = record;
+  });
+}
+
+export async function getCredentials(userId: string): Promise<CredentialRecord | null> {
+  const data = await read();
+  return data.credentials.find((c) => c.userId === userId) ?? null;
+}
+
+export async function listCredentials(): Promise<CredentialRecord[]> {
+  const data = await read();
+  return data.credentials;
+}
+
+/** Candidate tenants a webhook could belong to, by the ids inside the payload. */
+export async function credentialsByRoutingId(field: {
+  waPhoneNumberId?: string;
+  pageId?: string;
+  telegramBotId?: string;
+}): Promise<CredentialRecord[]> {
+  const data = await read();
+  return data.credentials.filter((c) =>
+    (field.waPhoneNumberId ? c.waPhoneNumberId === field.waPhoneNumberId : true) &&
+    (field.pageId ? c.pageId === field.pageId : true) &&
+    (field.telegramBotId ? c.telegramBotId === field.telegramBotId : true),
+  );
 }

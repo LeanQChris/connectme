@@ -53,8 +53,6 @@ export async function postGraphJson(
   return payload;
 }
 
-import { config } from "../config";
-
 const profileCache = new Map<string, { name: string | null; avatarUrl: string | null }>();
 const attachmentCache = new Map<
   string,
@@ -67,17 +65,18 @@ const attachmentCache = new Map<
  */
 export async function fetchMessengerUserProfile(
   psid: string,
-  accessToken?: string,
+  accessToken: string,
+  graphVersion: string,
 ): Promise<{ name: string | null; avatarUrl: string | null }> {
   const cached = profileCache.get(psid);
   if (cached && (cached.name || cached.avatarUrl)) {
     return cached;
   }
 
-  const token = accessToken ?? config.fbPageAccessToken ?? process.env.FB_PAGE_ACCESS_TOKEN?.trim();
+  const token = accessToken;
   if (!token) return { name: null, avatarUrl: null };
 
-  const version = config.graphVersion || "v21.0";
+  const version = graphVersion || "v21.0";
 
   // Try fetching standard profile fields
   try {
@@ -146,17 +145,18 @@ interface GraphAttachment {
  */
 export async function fetchMessengerMessageAttachment(
   mid: string,
-  accessToken?: string,
+  accessToken: string,
+  graphVersion: string,
 ): Promise<{ mediaUrl: string | null; type: "image" | "video" | "audio" | "document" | "other"; text: string | null }> {
   if (attachmentCache.has(mid)) {
     return attachmentCache.get(mid)!;
   }
 
-  const token = accessToken ?? config.fbPageAccessToken ?? process.env.FB_PAGE_ACCESS_TOKEN?.trim();
+  const token = accessToken;
   if (!token) return { mediaUrl: null, type: "other", text: null };
 
   try {
-    const version = config.graphVersion || "v21.0";
+    const version = graphVersion || "v21.0";
     const url = `https://graph.facebook.com/${version}/${mid}?fields=attachments,message&access_token=${token}`;
     const response = await fetch(url, {
       method: "GET",

@@ -12,6 +12,14 @@ import type {
   WhatsAppWebhookBody,
 } from "./types";
 
+/** The tenant a verified webhook belongs to, plus the tokens its API calls need. */
+export interface TenantContext {
+  userId: string;
+  pageAccessToken: string;
+  graphVersion: string;
+  waAccessToken: string;
+}
+
 const MESSAGE_TYPE_MAP: Record<string, MessageType> = {
   text: "text",
   image: "image",
@@ -44,7 +52,10 @@ function formatStatusError(status: WhatsAppStatus): string | null {
   return `${code}${error.title ?? error.message ?? "Delivery failed"}`;
 }
 
-export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
+export async function handleWhatsApp(
+  tenant: TenantContext,
+  body: WhatsAppWebhookBody,
+): Promise<void> {
   for (const entry of body.entry ?? []) {
     for (const change of entry?.changes ?? []) {
       const value = change?.value;
@@ -136,6 +147,7 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
 
         try {
           const inserted = await recordInbound({
+            userId: tenant.userId,
             channel: "whatsapp",
             externalId: message.id,
             senderExternalId: message.from,
@@ -163,6 +175,7 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
         if (!next) continue;
         try {
           const updated = await updateOutboundStatus(
+            tenant.userId,
             "whatsapp",
             status.id,
             next,
@@ -179,7 +192,10 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
 
 import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./client";
 
-export async function handleMessenger(body: PageWebhookBody): Promise<void> {
+export async function handleMessenger(
+  tenant: TenantContext,
+  body: PageWebhookBody,
+): Promise<void> {
   for (const entry of body.entry ?? []) {
     for (const event of entry?.messaging ?? []) {
       const message = event?.message;
@@ -222,7 +238,11 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
       // If mediaUrl is still missing but message was an attachment, query Graph API
       if (!mediaUrl && (message.attachments?.length || type !== "text")) {
         try {
-          const attachData = await fetchMessengerMessageAttachment(mid);
+          const attachData = await fetchMessengerMessageAttachment(
+            mid,
+            tenant.pageAccessToken,
+            tenant.graphVersion,
+          );
           if (attachData.mediaUrl) {
             mediaUrl = attachData.mediaUrl;
             type = attachData.type;
@@ -237,7 +257,11 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
       let senderName: string | null = null;
       let senderAvatarUrl: string | null = null;
       try {
-        const profile = await fetchMessengerUserProfile(senderId);
+        const profile = await fetchMessengerUserProfile(
+          senderId,
+          tenant.pageAccessToken,
+          tenant.graphVersion,
+        );
         senderName = profile.name;
         senderAvatarUrl = profile.avatarUrl;
       } catch (err) {
@@ -246,6 +270,7 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
 
       try {
         const inserted = await recordInbound({
+          userId: tenant.userId,
           channel: "messenger",
           externalId: mid,
           senderExternalId: senderId,
@@ -278,7 +303,10 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
  *  3. Add "instagram" to the IG_PAGE_ACCESS_TOKEN entry in lib/config.ts and to
  *     .env.example.
  */
-export async function handleInstagram(body: InstagramWebhookBody): Promise<void> {
+export async function handleInstagram(
+  _tenant: TenantContext,
+  body: InstagramWebhookBody,
+): Promise<void> {
   const count = body.entry?.reduce((total, entry) => total + (entry?.messaging?.length ?? 0), 0) ?? 0;
   console.log(`[webhook] instagram: ignoring ${count} event(s), not implemented yet`);
 }
