@@ -178,6 +178,10 @@ export interface CredentialRecord {
   waPhoneNumberId?: string;
   /** Facebook Page id; routes `page` and `instagram` events. */
   pageId?: string;
+  /** Facebook Page display name (from OAuth). */
+  pageName?: string;
+  /** Connected Instagram username (from OAuth). */
+  instagramUsername?: string;
   /** Telegram bot id, taken from the token; routes Bot API webhooks. */
   telegramBotId?: string;
   /** Discord bot / application id; routes Discord webhooks. */
@@ -189,6 +193,8 @@ export interface TenantSettings {
   secrets: ProviderSecrets;
   connected: Record<ConnectionFlag, boolean>;
   pageId: string | null;
+  pageName: string | null;
+  instagramUsername: string | null;
   telegramBotId: string | null;
   discordBotId: string | null;
   updatedAt: string | null;
@@ -199,11 +205,16 @@ export interface SettingsPayload {
   settings: {
     connected: Record<ConnectionFlag, boolean>;
     pageId: string | null;
+    pageName: string | null;
+    instagramUsername: string | null;
     telegramBotId: string | null;
     discordBotId: string | null;
     updatedAt: string | null;
     /** Copyable only — the tokens themselves are never sent back. */
     webhookVerifyToken: string;
+  };
+  oauth: {
+    metaConfigured: boolean;
   };
   webhookUrls: { meta: string; telegram: string | null; discord: string | null };
 }
