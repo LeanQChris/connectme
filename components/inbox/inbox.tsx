@@ -32,6 +32,7 @@ interface InboxProps {
 
 export default function Inbox({ initialSelectedId }: InboxProps) {
   const [filter, setFilter] = useState("");
+  const [accountId, setAccountId] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
 
   // React Query cached hooks
@@ -39,6 +40,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   const { data: detail, isLoading: loadingThread } = useConversation(selectedId);
   const { data: settingsData } = useSettings();
   const connected = settingsData?.settings?.connected;
+  const accounts = useMemo(() => settingsData?.settings?.accounts ?? [], [settingsData]);
 
   const sendMutation = useSendReply(selectedId);
   const statusMutation = useSetConversationStatus();
@@ -59,15 +61,28 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  // One page dropdown per channel; only pages of the channel in view are offered.
+  const scopedAccounts = useMemo(
+    () =>
+      filter && filter !== ARCHIVED
+        ? accounts.filter((a) => a.channel === filter)
+        : accounts,
+    [accounts, filter],
+  );
+
+  // A page picked under one channel is meaningless under another.
+  const activeAccountId = scopedAccounts.some((a) => a.id === accountId) ? accountId : "";
+
   // Archived threads live in their own view; the rest only shows open ones.
   const visible = useMemo(
     () =>
-      filter === ARCHIVED
+      (filter === ARCHIVED
         ? all.filter((c) => c.status === "closed")
         : filter
           ? all.filter((c) => c.channel === filter && c.status === "open")
-          : all.filter((c) => c.status === "open"),
-    [all, filter],
+          : all.filter((c) => c.status === "open")
+      ).filter((c) => !activeAccountId || c.accountId === activeAccountId),
+    [all, filter, activeAccountId],
   );
 
   // Rail badges count unread inbound messages; Archived keeps a closed-thread tally.
@@ -230,6 +245,21 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               <span className="rounded-full bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] tabular-nums text-mute">
                 {visible.length}
               </span>
+              {scopedAccounts.length > 1 && (
+                <select
+                  value={activeAccountId}
+                  aria-label="Filter by page"
+                  onChange={(event) => setAccountId(event.target.value)}
+                  className="ml-auto h-7 max-w-[150px] rounded-[6px] border border-hairline bg-canvas-elevated pl-2 pr-1 font-mono text-[10.5px] text-body transition-colors hover:bg-surface-well focus:outline-none"
+                >
+                  <option value="">All pages</option>
+                  {scopedAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <ConversationList
               conversations={visible}

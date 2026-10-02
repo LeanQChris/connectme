@@ -5,6 +5,7 @@ import { useMessageSearch } from "@/lib/hooks/use-inbox";
 import type { ConversationSummary } from "@/lib/types";
 
 import Avatar from "./avatar";
+import { channelMeta } from "./channel-badge";
 import { formatRelative } from "./format";
 
 interface Props {
@@ -122,6 +123,7 @@ export default function ConversationList({
             const selected = conversation.id === selectedId;
             const hasRealName = conversation.contactName !== conversation.contactExternalId;
             const unread = conversation.unreadCount > 0;
+            const channelInfo = channelMeta(conversation.channel);
 
             return (
               <li key={`${conversation.id}-${row.createdAt}`}>
@@ -144,32 +146,36 @@ export default function ConversationList({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`truncate text-[13px] tracking-[-0.01em] ${
-                          selected || unread ? "font-semibold text-ink" : "font-medium text-ink"
-                        }`}
-                      >
-                        {conversation.contactName}
-                      </span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        {/* Owning page/handle: the brand-tinted chip is what tells
+                            two pages of the same channel apart. */}
+                        {conversation.accountName && (
+                          <span
+                            title={`${channelInfo.label} · ${conversation.accountName}`}
+                            className={`max-w-[92px] shrink-0 truncate rounded-[4px] px-1.5 py-px font-mono text-[9.5px] font-medium ${channelInfo.soft}`}
+                          >
+                            {conversation.accountName}
+                          </span>
+                        )}
+                        <span
+                          className={`truncate text-[13px] tracking-[-0.01em] ${
+                            selected || unread ? "font-semibold text-ink" : "font-medium text-ink"
+                          }`}
+                        >
+                          {conversation.contactName}
+                        </span>
+                      </div>
                       <span className="shrink-0 font-mono text-[10px] tabular-nums text-mute">
                         {formatRelative(row.createdAt)}
                       </span>
                     </div>
 
-                    {(hasRealName || conversation.assignee || conversation.accountName) && (
+                    {(hasRealName || conversation.assignee) && (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {hasRealName && (
                           <p className="truncate font-mono text-[10px] text-mute">
                             {conversation.contactExternalId}
                           </p>
-                        )}
-                        {conversation.accountName && (
-                          <span
-                            title={`Received via ${conversation.accountName}`}
-                            className="shrink-0 rounded bg-surface-well px-1.5 py-px font-mono text-[9px] text-mute"
-                          >
-                            {conversation.accountName}
-                          </span>
                         )}
                         {conversation.assignee && (
                           <span

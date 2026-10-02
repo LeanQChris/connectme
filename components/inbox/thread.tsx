@@ -465,10 +465,10 @@ export default function Thread({
               </span>
               {conversation.accountName && (
                 <span
-                  title={`Received via ${conversation.accountName}`}
-                  className="inline-flex items-center rounded-full border border-hairline bg-surface-well px-2 py-0.2 font-mono text-[10px] text-body"
+                  title={`Received on ${conversation.accountName} · ${channelInfo.label}`}
+                  className={`inline-flex max-w-[160px] items-center truncate rounded-[4px] px-2 py-0.2 font-mono text-[10px] font-medium ${channelInfo.soft}`}
                 >
-                  via {conversation.accountName}
+                  {conversation.accountName}
                 </span>
               )}
               {archived && (
