@@ -46,12 +46,26 @@ export async function handleTelegramUpdate(
     const largestPhoto = message.photo[message.photo.length - 1];
     mediaUrl = await getTelegramFileUrl(token, largestPhoto.file_id);
     if (!text) text = message.caption || null;
+  } else if (message.animation) {
+    type = "video";
+    mediaUrl = await getTelegramFileUrl(token, message.animation.file_id);
+    if (!text) text = message.caption || null;
+  } else if (message.sticker) {
+    type = "image";
+    mediaUrl = await getTelegramFileUrl(token, message.sticker.file_id);
+    if (!text) text = message.sticker.emoji ? `Sticker ${message.sticker.emoji}` : "🎨 Sticker";
+  } else if (message.video_note) {
+    type = "video";
+    mediaUrl = await getTelegramFileUrl(token, message.video_note.file_id);
+    if (!text) text = "📹 Video note";
   } else if (message.voice) {
     type = "audio";
     mediaUrl = await getTelegramFileUrl(token, message.voice.file_id);
+    if (!text) text = "🎤 Voice message";
   } else if (message.audio) {
     type = "audio";
     mediaUrl = await getTelegramFileUrl(token, message.audio.file_id);
+    if (!text) text = message.caption || message.audio.title || message.audio.file_name || null;
   } else if (message.video) {
     type = "video";
     mediaUrl = await getTelegramFileUrl(token, message.video.file_id);
@@ -60,6 +74,19 @@ export async function handleTelegramUpdate(
     type = "document";
     mediaUrl = await getTelegramFileUrl(token, message.document.file_id);
     if (!text) text = message.document.file_name || message.caption || null;
+  } else if (message.location) {
+    type = "text";
+    text = `📍 Location: https://maps.google.com/?q=${message.location.latitude},${message.location.longitude}`;
+  } else if (message.contact) {
+    type = "text";
+    const contactName = [message.contact.first_name, message.contact.last_name].filter(Boolean).join(" ");
+    text = `👤 Contact: ${contactName} (${message.contact.phone_number})`;
+  } else if (message.poll) {
+    type = "text";
+    text = `📊 Poll: ${message.poll.question}`;
+  } else if (message.dice) {
+    type = "text";
+    text = `${message.dice.emoji} (${message.dice.value})`;
   } else if (message.text) {
     type = "text";
   } else {

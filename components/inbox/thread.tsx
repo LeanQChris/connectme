@@ -203,83 +203,101 @@ function formatDateDivider(dateStr: string): string {
   });
 }
 
-function MessageAttachment({ message }: { message: Message }) {
+function isOnlyEmoji(str: string | null | undefined): boolean {
+  if (!str) return false;
+  const trimmed = str.trim();
+  if (!trimmed || trimmed.length > 8) return false;
+  // Test if string contains purely emoji characters
+  const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\s)+$/u;
+  return emojiRegex.test(trimmed);
+}
+
+function MessageAttachment({
+  message,
+  onOpenImage,
+}: {
+  message: Message;
+  onOpenImage: (url: string) => void;
+}) {
   const { mediaUrl, type } = message;
   if (!mediaUrl) return null;
 
   if (type === "image") {
     return (
-      <a
-        href={mediaUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group/media relative block overflow-hidden rounded-[10px]"
-      >
+      <div className="group/media relative block overflow-hidden rounded-[10px] cursor-pointer">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={mediaUrl}
           alt="Attachment"
-          className="max-h-80 w-full object-cover transition-transform duration-200 group-hover/media:scale-[1.01]"
+          onClick={() => onOpenImage(mediaUrl)}
+          className="max-h-80 w-full object-cover transition-transform duration-200 group-hover/media:scale-[1.02]"
           loading="lazy"
         />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/media:bg-black/20">
-          <span className="rounded-full bg-ink/90 px-3 py-1 text-[11px] font-medium text-on-primary opacity-0 shadow-sm transition-opacity group-hover/media:opacity-100">
-            Open image ↗
+        <div
+          onClick={() => onOpenImage(mediaUrl)}
+          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/media:bg-black/25"
+        >
+          <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-sm">
+            <span>View Full Size</span>
+            <span>↗</span>
           </span>
         </div>
-      </a>
+      </div>
     );
   }
 
   if (type === "video") {
     return (
-      <video
-        src={mediaUrl}
-        controls
-        className="max-h-80 w-full rounded-[10px]"
-        preload="metadata"
-      />
+      <div className="overflow-hidden rounded-[10px] bg-black/10">
+        <video
+          src={mediaUrl}
+          controls
+          playsInline
+          className="max-h-80 w-full rounded-[10px]"
+          preload="metadata"
+        />
+      </div>
     );
   }
 
   if (type === "audio") {
-    return <audio src={mediaUrl} controls className="h-9 w-full max-w-[260px]" />;
+    return (
+      <div className="flex items-center gap-2 rounded-[8px] bg-canvas-elevated p-2 border border-hairline my-1 max-w-[280px]">
+        <span className="text-lg">🎵</span>
+        <audio src={mediaUrl} controls className="h-8 w-full min-w-[200px]" />
+      </div>
+    );
   }
 
   // Document / other files
+  const filename = message.text || "Attached Document";
+  const ext = filename.split(".").pop()?.toUpperCase() || "DOC";
+
   return (
     <a
       href={mediaUrl}
       target="_blank"
       rel="noopener noreferrer"
+      download
       className="group flex items-center gap-3 rounded-[10px] border border-hairline bg-canvas p-2.5 text-left text-ink transition-colors hover:bg-surface-well"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas-elevated text-body">
-        <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.5"
-            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-          />
-        </svg>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas-elevated font-mono text-[10px] font-bold text-body">
+        {ext.slice(0, 4)}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-medium text-ink">{message.text || "Document"}</p>
-        <span className="font-mono text-[10.5px] text-mute">Tap to open</span>
+        <p className="truncate text-[13px] font-medium text-ink">{filename}</p>
+        <span className="font-mono text-[10.5px] text-mute flex items-center gap-1">
+          <span>Download file</span>
+          <span>↓</span>
+        </span>
       </div>
       <svg
-        className="h-3.5 w-3.5 shrink-0 text-mute transition-colors group-hover:text-ink"
+        className="h-4 w-4 shrink-0 text-mute transition-transform group-hover:translate-y-0.5 group-hover:text-ink"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
       >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-        />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
       </svg>
     </a>
   );
@@ -297,6 +315,7 @@ export default function Thread({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const windowOpen = conversation.window.open;
   const archived = conversation.status === "closed";
 
@@ -338,7 +357,31 @@ export default function Thread({
   }, [messages, conversation.lastReadAt]);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-canvas">
+    <section className="relative flex min-h-0 flex-1 flex-col bg-canvas">
+      {/* Lightbox Modal for Images */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxImage(null)}
+            className="absolute right-5 top-5 rounded-full bg-white/20 p-2 text-white transition-colors hover:bg-white/40"
+            aria-label="Close image"
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxImage}
+            alt="Full size preview"
+            className="max-h-[90vh] max-w-[90vw] rounded-[8px] object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {/* Thread Header */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline bg-canvas-elevated px-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -432,16 +475,16 @@ export default function Thread({
             type="button"
             onClick={() => onArchive(archived ? "open" : "closed")}
             title={archived ? "Restore to inbox" : "Archive conversation"}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink"
-        >
-          <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M3 3h18v5H3zM10 12h4"
-            />
-          </svg>
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink"
+          >
+            <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M3 3h18v5H3zM10 12h4"
+              />
+            </svg>
             <span className="hidden sm:inline">{archived ? "Restore" : "Archive"}</span>
           </button>
         </div>
@@ -491,6 +534,7 @@ export default function Thread({
             // Avatar only under the last bubble of an inbound run.
             const showAvatar = !outgoing && !isNote && (!next || next.direction !== message.direction);
             const hasMedia = Boolean(message.mediaUrl);
+            const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
             const caption =
               message.text && (message.type === "image" || message.type === "video" || !hasMedia);
             const unreadCount =
@@ -562,24 +606,41 @@ export default function Thread({
                   )}
 
                   <div
-                    className={`group relative max-w-[78%] text-[13px] leading-[1.55] sm:max-w-[68%] ${
-                      hasMedia ? "w-fit p-1.5" : "px-3 py-2"
-                    } ${outgoing ? "rounded-[14px] rounded-br-[4px]" : "rounded-[14px] rounded-bl-[4px]"} ${
-                      outgoing
-                        ? "bg-primary text-on-primary"
-                        : "bg-canvas-elevated text-ink ring-1 ring-hairline ring-inset"
+                    className={`group relative max-w-[78%] leading-[1.55] sm:max-w-[68%] ${
+                      onlyEmoji
+                        ? "p-1 bg-transparent !ring-0"
+                        : hasMedia
+                          ? "w-fit p-1.5"
+                          : "px-3 py-2 text-[13px]"
+                    } ${
+                      onlyEmoji
+                        ? ""
+                        : outgoing
+                          ? "rounded-[14px] rounded-br-[4px] bg-primary text-on-primary"
+                          : "rounded-[14px] rounded-bl-[4px] bg-canvas-elevated text-ink ring-1 ring-hairline ring-inset"
                     }`}
                   >
-                    {hasMedia && <MessageAttachment message={message} />}
+                    {hasMedia && (
+                      <MessageAttachment
+                        message={message}
+                        onOpenImage={(url) => setLightboxImage(url)}
+                      />
+                    )}
 
-                    {caption && (
-                      <p
-                        className={`whitespace-pre-wrap break-words select-text ${
-                          hasMedia ? "px-1.5 pt-1.5" : ""
-                        }`}
-                      >
+                    {onlyEmoji ? (
+                      <div className="text-3xl leading-tight select-text py-0.5">
                         {message.text}
-                      </p>
+                      </div>
+                    ) : (
+                      caption && (
+                        <p
+                          className={`whitespace-pre-wrap break-words select-text ${
+                            hasMedia ? "px-1.5 pt-1.5" : ""
+                          }`}
+                        >
+                          {message.text}
+                        </p>
+                      )
                     )}
 
                     {!message.text && !hasMedia && (

@@ -39,6 +39,17 @@ export interface TelegramVoice {
   file_size?: number;
 }
 
+export interface TelegramAudio {
+  file_id: string;
+  file_unique_id: string;
+  duration: number;
+  performer?: string;
+  title?: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+}
+
 export interface TelegramVideo {
   file_id: string;
   file_unique_id: string;
@@ -47,6 +58,51 @@ export interface TelegramVideo {
   duration: number;
   mime_type?: string;
   file_size?: number;
+}
+
+export interface TelegramAnimation {
+  file_id: string;
+  file_unique_id: string;
+  width: number;
+  height: number;
+  duration: number;
+  mime_type?: string;
+  file_size?: number;
+}
+
+export interface TelegramSticker {
+  file_id: string;
+  file_unique_id: string;
+  width: number;
+  height: number;
+  is_animated?: boolean;
+  is_video?: boolean;
+  emoji?: string;
+  set_name?: string;
+  file_size?: number;
+}
+
+export interface TelegramLocation {
+  longitude: number;
+  latitude: number;
+}
+
+export interface TelegramContact {
+  phone_number: string;
+  first_name: string;
+  last_name?: string;
+  user_id?: number;
+}
+
+export interface TelegramPoll {
+  id: string;
+  question: string;
+  options: Array<{ text: string; voter_count: number }>;
+}
+
+export interface TelegramDice {
+  emoji: string;
+  value: number;
 }
 
 export interface TelegramMessage {
@@ -61,7 +117,14 @@ export interface TelegramMessage {
   document?: TelegramDocument;
   voice?: TelegramVoice;
   video?: TelegramVideo;
-  audio?: TelegramVoice;
+  audio?: TelegramAudio;
+  animation?: TelegramAnimation;
+  sticker?: TelegramSticker;
+  video_note?: TelegramVoice;
+  location?: TelegramLocation;
+  contact?: TelegramContact;
+  poll?: TelegramPoll;
+  dice?: TelegramDice;
 }
 
 export interface TelegramUpdate {
