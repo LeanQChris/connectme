@@ -65,8 +65,75 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
           console.warn("[webhook] whatsapp message without from/id, skipped");
           continue;
         }
-        const type = mapType(message.type);
-        const text = type === "text" ? (message.text?.body ?? "") : placeholder(type);
+
+        const rawType = message.type || "text";
+        let type: MessageType = "text";
+        let text: string | null = null;
+        let mediaUrl: string | null = null;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawMsg = message as Record<string, any>;
+
+        if (rawType === "text") {
+          type = "text";
+          text = message.text?.body ?? "";
+        } else if (rawType === "image") {
+          type = "image";
+          const imgId = rawMsg.image?.id;
+          if (imgId) mediaUrl = `/api/media?id=${imgId}`;
+          text = rawMsg.image?.caption || null;
+        } else if (rawType === "video") {
+          type = "video";
+          const vidId = rawMsg.video?.id;
+          if (vidId) mediaUrl = `/api/media?id=${vidId}`;
+          text = rawMsg.video?.caption || null;
+        } else if (rawType === "audio" || rawType === "voice") {
+          type = "audio";
+          const audioId = rawMsg.audio?.id || rawMsg.voice?.id;
+          if (audioId) mediaUrl = `/api/media?id=${audioId}`;
+          text = null;
+        } else if (rawType === "document") {
+          type = "document";
+          const docId = rawMsg.document?.id;
+          if (docId) mediaUrl = `/api/media?id=${docId}`;
+          text = rawMsg.document?.filename || rawMsg.document?.caption || "Document";
+        } else if (rawType === "sticker") {
+          type = "image";
+          const stickerId = rawMsg.sticker?.id;
+          if (stickerId) mediaUrl = `/api/media?id=${stickerId}`;
+          text = null;
+        } else if (rawType === "interactive") {
+          type = "text";
+          text =
+            rawMsg.interactive?.button_reply?.title ||
+            rawMsg.interactive?.list_reply?.title ||
+            rawMsg.interactive?.button_reply?.id ||
+            rawMsg.interactive?.list_reply?.id ||
+            "[Interactive reply]";
+        } else if (rawType === "button") {
+          type = "text";
+          text = rawMsg.button?.text || rawMsg.button?.payload || "[Button response]";
+        } else if (rawType === "location") {
+          type = "text";
+          text = rawMsg.location?.name
+            ? `📍 ${rawMsg.location.name} (${rawMsg.location.address || ""})`
+            : rawMsg.location?.latitude
+              ? `📍 Location: ${rawMsg.location.latitude}, ${rawMsg.location.longitude}`
+              : "📍 Location";
+        } else if (rawType === "contacts") {
+          type = "text";
+          const firstContact = rawMsg.contacts?.[0];
+          text = firstContact?.name?.formatted_name
+            ? `👤 Contact: ${firstContact.name.formatted_name}`
+            : "👤 Contact card";
+        } else if (rawType === "reaction") {
+          type = "text";
+          text = rawMsg.reaction?.emoji ? `Reacted ${rawMsg.reaction.emoji}` : "👍";
+        } else {
+          type = "text";
+          text = message.text?.body || rawMsg.caption || `[${rawType}]`;
+        }
+
         try {
           const inserted = await recordInbound({
             channel: "whatsapp",
@@ -74,10 +141,11 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
             senderExternalId: message.from,
             senderName: names.get(message.from) ?? null,
             text,
+            mediaUrl,
             type,
             createdAt: unixSecondsToDate(message.timestamp),
           });
-          if (inserted) console.log(`[webhook] whatsapp inbound ${message.id} (${type})`);
+          if (inserted) console.log(`[webhook] whatsapp inbound ${message.id} (${type}) from ${names.get(message.from) || message.from}`);
           else console.log(`[webhook] whatsapp duplicate ${message.id}, ignored`);
         } catch (error) {
           console.error("[webhook] failed to store whatsapp message:", error);
@@ -92,7 +160,7 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
             : status.status === "failed"
               ? "failed"
               : null;
-        if (!next) continue; // deleted / warning have no equivalent here
+        if (!next) continue;
         try {
           const updated = await updateOutboundStatus(
             "whatsapp",

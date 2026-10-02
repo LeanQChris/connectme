@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { ConversationSummary } from "@/lib/types";
 
 import Avatar from "./avatar";
-import { channelMeta } from "./channel-badge";
 import { formatRelative } from "./format";
 
 interface Props {
@@ -150,6 +149,7 @@ export default function ConversationList({
                           if (msg === "[video]") return "🎥 Video";
                           if (msg === "[audio]") return "🎵 Audio";
                           if (msg === "[document]") return "📄 Document";
+                          if (msg === "[message]") return "💬 Message";
                           return msg;
                         })()}
                       </span>
@@ -166,64 +166,6 @@ export default function ConversationList({
           })
         )}
       </ul>
-    </div>
-  );
-}
-
-export function ConversationFilter({
-  value,
-  onChange,
-  counts,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  counts: Record<string, number>;
-}) {
-  const options = [
-    { value: "", label: "All" },
-    { value: "whatsapp", label: channelMeta("whatsapp").label },
-    { value: "messenger", label: channelMeta("messenger").label },
-    { value: "telegram", label: channelMeta("telegram").label },
-    { value: "instagram", label: channelMeta("instagram").label },
-    { value: "archived", label: "Archived" },
-  ];
-
-  return (
-    <div className="flex items-center gap-1">
-      {options.map((option) => {
-        const active = value === option.value;
-        return (
-          <button
-            key={option.value || "all"}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
-              active
-                ? "bg-ink text-on-primary shadow-2xs"
-                : "text-body hover:bg-surface-well hover:text-ink"
-            }`}
-          >
-            <span>{option.label}</span>
-            {counts[option.value] !== undefined ? (
-              <span
-                className={`rounded-full px-1.5 font-mono text-[9.5px] tabular-nums ${
-                  active ? "bg-white/20 text-on-primary" : "bg-hairline text-mute"
-                }`}
-              >
-                {counts[option.value]}
-              </span>
-            ) : option.value === "" && counts.total ? (
-              <span
-                className={`rounded-full px-1.5 font-mono text-[9.5px] tabular-nums ${
-                  active ? "bg-white/20 text-on-primary" : "bg-hairline text-mute"
-                }`}
-              >
-                {counts.total}
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
     </div>
   );
 }

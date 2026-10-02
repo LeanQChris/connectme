@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useConversation, useConversations, useSendReply, useSetConversationStatus } from "@/lib/hooks/use-inbox";
-import type { ConversationStatus } from "@/lib/types";
+import type { Channel, ConversationStatus } from "@/lib/types";
 
-import ConversationList, { ConversationFilter } from "./conversation-list";
+import { channelMeta } from "./channel-badge";
+import ChannelRail from "./channel-rail";
+import ConversationList from "./conversation-list";
 import ThemeToggle from "./theme-toggle";
 import Thread from "./thread";
 
@@ -52,7 +54,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     [all, filter],
   );
 
-  const counts = useMemo(() => {
+  const counts = useMemo<Record<string, number>>(() => {
     const open = all.filter((c) => c.status === "open");
     return {
       total: open.length,
@@ -166,19 +168,36 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
       <div className="flex min-h-0 flex-1">
         {/* Conversations Sidebar */}
         <aside
-          className={`min-h-0 w-full shrink-0 flex-col border-r border-hairline bg-canvas md:flex md:w-[320px] ${
+          className={`min-h-0 w-full shrink-0 border-r border-hairline bg-canvas md:flex md:w-[372px] ${
             selectedId ? "hidden" : "flex"
           }`}
         >
-          <div className="flex h-11 shrink-0 items-center justify-between border-b border-hairline px-3 bg-canvas">
-            <ConversationFilter value={filter} onChange={setFilter} counts={counts} />
+          <ChannelRail value={filter} onChange={setFilter} counts={counts} />
+
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hairline bg-canvas px-3.5">
+              <span className="truncate text-[13px] font-semibold tracking-[-0.01em] text-ink">
+                {filter === ARCHIVED
+                  ? "Archived"
+                  : filter
+                    ? channelMeta(filter as Channel).label
+                    : "All conversations"}
+              </span>
+              <span className="rounded-full bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] tabular-nums text-mute">
+                {filter === ARCHIVED
+                  ? counts[ARCHIVED]
+                  : filter
+                    ? counts[filter]
+                    : counts.total}
+              </span>
+            </div>
+            <ConversationList
+              conversations={visible}
+              selectedId={selectedId}
+              onSelect={select}
+              loading={loadingList}
+            />
           </div>
-          <ConversationList
-            conversations={visible}
-            selectedId={selectedId}
-            onSelect={select}
-            loading={loadingList}
-          />
         </aside>
 
         {/* Conversation Thread */}
