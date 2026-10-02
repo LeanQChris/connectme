@@ -150,6 +150,7 @@ export interface ProviderSecrets {
   pageAccessToken: string;
   telegramBotToken: string;
   discordBotToken: string;
+  discordPublicKey: string;
   graphVersion: string;
 }
 
@@ -162,6 +163,7 @@ export const EMPTY_SECRETS: ProviderSecrets = {
   pageAccessToken: "",
   telegramBotToken: "",
   discordBotToken: "",
+  discordPublicKey: "",
   graphVersion: "",
 };
 

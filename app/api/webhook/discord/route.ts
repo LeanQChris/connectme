@@ -1,5 +1,6 @@
 import { handleDiscordMessage } from "@/lib/discord/handlers";
 import type { DiscordMessage, DiscordUser } from "@/lib/discord/types";
+import { verifyDiscordSignature } from "@/lib/discord/verify";
 import { listCredentials } from "@/lib/store";
 import { tenantSecrets } from "@/lib/tenant";
 
@@ -14,6 +15,9 @@ export async function POST(request: Request): Promise<Response> {
         headers: { "content-type": "application/json" },
       });
     }
+
+    const signature = request.headers.get("x-signature-ed25519");
+    const timestamp = request.headers.get("x-signature-timestamp");
 
     const body = JSON.parse(raw) as {
       type?: number;
@@ -31,21 +35,24 @@ export async function POST(request: Request): Promise<Response> {
       userId?: string;
     };
 
-    // Discord Interaction PING (type 1)
-    if (body.type === 1) {
-      return new Response(JSON.stringify({ type: 1 }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
-
-    // Find the tenant owner
+    // Find candidate tenant
     const url = new URL(request.url);
     let targetUserId = url.searchParams.get("userId") || body.userId;
 
+    const credentials = await listCredentials();
+
+    if (!targetUserId && signature && timestamp) {
+      // Find tenant whose public key matches the signature
+      for (const cred of credentials) {
+        const sec = await tenantSecrets(cred.userId);
+        if (sec.discordPublicKey && verifyDiscordSignature(raw, signature, timestamp, sec.discordPublicKey)) {
+          targetUserId = cred.userId;
+          break;
+        }
+      }
+    }
+
     if (!targetUserId) {
-      // Find tenant with discord configured
-      const credentials = await listCredentials();
       const match = credentials.find((c) => c.encrypted);
       targetUserId = match?.userId;
     }
@@ -59,6 +66,24 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const secrets = await tenantSecrets(targetUserId);
+
+    // Verify signature if public key is configured
+    if (signature && timestamp && secrets.discordPublicKey) {
+      const isValid = verifyDiscordSignature(raw, signature, timestamp, secrets.discordPublicKey);
+      if (!isValid) {
+        console.warn("[discord webhook] invalid signature");
+        return new Response("Invalid request signature", { status: 401 });
+      }
+    }
+
+    // Discord Interaction PING (type 1)
+    if (body.type === 1) {
+      return new Response(JSON.stringify({ type: 1 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     if (!secrets.discordBotToken) {
       console.warn("[discord webhook] tenant has no discord token configured");
       return new Response(JSON.stringify({ ok: false, error: "Discord not configured" }), {

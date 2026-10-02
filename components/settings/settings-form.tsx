@@ -21,6 +21,7 @@ const FIELDS: Field[] = [
   { key: "pageAccessToken", label: "Page access token", hint: "Covers Messenger + Instagram", secret: true },
   { key: "telegramBotToken", label: "Bot token", hint: "From @BotFather", secret: true },
   { key: "discordBotToken", label: "Bot token", hint: "From Discord Developer Portal → Bot", secret: true },
+  { key: "discordPublicKey", label: "Public key", hint: "From Discord Developer Portal → General Information → Public Key", secret: false },
 ] as const;
 
 const GROUPS = [
@@ -51,10 +52,10 @@ const GROUPS = [
   {
     id: "discord",
     title: "Discord Bot",
-    blurb: "A bot token from the Discord Developer Portal. No 24-hour reply window limit.",
+    blurb: "A bot token and public key from the Discord Developer Portal. No 24-hour reply window limit.",
     channels: ["discord"] as const,
     verify: "discord" as const,
-    keys: ["discordBotToken"] as const,
+    keys: ["discordBotToken", "discordPublicKey"] as const,
   },
 ];
 

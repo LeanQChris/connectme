@@ -13,6 +13,7 @@ const KEYS = [
   "pageAccessToken",
   "telegramBotToken",
   "discordBotToken",
+  "discordPublicKey",
   "graphVersion",
 ] as const;
 

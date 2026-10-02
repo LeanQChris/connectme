@@ -59,6 +59,7 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
       pageAccessToken: "",
       telegramBotToken: "",
       discordBotToken: "",
+      discordPublicKey: "",
       graphVersion: GRAPH_VERSION_FALLBACK,
     },
   );
