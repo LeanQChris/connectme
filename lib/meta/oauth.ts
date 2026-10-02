@@ -6,8 +6,10 @@ const META_OAUTH_SCOPES = [
   "pages_read_engagement",
   "pages_manage_metadata",
   "pages_messaging",
-  "instagram_basic",
-  "instagram_manage_messages",
+  // Re-enable once the Instagram product is enabled on the Meta app and
+  // App Review has granted them; the OAuth dialog hard-fails otherwise.
+  // "instagram_basic",
+  // "instagram_manage_messages",
 ];
 
 export interface MetaPageAccount {
