@@ -1,5 +1,5 @@
 import { handleDiscordMessage } from "@/lib/discord/handlers";
-import type { DiscordMessage } from "@/lib/discord/types";
+import type { DiscordMessage, DiscordUser } from "@/lib/discord/types";
 import { listCredentials } from "@/lib/store";
 import { tenantSecrets } from "@/lib/tenant";
 
@@ -20,7 +20,13 @@ export async function POST(request: Request): Promise<Response> {
       message?: DiscordMessage;
       id?: string;
       channel_id?: string;
-      author?: { id: string; username: string };
+      author?: DiscordUser;
+      member?: { user: DiscordUser };
+      user?: DiscordUser;
+      data?: {
+        name?: string;
+        options?: Array<{ name: string; value: string }>;
+      };
       content?: string;
       userId?: string;
     };
@@ -28,17 +34,6 @@ export async function POST(request: Request): Promise<Response> {
     // Discord Interaction PING (type 1)
     if (body.type === 1) {
       return new Response(JSON.stringify({ type: 1 }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
-
-    // Find message payload
-    const msg: DiscordMessage | undefined =
-      body.message || (body.channel_id && body.author ? (body as unknown as DiscordMessage) : undefined);
-
-    if (!msg) {
-      return new Response(JSON.stringify({ ok: true, ignored: "No message payload" }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -67,6 +62,53 @@ export async function POST(request: Request): Promise<Response> {
     if (!secrets.discordBotToken) {
       console.warn("[discord webhook] tenant has no discord token configured");
       return new Response(JSON.stringify({ ok: false, error: "Discord not configured" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    // Handle Discord Slash Command / Interaction (type 2: APPLICATION_COMMAND)
+    if (body.type === 2 && body.data) {
+      const commandName = body.data.name;
+      const messageOption = body.data.options?.find((opt) => opt.name === "message");
+      const textContent = messageOption?.value || `/${commandName}`;
+
+      const author = body.member?.user || body.user || {
+        id: "anonymous",
+        username: "Discord User",
+      };
+
+      const interactionMessage: DiscordMessage = {
+        id: body.id || String(Date.now()),
+        channel_id: body.channel_id || "general",
+        author,
+        content: textContent,
+        timestamp: new Date().toISOString(),
+      };
+
+      await handleDiscordMessage(secrets.discordBotToken, targetUserId, interactionMessage);
+
+      // Respond immediately to Discord so the user gets a confirmation
+      return new Response(
+        JSON.stringify({
+          type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+          data: {
+            content: `✅ **Message received by ConnectMe!** Our support team has been notified and will reply here shortly.\n> *"${textContent}"*`,
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      );
+    }
+
+    // Standard message payload
+    const msg: DiscordMessage | undefined =
+      body.message || (body.channel_id && body.author ? (body as unknown as DiscordMessage) : undefined);
+
+    if (!msg) {
+      return new Response(JSON.stringify({ ok: true, ignored: "No message payload" }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });

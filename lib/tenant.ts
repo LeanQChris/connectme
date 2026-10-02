@@ -7,12 +7,13 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 
-import { decryptSecrets } from "./secrets";
+import { decryptSecrets, telegramBotId } from "./secrets";
 import { getCredentials, upsertUser } from "./store";
 import type {
   ConnectionFlag,
   CredentialRecord,
   ProviderSecrets,
+  SettingsPayload,
   TenantSettings,
 } from "./types";
 
@@ -83,6 +84,36 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
     telegramBotId: record?.telegramBotId ?? null,
     discordBotId: record?.discordBotId ?? null,
     updatedAt: record?.updatedAt ?? null,
+  };
+}
+
+/**
+ * The settings payload, minus every secret except the copyable verify token.
+ *
+ * Built on the server so `/settings` can render filled-in on first paint; the
+ * API route returns the same shape to refresh it after a save.
+ */
+export async function settingsPayload(
+  userId: string,
+  origin: string,
+): Promise<SettingsPayload> {
+  const settings = await tenantSettings(userId);
+  const botId = telegramBotId(settings.secrets.telegramBotToken);
+
+  return {
+    settings: {
+      connected: settings.connected,
+      pageId: settings.pageId,
+      telegramBotId: settings.telegramBotId,
+      discordBotId: settings.discordBotId,
+      updatedAt: settings.updatedAt,
+      webhookVerifyToken: settings.secrets.webhookVerifyToken,
+    },
+    webhookUrls: {
+      meta: `${origin}/api/webhook`,
+      telegram: botId ? `${origin}/api/webhook/telegram/${botId}` : null,
+      discord: `${origin}/api/webhook/discord`,
+    },
   };
 }
 

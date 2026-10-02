@@ -1,0 +1,15 @@
+/** Theme storage, shared by the pre-paint script in the layout and the toggle. */
+
+export type Theme = "light" | "dark" | "system";
+
+export const THEME_KEY = "connectme_theme";
+
+/**
+ * Applies the stored theme to <html> before the first paint.
+ *
+ * Without this the class is only set after hydration, so a reload flashes the
+ * light theme before flipping to dark. `data-theme` pins the media query out for
+ * an explicit choice; "system" leaves it in charge. Kept in sync with
+ * applyTheme() in components/inbox/theme-toggle.tsx.
+ */
+export const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_KEY}");if(t!=="light"&&t!=="dark"&&t!=="system"){t="system"}var dark=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;r.classList.toggle("dark",dark);r.classList.toggle("light",!dark);if(t==="system"){r.removeAttribute("data-theme")}else{r.setAttribute("data-theme",t)}}catch(e){}})();`;

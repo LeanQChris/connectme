@@ -1,20 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
-type Connected = { whatsapp: boolean; messenger: boolean; instagram: boolean; telegram: boolean; discord: boolean };
-
-interface SettingsPayload {
-  settings: {
-    connected: Connected;
-    pageId: string | null;
-    telegramBotId: string | null;
-    discordBotId: string | null;
-    updatedAt: string | null;
-    webhookVerifyToken: string;
-  };
-  webhookUrls: { meta: string; telegram: string | null; discord: string | null };
-}
+import type { SettingsPayload } from "@/lib/types";
 
 interface Field {
   key: string;
@@ -70,46 +58,38 @@ const GROUPS = [
   },
 ];
 
-export default function SettingsForm({ origin }: { origin: string }) {
-  const [data, setData] = useState<SettingsPayload | null>(null);
+export default function SettingsForm({ initial }: { initial: SettingsPayload }) {
+  // Server-rendered, so there is no fetch-on-mount and no empty first paint.
+  const [data, setData] = useState<SettingsPayload>(initial);
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<Record<string, { ok: boolean; detail: string }>>({});
 
+  // Re-read after a write. Keeps the current payload on screen, so nothing
+  // flashes; only a failure surfaces an error.
   const load = useCallback(async () => {
     const res = await fetch("/api/settings", { cache: "no-store" });
     if (!res.ok) {
-      setError("Could not load your settings.");
+      setError("Could not refresh your settings.");
       return;
     }
     setData((await res.json()) as SettingsPayload);
   }, []);
 
-  // Initial read: the promise settles outside the effect body, so no cascading render.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const res = await fetch("/api/settings", { cache: "no-store" });
-      if (cancelled) return;
-      if (!res.ok) {
-        setError("Could not load your settings.");
-        return;
-      }
-      setData((await res.json()) as SettingsPayload);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function save(keys: readonly string[]) {
-    setBusy("save");
+  async function save(group: { id: string; keys: readonly string[] }) {
+    // Scoped to the pressed card, so only that button reads "Saving…".
+    setBusy(`save-${group.id}`);
+    setStatus((prev) => {
+      const next = { ...prev };
+      delete next[group.keys.join(",")];
+      return next;
+    });
     setError(null);
     try {
       // Only send fields the user typed into, so saved secrets are never wiped.
       const patch: Record<string, string> = {};
-      for (const key of keys) {
+      for (const key of group.keys) {
         if (values[key]?.trim()) patch[key] = values[key].trim();
       }
       const res = await fetch("/api/settings", {
@@ -122,7 +102,7 @@ export default function SettingsForm({ origin }: { origin: string }) {
 
       setValues({});
       await load();
-      setStatus((prev) => ({ ...prev, [keys.join(",")]: { ok: true, detail: "Saved" } }));
+      setStatus((prev) => ({ ...prev, [group.keys.join(",")]: { ok: true, detail: "Saved" } }));
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save");
     } finally {
@@ -156,7 +136,9 @@ export default function SettingsForm({ origin }: { origin: string }) {
     setBusy("telegram-webhook");
     setError(null);
     try {
-      const res = await fetch(`/api/telegram/setup?url=${encodeURIComponent(origin)}`);
+      const res = await fetch(
+        `/api/telegram/setup?url=${encodeURIComponent(window.location.origin)}`,
+      );
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not register the webhook");
       setStatus((prev) => ({
@@ -171,8 +153,26 @@ export default function SettingsForm({ origin }: { origin: string }) {
     }
   }
 
-  if (!data) {
-    return <p className="text-[13px] text-mute">{error ?? "Loading settings…"}</p>;
+  async function registerDiscord() {
+    setBusy("discord-slash");
+    setError(null);
+    try {
+      const res = await fetch("/api/discord/setup");
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Could not register slash command");
+      setStatus((prev) => ({
+        ...prev,
+        "discord-slash": {
+          ok: true,
+          detail: "Successfully registered /connectme slash command on Discord!",
+        },
+      }));
+      await load();
+    } catch (registerError) {
+      setError(registerError instanceof Error ? registerError.message : "Could not register slash command");
+    } finally {
+      setBusy(null);
+    }
   }
 
   const metaUrl = data.webhookUrls.meta;
@@ -245,11 +245,11 @@ export default function SettingsForm({ origin }: { origin: string }) {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => void save(group.keys)}
+                onClick={() => void save(group)}
                 disabled={busy !== null}
                 className="h-8 rounded-[6px] bg-primary px-3 text-[12.5px] font-medium text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
               >
-                {busy === "save" ? "Saving…" : "Save"}
+                {busy === `save-${group.id}` ? "Saving…" : "Save"}
               </button>
               <button
                 type="button"
@@ -273,10 +273,9 @@ export default function SettingsForm({ origin }: { origin: string }) {
       })}
 
       <section className="rounded-[12px] border border-hairline bg-canvas-elevated p-4">
-        <h2 className="text-[14px] font-semibold text-ink">Webhooks</h2>
+        <h2 className="text-[14px] font-semibold text-ink">Webhooks & Slash Commands</h2>
         <p className="mt-0.5 text-[12px] text-body">
-          Point your provider at these URLs. Meta uses one callback for WhatsApp, Messenger and
-          Instagram; Telegram uses one per bot.
+          Configure inbound webhooks for Meta, Telegram, and Discord slash commands.
         </p>
 
         <div className="mt-3 grid gap-3">
@@ -302,6 +301,29 @@ export default function SettingsForm({ origin }: { origin: string }) {
               )}
             </div>
           )}
+
+          <div className="border-t border-hairline pt-3">
+            <CopyRow
+              label="Discord Interactions Endpoint URL (for Vercel serverless /connectme)"
+              value={data.webhookUrls.discord ?? "Add a bot token first"}
+            />
+
+            {data.settings.connected.discord && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => void registerDiscord()}
+                  disabled={busy !== null}
+                  className="h-8 rounded-[6px] border border-hairline bg-canvas-elevated px-3 text-[12.5px] font-medium text-body transition-colors hover:bg-surface-well hover:text-ink disabled:opacity-40"
+                >
+                  {busy === "discord-slash" ? "Registering…" : "Register /connectme Slash Command"}
+                </button>
+                {status["discord-slash"] && (
+                  <p className="mt-1 text-[12px] text-body">{status["discord-slash"].detail}</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </div>

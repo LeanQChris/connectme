@@ -3,15 +3,23 @@ import { headers } from "next/headers";
 
 import UserMenu from "@/components/auth/user-menu";
 import SettingsForm from "@/components/settings/settings-form";
-import { ensureTenantUser } from "@/lib/tenant";
+import { requireUserId, settingsPayload } from "@/lib/tenant";
 
 export const metadata = {
   title: "Settings · ConnectMe",
 };
 
 export default async function SettingsPage() {
-  const [tenant, headerList] = await Promise.all([ensureTenantUser(), headers()]);
+  const [auth, headerList] = await Promise.all([requireUserId(), headers()]);
+
+  if (auth instanceof Response) {
+    return <div className="min-h-[100dvh] bg-canvas" />;
+  }
+
   const origin = headerList.get("origin") ?? `https://${headerList.get("host")}`;
+  // Rendered on the server so the form arrives filled in — no client-side
+  // fetch, no loading flash on load or hard reload.
+  const initial = await settingsPayload(auth.userId, origin);
 
   return (
     <div className="min-h-[100dvh] bg-canvas text-ink">
@@ -27,12 +35,11 @@ export default async function SettingsPage() {
             Back to inbox
           </Link>
 
-          {tenant?.email && (
-            <>
-              <span className="h-3.5 w-px bg-hairline" />
-              <span className="hidden font-mono text-[11px] text-mute sm:inline">{tenant.email}</span>
-            </>
-          )}
+          <span className="hidden h-3.5 w-px bg-hairline sm:block" />
+
+          <span className="hidden font-mono text-[11px] text-mute sm:inline">
+            {initial.settings.connected.whatsapp ? "WhatsApp" : "No channel connected yet"}
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -41,7 +48,7 @@ export default async function SettingsPage() {
         </div>
       </header>
 
-      <SettingsForm origin={origin} />
+      <SettingsForm initial={initial} />
     </div>
   );
 }

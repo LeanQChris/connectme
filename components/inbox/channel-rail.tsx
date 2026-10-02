@@ -9,24 +9,35 @@ const ARCHIVED = "archived";
 
 type Item = { value: string; label: string; channel?: Channel };
 
-const ITEMS: Item[] = [
-  { value: ALL, label: "All" },
-  ...CHANNELS.map((channel) => ({ value: channel, label: channelMeta(channel).label, channel })),
-];
-
 /**
  * Provider dock: one 40px app-style tile per channel (plus All / Archived).
  * Idle = muted glyph on a hairline tile, active = brand-filled tile.
+ * Only displays channels that are currently connected in Settings.
  */
 export default function ChannelRail({
   value,
   onChange,
   counts,
+  connected,
 }: {
   value: string;
   onChange: (value: string) => void;
   counts: Record<string, number>;
+  connected?: Record<Channel, boolean>;
 }) {
+  const activeChannels = CHANNELS.filter(
+    (channel) => (connected ? connected[channel] : true)
+  );
+
+  const items: Item[] = [
+    { value: ALL, label: "All" },
+    ...activeChannels.map((channel) => ({
+      value: channel,
+      label: channelMeta(channel).label,
+      channel,
+    })),
+  ];
+
   function tileClass(item: Item, active: boolean) {
     if (!active) {
       return "border border-hairline bg-canvas-elevated text-mute hover:border-hairline-strong hover:bg-surface-well hover:text-ink";
@@ -97,7 +108,7 @@ export default function ChannelRail({
       aria-label="Providers"
       className="flex w-[60px] shrink-0 select-none flex-col items-center gap-1.5 border-r border-hairline bg-canvas py-3"
     >
-      {ITEMS.map(renderItem)}
+      {items.map(renderItem)}
 
       <span aria-hidden className="my-1 h-px w-6 bg-hairline" />
 

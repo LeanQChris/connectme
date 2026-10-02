@@ -1,6 +1,6 @@
 import { encryptSecrets, telegramBotId } from "@/lib/secrets";
 import { getCredentials, saveCredentials } from "@/lib/store";
-import { requireUserId, tenantSecrets, tenantSettings } from "@/lib/tenant";
+import { requireUserId, settingsPayload, tenantSecrets, tenantSettings } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -35,29 +35,9 @@ export async function GET(request: Request): Promise<Response> {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;
 
-  const [settings, secrets] = await Promise.all([
-    tenantSettings(auth.userId),
-    tenantSecrets(auth.userId),
-  ]);
-  const origin = new URL(request.url).origin;
-  const botId = telegramBotId(secrets.telegramBotToken);
-
-  return Response.json({
-    settings: {
-      connected: settings.connected,
-      pageId: settings.pageId,
-      telegramBotId: settings.telegramBotId,
-      discordBotId: settings.discordBotId,
-      updatedAt: settings.updatedAt,
-      // Present so the user can copy it into the Meta webhook form.
-      webhookVerifyToken: secrets.webhookVerifyToken,
-    },
-    webhookUrls: {
-      meta: `${origin}/api/webhook`,
-      telegram: botId ? `${origin}/api/webhook/telegram/${botId}` : null,
-      discord: `${origin}/api/webhook/discord`,
-    },
-  });
+  return Response.json(
+    await settingsPayload(auth.userId, new URL(request.url).origin),
+  );
 }
 
 /**

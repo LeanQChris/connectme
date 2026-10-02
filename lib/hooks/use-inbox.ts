@@ -8,11 +8,13 @@ import type {
   Message,
   MessageType,
   SearchHit,
+  SettingsPayload,
 } from "@/lib/types";
 
 export const QUERY_KEYS = {
   conversations: ["conversations"] as const,
   conversation: (id: string) => ["conversation", id] as const,
+  settings: ["settings"] as const,
 };
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -22,6 +24,14 @@ async function fetchJson<T>(url: string): Promise<T> {
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
+}
+
+export function useSettings() {
+  return useQuery({
+    queryKey: QUERY_KEYS.settings,
+    queryFn: () => fetchJson<SettingsPayload>("/api/settings"),
+    staleTime: 10000,
+  });
 }
 
 export function useConversations() {

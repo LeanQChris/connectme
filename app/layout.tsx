@@ -5,15 +5,32 @@ import { GeistSans } from "geist/font/sans";
 
 import "./globals.css";
 import QueryProvider from "@/components/providers/query-provider";
+import { THEME_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
-  title: "ConnectMe - Unified Meta Inbox",
-  description: "Unified Meta Inbox for WhatsApp and Facebook Messenger",
+  title: "ConnectMe - Unified Omnichannel Inbox",
+  description: "Unified Inbox for WhatsApp, Messenger, Instagram, Telegram & Discord",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} h-full`}>
+    // suppressHydrationWarning: the inline script mutates <html> before React hydrates.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full bg-bg font-sans text-ink antialiased">
         <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-in">
           <QueryProvider>{children}</QueryProvider>

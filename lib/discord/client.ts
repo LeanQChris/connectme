@@ -115,3 +115,49 @@ export async function verifyDiscordBot(token: string): Promise<{ ok: boolean; bo
     return { ok: false, error: err instanceof Error ? err.message : "Connection failed" };
   }
 }
+
+/**
+ * Registers the global `/connectme` slash command on Discord for this bot.
+ */
+export async function registerDiscordSlashCommands(
+  token: string,
+): Promise<{ ok: boolean; commands?: unknown; error?: string }> {
+  const botInfo = await verifyDiscordBot(token);
+  if (!botInfo.ok || !botInfo.bot?.id) {
+    return { ok: false, error: botInfo.error || "Failed to fetch bot ID" };
+  }
+
+  const applicationId = botInfo.bot.id;
+
+  const response = await fetch(
+    `https://discord.com/api/v10/applications/${applicationId}/commands`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bot ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([
+        {
+          name: "connectme",
+          description: "Send a message to the ConnectMe support team",
+          options: [
+            {
+              name: "message",
+              description: "Your question or message",
+              type: 3, // STRING
+              required: true,
+            },
+          ],
+        },
+      ]),
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    return { ok: false, error: (data as { message?: string })?.message || `HTTP ${response.status}` };
+  }
+
+  return { ok: true, commands: data };
+}

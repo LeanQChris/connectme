@@ -12,8 +12,9 @@ import {
   useSendReply,
   useSetConversationMeta,
   useSetConversationStatus,
+  useSettings,
 } from "@/lib/hooks/use-inbox";
-import type { Channel, ConversationStatus } from "@/lib/types";
+import { CHANNELS, type Channel, type ConversationStatus } from "@/lib/types";
 
 import { channelMeta } from "./channel-badge";
 import ChannelRail from "./channel-rail";
@@ -36,6 +37,9 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   // React Query cached hooks
   const { data: all = [], isLoading: loadingList } = useConversations();
   const { data: detail, isLoading: loadingThread } = useConversation(selectedId);
+  const { data: settingsData } = useSettings();
+  const connected = settingsData?.settings?.connected;
+
   const sendMutation = useSendReply(selectedId);
   const statusMutation = useSetConversationStatus();
   const metaMutation = useSetConversationMeta(selectedId);
@@ -181,32 +185,6 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               </span>
             </div>
           </a>
-
-          <span className="hidden h-3.5 w-px bg-hairline md:block" />
-
-          {/* Connected Gateway Health */}
-          <div className="hidden items-center gap-2 md:flex select-none font-mono text-[11px]">
-            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-whatsapp" />
-              <span className="text-[10px] text-mute uppercase">WhatsApp</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-messenger" />
-              <span className="text-[10px] text-mute uppercase">Messenger</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
-              <span className="text-[10px] text-mute uppercase">Telegram</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#5865F2]" />
-              <span className="text-[10px] text-mute uppercase">Discord</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
-              <span className="text-[10px] text-mute uppercase">Instagram</span>
-            </div>
-          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -238,7 +216,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
             selectedId ? "hidden" : "flex"
           }`}
         >
-          <ChannelRail value={filter} onChange={setFilter} counts={counts} />
+          <ChannelRail value={filter} onChange={setFilter} counts={counts} connected={connected} />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hairline bg-canvas px-3.5">

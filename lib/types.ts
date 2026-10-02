@@ -191,3 +191,17 @@ export interface TenantSettings {
   discordBotId: string | null;
   updatedAt: string | null;
 }
+
+/** Settings payload: rendered on the server, then refreshed by the API. */
+export interface SettingsPayload {
+  settings: {
+    connected: Record<ConnectionFlag, boolean>;
+    pageId: string | null;
+    telegramBotId: string | null;
+    discordBotId: string | null;
+    updatedAt: string | null;
+    /** Copyable only — the tokens themselves are never sent back. */
+    webhookVerifyToken: string;
+  };
+  webhookUrls: { meta: string; telegram: string | null; discord: string | null };
+}
