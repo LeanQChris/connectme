@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ConversationDetail, ConversationSummary } from "@/lib/types";
 
 import ConversationList, { ConversationFilter } from "./conversation-list";
+import ThemeToggle from "./theme-toggle";
 import Thread from "./thread";
 
 const POLL_MS = 3000;
@@ -150,11 +151,13 @@ export default function Inbox() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <ThemeToggle />
+
           <button
             type="button"
             onClick={() => void logout()}
-            className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-ink-secondary transition-all hover:bg-surface-2 hover:text-ink shadow-2xs"
+            className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink-secondary transition-all hover:bg-surface-2 hover:text-ink shadow-2xs"
           >
             <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
               <path

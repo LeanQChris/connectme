@@ -19,10 +19,10 @@ interface Props {
 /** WhatsApp / Messenger style delivery status glyphs */
 const STATUS_GLYPH: Record<MessageStatus, { text: string; color: string }> = {
   received: { text: "", color: "" },
-  sent: { text: "✓", color: "opacity-60" },
-  delivered: { text: "✓✓", color: "opacity-60" },
-  read: { text: "✓✓", color: "text-blue-400 font-bold" },
-  failed: { text: "!", color: "text-red-400 font-bold" },
+  sent: { text: "✓", color: "opacity-70" },
+  delivered: { text: "✓✓", color: "opacity-70" },
+  read: { text: "✓✓", color: "text-sky-300 font-bold" },
+  failed: { text: "!", color: "text-rose-300 font-bold" },
 };
 
 function formatDateDivider(dateStr: string): string {
@@ -57,7 +57,7 @@ function MessageAttachment({ message }: { message: Message }) {
 
   if (type === "image") {
     return (
-      <div className="mb-2 overflow-hidden rounded-xl bg-black/10">
+      <div className="mb-2.5 overflow-hidden rounded-xl bg-black/5 dark:bg-white/5 ring-1 ring-black/5 dark:ring-white/10">
         <a
           href={mediaUrl}
           target="_blank"
@@ -68,12 +68,12 @@ function MessageAttachment({ message }: { message: Message }) {
           <img
             src={mediaUrl}
             alt="Attachment"
-            className="max-h-72 w-full object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.02]"
+            className="max-h-80 w-full object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02]"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-            <span className="opacity-0 group-hover:opacity-100 bg-black/60 text-white text-[11px] px-2.5 py-1 rounded-full backdrop-blur-xs transition-opacity font-medium">
-              Click to view full image
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center">
+            <span className="opacity-0 group-hover:opacity-100 bg-black/70 text-white text-[11px] px-3 py-1 rounded-full backdrop-blur-xs transition-all font-medium shadow-md">
+              View original
             </span>
           </div>
         </a>
@@ -83,11 +83,11 @@ function MessageAttachment({ message }: { message: Message }) {
 
   if (type === "video") {
     return (
-      <div className="mb-2 overflow-hidden rounded-xl bg-black/20">
+      <div className="mb-2.5 overflow-hidden rounded-xl bg-black/20 ring-1 ring-black/10 dark:ring-white/10">
         <video
           src={mediaUrl}
           controls
-          className="max-h-72 w-full rounded-xl"
+          className="max-h-80 w-full rounded-xl"
           preload="metadata"
         />
       </div>
@@ -96,7 +96,7 @@ function MessageAttachment({ message }: { message: Message }) {
 
   if (type === "audio") {
     return (
-      <div className="mb-2 p-1">
+      <div className="mb-2.5 p-1">
         <audio src={mediaUrl} controls className="w-full max-w-xs" />
       </div>
     );
@@ -104,14 +104,14 @@ function MessageAttachment({ message }: { message: Message }) {
 
   // Document / other files
   return (
-    <div className="mb-2">
+    <div className="mb-2.5">
       <a
         href={mediaUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2.5 rounded-xl border border-hairline/80 bg-surface/80 p-2.5 text-ink transition-all hover:bg-surface hover:shadow-xs group"
+        className="flex items-center gap-3 rounded-xl border border-hairline bg-surface p-3 text-ink transition-all hover:bg-surface-2 hover:shadow-xs group"
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/20">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20">
           <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -122,10 +122,10 @@ function MessageAttachment({ message }: { message: Message }) {
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[12.5px] font-medium group-hover:text-accent transition-colors">
+          <p className="truncate text-[13px] font-medium group-hover:text-accent transition-colors">
             {message.text || "View attached document"}
           </p>
-          <span className="text-[10.5px] text-ink-muted">Click to open or download</span>
+          <span className="text-[11px] text-ink-muted">Click to open / download</span>
         </div>
         <svg
           className="h-4 w-4 shrink-0 text-ink-muted group-hover:text-accent transition-colors"
@@ -169,7 +169,7 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-bg">
       {/* Thread Header */}
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-hairline bg-surface/40 px-4 backdrop-blur-md">
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-hairline bg-surface/70 px-4 backdrop-blur-md">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
@@ -195,12 +195,12 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
                 {conversation.contactName}
               </h2>
               <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase ${
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
                   conversation.channel === "messenger"
-                    ? "bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/20"
+                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20"
                     : conversation.channel === "whatsapp"
-                      ? "bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20"
-                      : "bg-pink-500/10 text-pink-500 ring-1 ring-pink-500/20"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
+                      : "bg-pink-500/10 text-pink-600 dark:text-pink-400 ring-1 ring-pink-500/20"
                 }`}
               >
                 {channelInfo.label}
@@ -216,7 +216,7 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
                 className="rounded p-0.5 text-ink-muted hover:bg-surface-2 hover:text-ink transition-colors"
               >
                 {copied ? (
-                  <span className="text-[10px] text-emerald-500 font-medium">Copied!</span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Copied!</span>
                 ) : (
                   <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
                     <path
@@ -235,15 +235,15 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
 
       <ReplyWindowBar lastInboundAt={conversation.lastInboundAt} />
 
-      {/* Messages List */}
+      {/* Messages Stream */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 space-y-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="h-10 w-10 rounded-full bg-surface-2 flex items-center justify-center text-ink-muted mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-surface-2 flex items-center justify-center text-ink-muted mb-3 ring-1 ring-hairline shadow-xs">
               💬
             </div>
-            <p className="text-[13px] font-medium text-ink">No messages yet</p>
-            <p className="text-[12px] text-ink-muted mt-0.5">Start the conversation below.</p>
+            <p className="text-[14px] font-semibold text-ink">No messages in this thread yet</p>
+            <p className="text-[12px] text-ink-muted mt-1">Send a reply below to begin.</p>
           </div>
         ) : (
           (() => {
@@ -258,14 +258,14 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
               return (
                 <div key={message.id} className="space-y-3">
                   {showDivider && (
-                    <div className="flex items-center justify-center my-4">
-                      <span className="rounded-full bg-surface-2 px-3 py-1 font-mono text-[10.5px] font-medium text-ink-muted shadow-xs ring-1 ring-hairline">
+                    <div className="flex items-center justify-center my-5">
+                      <span className="rounded-full bg-surface-2 px-3 py-1 font-mono text-[10.5px] font-medium text-ink-muted shadow-2xs border border-hairline">
                         {msgDate}
                       </span>
                     </div>
                   )}
 
-                  <div className={`flex items-end gap-2 ${outgoing ? "justify-end" : "justify-start"}`}>
+                  <div className={`flex items-end gap-2.5 ${outgoing ? "justify-end" : "justify-start"}`}>
                     {!outgoing && (
                       <Avatar
                         name={conversation.contactName}
@@ -273,24 +273,24 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
                         channel={conversation.channel}
                         size="sm"
                         showChannelBadge={false}
-                        className="mb-1"
+                        className="mb-0.5 shadow-2xs"
                       />
                     )}
 
                     <div
-                      className={`group relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-xs transition-all ${
+                      className={`group relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-xs transition-all ${
                         outgoing
-                          ? "rounded-br-xs bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-normal"
-                          : "rounded-bl-xs bg-surface-2 text-ink border border-hairline/80 font-normal"
+                          ? "rounded-tr-xs bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-blue-500/10 shadow-md font-normal"
+                          : "rounded-tl-xs bg-surface border border-hairline text-ink font-normal shadow-xs"
                       }`}
                     >
-                      {/* Attachment Renderer */}
+                      {/* Media Attachment */}
                       <MessageAttachment message={message} />
 
-                      {/* Text content if present or not redundant with attachment */}
+                      {/* Message Text */}
                       {message.text &&
                         (!message.mediaUrl || message.type === "image" || message.type === "video") && (
-                          <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed select-text">
+                          <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed select-text font-normal">
                             {message.text}
                           </p>
                         )}
@@ -300,21 +300,21 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
                       )}
 
                       <div
-                        className={`mt-1.5 flex items-center justify-end gap-1.5 font-mono text-[10px] tabular-nums ${
-                          outgoing ? "text-blue-100/70" : "text-ink-muted"
+                        className={`mt-1.5 flex items-center justify-end gap-1.5 font-mono text-[10px] tabular-nums select-none ${
+                          outgoing ? "text-blue-100/75" : "text-ink-muted"
                         }`}
                       >
                         <span>{formatTime(message.createdAt)}</span>
                         {outgoing && status.text ? (
-                          <span className={status.color} title={`Status: ${message.status}`}>
+                          <span className={status.color} title={`Delivery status: ${message.status}`}>
                             {status.text}
                           </span>
                         ) : null}
                       </div>
 
                       {outgoing && message.error ? (
-                        <div className="mt-2 rounded-md bg-red-950/40 border border-red-500/30 p-2 font-mono text-[11px] leading-snug text-red-200">
-                          <span className="font-semibold block mb-0.5">Delivery Error:</span>
+                        <div className="mt-2.5 rounded-lg bg-red-950/50 border border-red-500/40 p-2.5 font-mono text-[11px] leading-snug text-red-200">
+                          <span className="font-bold block mb-0.5 text-red-300">Delivery Error:</span>
                           {message.error}
                         </div>
                       ) : null}
