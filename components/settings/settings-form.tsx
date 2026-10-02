@@ -29,6 +29,7 @@ const GROUPS = [
     id: "whatsapp",
     title: "WhatsApp Cloud API",
     blurb: "Number id, token, app id and app secret from the same Meta app.",
+    note: "Business only. Personal WhatsApp accounts cannot be connected through the Cloud API.",
     channels: ["whatsapp"] as const,
     verify: "whatsapp" as const,
     keys: ["waPhoneNumberId", "waAccessToken", "waAppId", "metaAppSecret", "webhookVerifyToken"] as const,
@@ -37,6 +38,7 @@ const GROUPS = [
     id: "page",
     title: "Messenger & Instagram",
     blurb: "One Facebook Page token serves both channels.",
+    note: "Facebook Pages only. Instagram must be a Business or Creator account linked to that Page — personal profiles are not supported by Meta and will never receive messages.",
     channels: ["messenger", "instagram"] as const,
     verify: "page" as const,
     keys: ["pageAccessToken", "metaAppSecret", "webhookVerifyToken"] as const,
@@ -208,6 +210,11 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
               <div>
                 <h2 className="text-[14px] font-semibold text-ink">{group.title}</h2>
                 <p className="mt-0.5 text-[12px] text-body">{group.blurb}</p>
+                {"note" in group && (
+                  <p className="mt-2 rounded-[6px] border border-hairline bg-surface-well px-2.5 py-1.5 text-[11.5px] text-body">
+                    {group.note}
+                  </p>
+                )}
               </div>
               <span
                 className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${
