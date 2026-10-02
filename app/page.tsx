@@ -1,6 +1,7 @@
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import Link from "next/link";
 import ThemeToggle from "@/components/inbox/theme-toggle";
+import Logo from "@/components/logo";
 
 export default function HomePage() {
   return (
@@ -9,10 +10,8 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 flex h-12 w-full items-center justify-between border-b border-hairline bg-canvas/80 px-4 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Link href="/" className="group flex items-center gap-2.5 select-none">
-            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] border border-hairline bg-ink text-on-primary shadow-2xs">
-              <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
-                <path d="M12 2L2 19.7778H22L12 2Z" />
-              </svg>
+            <div className="flex h-6 w-6 items-center justify-center rounded-[6px] border border-hairline bg-primary text-on-primary shadow-2xs">
+              <Logo className="h-3.5 w-3.5" />
             </div>
             <span className="text-[13px] font-semibold tracking-[-0.02em] text-ink">
               ConnectMe
@@ -430,10 +429,8 @@ export default function HomePage() {
       <footer className="border-t border-hairline bg-canvas py-8 px-4 text-center">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row text-[12px] text-mute">
           <div className="flex items-center gap-2">
-            <div className="flex h-5 w-5 items-center justify-center rounded-[3px] border border-hairline bg-ink text-on-primary text-[10px]">
-              <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24">
-                <path d="M12 2L2 19.7778H22L12 2Z" />
-              </svg>
+            <div className="flex h-5 w-5 items-center justify-center rounded-[4px] border border-hairline bg-primary text-on-primary text-[10px]">
+              <Logo className="h-3 w-3" />
             </div>
             <span className="font-medium text-ink">ConnectMe</span>
             <span>— Meta Unified Gateway</span>

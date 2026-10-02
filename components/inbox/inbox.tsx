@@ -21,6 +21,7 @@ import ConversationList from "./conversation-list";
 import type { ReplyPayload } from "./reply-box";
 import ThemeToggle from "./theme-toggle";
 import Thread from "./thread";
+import Logo from "@/components/logo";
 
 const ARCHIVED = "archived";
 
@@ -168,10 +169,8 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
             }}
             className="group flex items-center gap-2.5 cursor-pointer select-none"
           >
-            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] border border-hairline bg-ink text-on-primary shadow-2xs">
-              <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
-                <path d="M12 2L2 19.7778H22L12 2Z" />
-              </svg>
+            <div className="flex h-6 w-6 items-center justify-center rounded-[6px] border border-hairline bg-primary text-on-primary shadow-2xs">
+              <Logo className="h-3.5 w-3.5" />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[13px] font-semibold tracking-[-0.02em] text-ink">
