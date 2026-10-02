@@ -15,8 +15,8 @@ const ITEMS: Item[] = [
 ];
 
 /**
- * 52px vertical rail: one icon per provider (plus All / Archived).
- * Replaces the old horizontal pill row so filtering never wraps or scrolls away.
+ * Provider dock: one 40px app-style tile per channel (plus All / Archived).
+ * Idle = muted glyph on a hairline tile, active = brand-filled tile.
  */
 export default function ChannelRail({
   value,
@@ -27,13 +27,19 @@ export default function ChannelRail({
   onChange: (value: string) => void;
   counts: Record<string, number>;
 }) {
-  function count(item: Item) {
-    return item.value === ALL ? counts.total : counts[item.value];
+  function tileClass(item: Item, active: boolean) {
+    if (!active) {
+      return "border border-hairline bg-canvas-elevated text-mute hover:border-hairline-strong hover:bg-surface-well hover:text-ink";
+    }
+    return item.channel
+      ? `${channelMeta(item.channel).tile} text-white shadow-[0_1px_2px_rgba(0,0,0,0.14)]`
+      : "bg-ink text-on-primary shadow-[0_1px_2px_rgba(0,0,0,0.14)]";
   }
 
   function renderItem(item: Item) {
     const active = value === item.value;
-    const n = count(item) ?? 0;
+    const n = item.value === ALL ? (counts.total ?? 0) : (counts[item.value] ?? 0);
+
     return (
       <button
         key={item.value || "all"}
@@ -42,29 +48,43 @@ export default function ChannelRail({
         aria-label={item.label}
         aria-current={active}
         onClick={() => onChange(item.value)}
-        className={`relative flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors ${
-          active
-            ? `bg-canvas-elevated shadow-[inset_2px_0_0_var(--ink)] ${
-                item.channel ? channelMeta(item.channel).text : "text-ink"
-              }`
-            : "text-mute hover:bg-surface-well hover:text-ink"
-        }`}
+        className={`group relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all ${tileClass(
+          item,
+          active,
+        )}`}
       >
         {item.channel ? (
-          <ChannelIcon channel={item.channel} />
+          <ChannelIcon channel={item.channel} className="h-[19px] w-[19px]" />
         ) : (
-          <svg className="h-[18px] w-[18px] stroke-current" fill="none" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-              d="M3 13h4l2 3h6l2-3h4M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
-            />
+          <svg
+            className="h-[18px] w-[18px] stroke-current"
+            fill="none"
+            strokeWidth="1.6"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            {item.value === ARCHIVED ? (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 7h18v3H3V7zm1 5h16v7a2 2 0 01-2 2H6a2 2 0 01-2-2v-7zm6 3h4"
+              />
+            ) : (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 5h16v11H8l-4 4V5z"
+              />
+            )}
           </svg>
         )}
 
         {n > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 font-mono text-[9px] font-bold tabular-nums text-on-primary">
+          <span
+            className={`absolute -right-1 -bottom-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full px-1 font-mono text-[9px] font-bold tabular-nums shadow-[0_0_0_2px_var(--canvas)] ${
+              active ? "bg-ink text-on-primary" : "bg-hairline-strong text-ink"
+            }`}
+          >
             {n > 99 ? "99+" : n}
           </span>
         )}
@@ -75,11 +95,11 @@ export default function ChannelRail({
   return (
     <nav
       aria-label="Providers"
-      className="flex w-[52px] shrink-0 select-none flex-col items-center gap-1 border-r border-hairline bg-canvas py-2"
+      className="flex w-[60px] shrink-0 select-none flex-col items-center gap-1.5 border-r border-hairline bg-canvas py-3"
     >
       {ITEMS.map(renderItem)}
 
-      <span aria-hidden className="my-1 h-px w-5 bg-hairline" />
+      <span aria-hidden className="my-1 h-px w-6 bg-hairline" />
 
       {renderItem({ value: ARCHIVED, label: "Archived" })}
     </nav>

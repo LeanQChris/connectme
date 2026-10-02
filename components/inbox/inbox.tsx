@@ -54,18 +54,18 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     [all, filter],
   );
 
+  // Rail badges count unread inbound messages; Archived keeps a closed-thread tally.
   const counts = useMemo<Record<string, number>>(() => {
-    const open = all.filter((c) => c.status === "open");
-    return {
-      total: open.length,
-      [ARCHIVED]: all.length - open.length,
-      ...Object.fromEntries(
-        ["whatsapp", "messenger", "telegram", "instagram"].map((channel) => [
-          channel,
-          open.filter((c) => c.channel === channel).length,
-        ]),
-      ),
-    };
+    const unread: Record<string, number> = { total: 0, [ARCHIVED]: 0 };
+    for (const c of all) {
+      if (c.status !== "open") {
+        unread[ARCHIVED] += 1;
+        continue;
+      }
+      unread.total += c.unreadCount;
+      unread[c.channel] = (unread[c.channel] ?? 0) + c.unreadCount;
+    }
+    return unread;
   }, [all]);
 
   function select(id: string) {
@@ -168,7 +168,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
       <div className="flex min-h-0 flex-1">
         {/* Conversations Sidebar */}
         <aside
-          className={`min-h-0 w-full shrink-0 border-r border-hairline bg-canvas md:flex md:w-[372px] ${
+          className={`min-h-0 w-full shrink-0 border-r border-hairline bg-canvas md:flex md:w-[380px] ${
             selectedId ? "hidden" : "flex"
           }`}
         >
@@ -184,11 +184,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
                     : "All conversations"}
               </span>
               <span className="rounded-full bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] tabular-nums text-mute">
-                {filter === ARCHIVED
-                  ? counts[ARCHIVED]
-                  : filter
-                    ? counts[filter]
-                    : counts.total}
+                {visible.length}
               </span>
             </div>
             <ConversationList
