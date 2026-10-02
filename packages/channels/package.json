@@ -1,0 +1,31 @@
+{
+  "name": "@connectme/channels",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint src/",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@connectme/contracts": "*",
+    "@connectme/crypto": "*",
+    "@connectme/database": "*",
+    "@nestjs/common": "^11.0.1"
+  },
+  "devDependencies": {
+    "@connectme/typescript-config": "*",
+    "typescript": "^5"
+  }
+}
