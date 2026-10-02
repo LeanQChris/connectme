@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { headers } from "next/headers";
 
 import UserMenu from "@/components/auth/user-menu";
@@ -48,7 +49,9 @@ export default async function SettingsPage() {
         </div>
       </header>
 
-      <SettingsForm initial={initial} />
+      <Suspense fallback={<div className="mx-auto max-w-3xl p-8 text-center text-mute">Loading settings…</div>}>
+        <SettingsForm initial={initial} />
+      </Suspense>
     </div>
   );
 }

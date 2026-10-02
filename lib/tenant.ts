@@ -82,6 +82,8 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
     secrets,
     connected: connectedFlags(secrets),
     pageId: record?.pageId ?? null,
+    pageName: record?.pageName ?? null,
+    instagramUsername: record?.instagramUsername ?? null,
     telegramBotId: record?.telegramBotId ?? null,
     discordBotId: record?.discordBotId ?? null,
     updatedAt: record?.updatedAt ?? null,
@@ -100,15 +102,21 @@ export async function settingsPayload(
 ): Promise<SettingsPayload> {
   const settings = await tenantSettings(userId);
   const botId = telegramBotId(settings.secrets.telegramBotToken);
+  const { config } = await import("./config");
 
   return {
     settings: {
       connected: settings.connected,
       pageId: settings.pageId,
+      pageName: settings.pageName,
+      instagramUsername: settings.instagramUsername,
       telegramBotId: settings.telegramBotId,
       discordBotId: settings.discordBotId,
       updatedAt: settings.updatedAt,
       webhookVerifyToken: settings.secrets.webhookVerifyToken,
+    },
+    oauth: {
+      metaConfigured: Boolean(config.metaAppId),
     },
     webhookUrls: {
       meta: `${origin}/api/webhook`,
@@ -122,8 +130,7 @@ export async function settingsPayload(
  * Finds the tenant behind a Meta webhook and verifies its signature.
  *
  * The ids inside the payload pick the candidate tenant; the HMAC check with that
- * tenant's app secret is what actually authenticates the request, so an attacker
- * cannot spoof a tenant by putting someone else's phone number id in the body.
+ * tenant's app secret or the platform's central app secret authenticates the request.
  */
 export async function authenticateMetaWebhook(
   rawBody: string,
@@ -132,12 +139,19 @@ export async function authenticateMetaWebhook(
 ): Promise<CredentialRecord | null> {
   const { verifyWebhookSignature } = await import("./meta/verify");
   const { credentialsByRoutingId } = await import("./store");
+  const { config } = await import("./config");
 
   const candidates = await credentialsByRoutingId(ids);
   for (const candidate of candidates) {
     const secrets = await tenantSecrets(candidate.userId);
-    if (!secrets.metaAppSecret) continue;
-    if (verifyWebhookSignature(rawBody, signature, secrets.metaAppSecret)) return candidate;
+    // Check candidate's tenant-specific secret first
+    if (secrets.metaAppSecret && verifyWebhookSignature(rawBody, signature, secrets.metaAppSecret)) {
+      return candidate;
+    }
+    // Check platform's central app secret (for 1-click OAuth users)
+    if (config.metaAppSecret && verifyWebhookSignature(rawBody, signature, config.metaAppSecret)) {
+      return candidate;
+    }
   }
   return null;
 }
@@ -146,6 +160,14 @@ export async function authenticateMetaWebhook(
 export async function findTenantByVerifyToken(token: string): Promise<CredentialRecord | null> {
   if (!token) return null;
   const { listCredentials } = await import("./store");
+  const { config } = await import("./config");
+
+  // Check platform-level webhook verify token
+  if (config.metaWebhookVerifyToken && config.metaWebhookVerifyToken === token) {
+    const all = await listCredentials();
+    return all[0] ?? { userId: "platform", encrypted: "", updatedAt: new Date().toISOString() };
+  }
+
   for (const record of await listCredentials()) {
     const secrets = await tenantSecrets(record.userId);
     if (secrets.webhookVerifyToken && secrets.webhookVerifyToken === token) return record;

@@ -60,6 +60,38 @@ export const config = {
     return readOptional("KV_REST_API_TOKEN");
   },
 
+  /** Central Meta Platform App ID for 1-click OAuth & Embedded Signup. */
+  get metaAppId(): string | undefined {
+    return (
+      readOptional("META_APP_ID") ??
+      readOptional("NEXT_PUBLIC_META_APP_ID") ??
+      readOptional("APP_ID") ??
+      readOptional("NEXT_PUBLIC_APP_ID")
+    );
+  },
+
+  /** Central Meta Platform App Secret used to exchange tokens & verify webhooks. */
+  get metaAppSecret(): string | undefined {
+    return readOptional("META_APP_SECRET") ?? readOptional("APP_SECRET");
+  },
+
+  /** Central webhook verify token configured in the Meta App Developer Dashboard. */
+  get metaWebhookVerifyToken(): string | undefined {
+    return (
+      readOptional("META_WEBHOOK_VERIFY_TOKEN") ??
+      readOptional("WEBHOOK_VERIFY_TOKEN") ??
+      readOptional("VERIFY_TOKEN")
+    );
+  },
+
+  /** Public application base URL (e.g. http://localhost:3000 or https://connectme.app). */
+  get appUrl(): string {
+    return (
+      readOptional("NEXT_PUBLIC_APP_URL") ??
+      readOptional("APP_URL") ??
+      "http://localhost:3000"
+    ).replace(/\/$/, "");
+  },
 } as const;
 
 /** Meta Graph API base URL for a given version and path. */
