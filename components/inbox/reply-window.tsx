@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
 import { REPLY_WINDOW_MS } from "@/lib/window";
 
 function useNow(intervalMs: number): number {
@@ -20,11 +19,6 @@ function formatLeft(msLeft: number): string {
   return hours > 0 ? `${hours}h ${minutes}m left` : `${minutes}m left`;
 }
 
-/**
- * The reply window is the one thing on this screen that expires, so it is the
- * one thing that gets a live clock and a depleting bar. Everything else in the
- * header stays quiet.
- */
 export default function ReplyWindowBar({ lastInboundAt }: { lastInboundAt: string | null }) {
   const now = useNow(1000);
 
@@ -36,22 +30,39 @@ export default function ReplyWindowBar({ lastInboundAt }: { lastInboundAt: strin
   const urgent = open && percent <= 25;
 
   return (
-    <div className="border-b border-hairline bg-surface px-4 py-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <span
-          className={`text-xs font-medium ${
-            open ? (urgent ? "text-amber-600 dark:text-amber-400" : "text-ink") : "text-danger"
-          }`}
-        >
-          {open ? "Reply window open" : "Reply window closed"}
-        </span>
-        <span className="font-mono text-[11px] tabular-nums text-ink-secondary">
-          {open ? formatLeft(msLeft) : "24h elapsed"}
+    <div className="border-b border-hairline bg-surface-2/40 px-4 py-2 text-[11px]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            {open && (
+              <span
+                className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+                  urgent ? "bg-amber-400" : "bg-emerald-400"
+                }`}
+              />
+            )}
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${
+                open ? (urgent ? "bg-amber-500" : "bg-emerald-500") : "bg-red-500"
+              }`}
+            />
+          </span>
+          <span
+            className={`font-medium ${
+              open ? (urgent ? "text-amber-500" : "text-ink") : "text-red-500"
+            }`}
+          >
+            {open ? "24-Hour Reply Window Open" : "24-Hour Reply Window Closed"}
+          </span>
+        </div>
+
+        <span className="font-mono text-[11px] tabular-nums text-ink-muted">
+          {open ? formatLeft(msLeft) : "Expired"}
         </span>
       </div>
 
       <div
-        className="mt-1.5 h-px w-full overflow-hidden bg-hairline-strong"
+        className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-hairline"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={24}
@@ -59,8 +70,12 @@ export default function ReplyWindowBar({ lastInboundAt }: { lastInboundAt: strin
         aria-label="Reply window remaining"
       >
         <div
-          className={`h-full transition-[width] duration-1000 ease-linear ${
-            urgent ? "bg-amber-500" : "bg-whatsapp"
+          className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
+            !open
+              ? "bg-red-500"
+              : urgent
+                ? "bg-gradient-to-r from-amber-500 to-orange-500"
+                : "bg-gradient-to-r from-emerald-500 to-teal-400"
           }`}
           style={{ width: `${percent}%` }}
         />

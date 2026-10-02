@@ -124,6 +124,8 @@ function contactLabel(contact: Contact): string {
   return contact.name?.trim() || contact.externalId;
 }
 
+import { fetchMessengerUserProfile } from "./meta/client";
+
 function summarize(conv: Conversation, data: StoreData): ConversationSummary | null {
   const contact = data.contacts.find((c) => c.id === conv.contactId);
   if (!contact) return null;
@@ -137,6 +139,7 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     channel: contact.channel,
     contactName: contactLabel(contact),
     contactExternalId: contact.externalId,
+    avatarUrl: contact.avatarUrl ?? null,
     lastMessage: last?.text ?? null,
     lastMessageAt: conv.lastMessageAt,
     lastInboundAt: conv.lastInboundAt,
@@ -153,6 +156,7 @@ export interface InboundInput {
   /** Platform id of the sender: WhatsApp wa_id / Messenger PSID. */
   senderExternalId: string;
   senderName?: string | null;
+  senderAvatarUrl?: string | null;
   text: string | null;
   type: MessageType;
   createdAt: Date;
@@ -185,11 +189,17 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
         channel: input.channel,
         externalId: input.senderExternalId,
         name: input.senderName?.trim() || null,
+        avatarUrl: input.senderAvatarUrl ?? null,
         createdAt: input.createdAt.toISOString(),
       };
       data.contacts.push(contact);
-    } else if (input.senderName?.trim() && !contact.name?.trim()) {
-      contact.name = input.senderName.trim();
+    } else {
+      if (input.senderName?.trim() && !contact.name?.trim()) {
+        contact.name = input.senderName.trim();
+      }
+      if (input.senderAvatarUrl && !contact.avatarUrl) {
+        contact.avatarUrl = input.senderAvatarUrl;
+      }
     }
 
     let conversation = data.conversations.find((c) => c.contactId === contact.id);
@@ -271,18 +281,45 @@ export async function updateOutboundStatus(
   });
 }
 
+async function backfillProfiles(data: StoreData): Promise<boolean> {
+  let changed = false;
+  for (const contact of data.contacts) {
+    if (contact.channel === "messenger" && (!contact.name || !contact.avatarUrl)) {
+      try {
+        const profile = await fetchMessengerUserProfile(contact.externalId);
+        if (profile.name && contact.name !== profile.name) {
+          contact.name = profile.name;
+          changed = true;
+        }
+        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
+          contact.avatarUrl = profile.avatarUrl;
+          changed = true;
+        }
+      } catch {
+        // Continue if profile fetch fails
+      }
+    }
+  }
+  return changed;
+}
+
 export async function listConversations(channel?: Channel): Promise<ConversationSummary[]> {
-  return tx((data) =>
-    data.conversations
+  return tx(async (data) => {
+    const updated = await backfillProfiles(data);
+    if (updated) {
+      // Profiles were backfilled
+    }
+    return data.conversations
       .map((conv) => summarize(conv, data))
       .filter((summary): summary is ConversationSummary => summary !== null)
       .filter((summary) => !channel || summary.channel === channel)
-      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)),
-  );
+      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+  });
 }
 
 export async function getConversation(id: string): Promise<ConversationDetail | null> {
-  return tx((data) => {
+  return tx(async (data) => {
+    await backfillProfiles(data);
     const conversation = data.conversations.find((c) => c.id === id);
     if (!conversation) return null;
     const summary = summarize(conversation, data);

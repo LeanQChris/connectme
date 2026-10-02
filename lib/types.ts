@@ -36,6 +36,7 @@ export interface Contact {
   channel: Channel;
   externalId: string;
   name: string | null;
+  avatarUrl?: string | null;
   createdAt: string;
 }
 
@@ -76,6 +77,7 @@ export interface ConversationSummary {
   /** Contact display name, falling back to the platform id. */
   contactName: string;
   contactExternalId: string;
+  avatarUrl?: string | null;
   lastMessage: string | null;
   lastMessageAt: string;
   lastInboundAt: string | null;

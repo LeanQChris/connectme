@@ -109,6 +109,8 @@ export async function handleWhatsApp(body: WhatsAppWebhookBody): Promise<void> {
   }
 }
 
+import { fetchMessengerUserProfile } from "./client";
+
 export async function handleMessenger(body: PageWebhookBody): Promise<void> {
   for (const entry of body.entry ?? []) {
     for (const event of entry?.messaging ?? []) {
@@ -129,18 +131,29 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
       const hasAttachment = (message.attachments?.length ?? 0) > 0;
       const type: MessageType = message.text !== undefined ? "text" : "other";
 
+      // Fetch user profile name and profile picture from Graph API
+      let senderName: string | null = null;
+      let senderAvatarUrl: string | null = null;
+      try {
+        const profile = await fetchMessengerUserProfile(senderId);
+        senderName = profile.name;
+        senderAvatarUrl = profile.avatarUrl;
+      } catch (err) {
+        console.warn("[webhook] could not fetch messenger profile:", err);
+      }
+
       try {
         const inserted = await recordInbound({
           channel: "messenger",
           externalId: mid,
           senderExternalId: senderId,
-          // Messenger does not include the name in the webhook payload.
-          senderName: null,
+          senderName,
+          senderAvatarUrl,
           text: message.text ?? (hasAttachment ? "[attachment]" : ""),
           type,
           createdAt: new Date(timestamp),
         });
-        if (inserted) console.log(`[webhook] messenger inbound ${mid}`);
+        if (inserted) console.log(`[webhook] messenger inbound ${mid} from ${senderName ?? senderId}`);
         else console.log(`[webhook] messenger duplicate ${mid}, ignored`);
       } catch (error) {
         console.error("[webhook] failed to store messenger message:", error);
