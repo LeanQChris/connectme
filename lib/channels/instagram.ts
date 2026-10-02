@@ -30,4 +30,25 @@ export const instagramAdapter: ChannelAdapter = {
 
     return { externalId: payload?.message_id ?? null };
   },
+
+  async sendMedia({ contact, mediaUrl, type }): Promise<SendResult> {
+    const accessToken = config.fbPageAccessToken;
+    if (!accessToken) {
+      throw new ChannelNotConfiguredError("Instagram is not configured.");
+    }
+    // Instagram messaging only accepts image and audio attachments.
+    const attachmentType = type === "audio" ? "AUDIO" : "IMAGE";
+    if (type !== "image" && type !== "audio") {
+      throw new Error("Instagram only supports image and audio attachments.");
+    }
+
+    const payload = (await postGraphJson(graphUrl("me/messages"), accessToken, {
+      recipient: { id: contact.externalId },
+      message: {
+        attachment: { type: attachmentType, payload: { url: mediaUrl } },
+      },
+    })) as InstagramSendResponse;
+
+    return { externalId: payload?.message_id ?? null };
+  },
 };

@@ -1,10 +1,14 @@
 import { ChannelNotConfiguredError, getChannel, MetaSendError } from "@/lib/channels";
 import { getConversation, recordOutbound } from "@/lib/store";
 import { requireSession } from "@/lib/session";
+import type { MessageType } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 const MAX_TEXT_LENGTH = 4096;
+
+const ATTACHMENT_TYPES = ["image", "audio", "video", "document"] as const;
+type AttachmentType = (typeof ATTACHMENT_TYPES)[number];
 
 const WINDOW_CLOSED_MESSAGE =
   "The 24-hour reply window is closed. WhatsApp only allows free-form replies inside it; " +
@@ -19,15 +23,23 @@ export async function POST(
 
   const { id } = await context.params;
 
-  let payload: { text?: unknown };
+  let payload: { text?: unknown; mediaUrl?: unknown; mimeType?: unknown; type?: unknown };
   try {
-    payload = (await request.json()) as { text?: unknown };
+    payload = (await request.json()) as typeof payload;
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
-  if (!text) return Response.json({ error: "Message text is required" }, { status: 400 });
+  const mediaPath = typeof payload.mediaUrl === "string" ? payload.mediaUrl.trim() : "";
+  const mimeType = typeof payload.mimeType === "string" ? payload.mimeType : "application/octet-stream";
+  const declaredType = ATTACHMENT_TYPES.includes(payload.type as AttachmentType)
+    ? (payload.type as AttachmentType)
+    : null;
+
+  if (!text && !mediaPath) {
+    return Response.json({ error: "Message text or an attachment is required" }, { status: 400 });
+  }
   if (text.length > MAX_TEXT_LENGTH) {
     return Response.json(
       { error: `Message is too long (maximum ${MAX_TEXT_LENGTH} characters)` },
@@ -51,19 +63,39 @@ export async function POST(
     );
   }
 
+  // Channels fetch media themselves, so hand them an absolute URL.
+  const mediaUrl = mediaPath ? new URL(mediaPath, request.url).toString() : null;
+  const sendMedia = Boolean(mediaUrl);
+
+  if (sendMedia && !adapter.sendMedia) {
+    return Response.json(
+      { error: `${conversation.channel} does not support attachments` },
+      { status: 400 },
+    );
+  }
+
   const outbound = {
     channel: conversation.channel,
     contactExternalId: conversation.contactExternalId,
     text,
-    type: "text" as const,
+    mediaUrl,
+    type: (declaredType ?? "text") as MessageType,
     createdAt: new Date(),
   };
 
   try {
-    const result = await adapter.sendText({
-      contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
-      text,
-    });
+    const result = sendMedia
+      ? await adapter.sendMedia!({
+          contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
+          text,
+          mediaUrl: mediaUrl!,
+          mimeType,
+          type: (declaredType ?? "document") as AttachmentType,
+        })
+      : await adapter.sendText({
+          contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
+          text,
+        });
     const message = await recordOutbound({
       ...outbound,
       externalId: result.externalId,

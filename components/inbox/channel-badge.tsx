@@ -4,31 +4,35 @@ import type { Channel } from "@/lib/types";
 
 const CHANNEL_META: Record<
   Channel,
-  { label: string; dot: string; text: string; tile: string }
+  { label: string; dot: string; text: string; tile: string; soft: string }
 > = {
   whatsapp: {
     label: "WhatsApp",
     dot: "bg-whatsapp",
     text: "text-whatsapp",
     tile: "bg-whatsapp",
+    soft: "bg-whatsapp/10 text-whatsapp",
   },
   messenger: {
     label: "Messenger",
     dot: "bg-messenger",
     text: "text-messenger",
     tile: "bg-messenger",
+    soft: "bg-messenger/10 text-messenger",
   },
   instagram: {
     label: "Instagram",
     dot: "bg-pink-500",
     text: "text-pink-500",
     tile: "bg-pink-500",
+    soft: "bg-pink-500/10 text-pink-500",
   },
   telegram: {
     label: "Telegram",
     dot: "bg-sky-500",
     text: "text-sky-500",
     tile: "bg-sky-500",
+    soft: "bg-sky-500/10 text-sky-500",
   },
 };
 

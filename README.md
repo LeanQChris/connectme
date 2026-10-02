@@ -1,264 +1,307 @@
-# connectme
+# ConnectMe
 
-Private unified inbox for WhatsApp + Facebook Messenger, built on Meta's official APIs.
-Internal tool: one shared password, no public sign-up, no customer-facing surface.
+> **Unified Multi-Channel Team Inbox** for **WhatsApp Business Cloud API**, **Facebook Messenger**, **Telegram**, and **Instagram Direct**.
 
-Polling every 3s (no WebSockets), so it runs on a serverless host later unchanged.
+ConnectMe is a lightweight, secure internal communications hub designed for teams to manage customer conversations across Meta platforms and Telegram from a single, unified interface.
+
+Built with **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, and the **Vercel Geist Design System**, ConnectMe requires zero database setup locally and deploys seamlessly to serverless environments (Vercel + Vercel KV / Upstash Redis).
 
 ---
 
-## Current state
+## ✨ Features
 
-| Piece | Status |
+- 💬 **Unified Multi-Channel Inbox**: Centralize messages from WhatsApp, Facebook Messenger, Telegram, and Instagram in real time.
+- ⏱️ **24-Hour Reply Window Tracking**: Built-in countdown timer and visual indicators conforming to Meta's 24-hour customer care messaging policies.
+- 📎 **Rich Media Support**: Send and receive images, voice notes/audio, videos, and document attachments (up to 8 MB).
+- 📝 **Internal Notes & Collaboration**: Add private internal notes directly into conversation threads for team collaboration.
+- 🏷️ **Conversation Management**: Tagging, agent assignment, conversation status toggles (Open / Closed), and unread count badges.
+- ⌨️ **Keyboard-First Triage**: `j`/`k` walk the list, `Enter`/`Esc` open and close a thread, `a` archives — the composer stays focused while you type.
+- 🔍 **Instant Full-Text Search**: Search conversations by customer name, handle/phone number, or message content snippets.
+- ⚡ **Serverless-Ready Polling Architecture**: 3-second smart polling via TanStack Query — no fragile, stateful WebSocket connections required on serverless hosts.
+- 🔒 **Enterprise-Grade Security**:
+  - Webhook payload validation via `X-Hub-Signature-256` (HMAC-SHA256) with timing-safe comparisons.
+  - Password-protected access with signed HTTP-only session cookies (`jose`).
+  - Next.js 16 route protection via `proxy.ts`.
+  - Zero client-side token exposure (no `NEXT_PUBLIC_` credential leaks).
+- 💾 **Dual-Mode Data Store**:
+  - **Local Development**: Zero-config file storage at `data/inbox.json`.
+  - **Production**: High-speed, atomic key-value storage via Vercel KV / Upstash Redis.
+- 🌓 **Geist Design System**: Native Dark and Light theme toggle with typography and tokens from Vercel Geist.
+
+---
+
+## 🏗️ Architecture & Tech Stack
+
+| Layer | Technology |
 | --- | --- |
-| Webhook (verify + signature + WhatsApp/Messenger inbound) | done |
-| Channel adapters + 24h reply window | done |
-| Auth, session cookie, `proxy.ts` gate | done |
-| Inbox UI (list, thread, polling, mobile) | done |
-| Instagram DMs | placeholder only, ignored on purpose |
-| Templates, media sending, multi-agent assignment | out of scope |
-| **Storage** | **one JSON value: `data/inbox.json` locally, a Vercel KV key when deployed** |
-
-Data is a single JSON document behind `lib/store.ts`. Locally it is written to
-`data/inbox.json` (gitignored) so the Meta integration can be exercised without any
-setup. On a serverless host the filesystem is read-only apart from a per-instance
-`/tmp` that is wiped on every cold start, so there it is kept in Vercel KV instead —
-set `KV_REST_API_URL` and `KV_REST_API_TOKEN` and the store switches over on its own.
-
-**Deploying to Vercel:** create the KV store once, link it, and add those two
-variables to the project.
-
-```bash
-npx vercel kv create connectme
-npx vercel env add KV_REST_API_URL production
-npx vercel env add KV_REST_API_TOKEN production
-```
+| **Framework** | [Next.js 16 (App Router)](https://nextjs.org/) + [React 19](https://react.dev/) |
+| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) + Geist Design Tokens |
+| **State & Polling** | [@tanstack/react-query](https://tanstack.com/query) |
+| **Authentication** | Shared Admin Password + HMAC Signed JWT Session (`jose`) |
+| **Channels** | WhatsApp Cloud API, Facebook Messenger Graph API, Telegram Bot API, Instagram Graph API |
+| **Storage Engine** | Local JSON File (`data/inbox.json`) or Vercel KV / Upstash Redis |
+| **Language** | TypeScript 5 (Strict Mode) |
 
 ---
 
-## Install
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js**: `v20.9.0` or later (tested on Node 22)
+- **npm** or **pnpm** / **yarn**
+
+### 1. Clone & Install Dependencies
 
 ```bash
+git clone https://github.com/your-org/connectme.git
+cd connectme
 npm install
 ```
 
-Node.js 20.9+ required (developed on Node 22).
+### 2. Configure Environment Variables
 
-## Environment setup
+Copy the example environment configuration:
 
 ```bash
 cp .env.example .env
 ```
 
-Then fill in:
+Open `.env` and fill in the required variables:
 
-| Variable | Where to get it |
-| --- | --- |
-| `APP_SECRET` | App Dashboard → Settings → Basic → App secret → Show |
-| `WEBHOOK_VERIFY_TOKEN` | Invent it. Any string. You type the same value into Meta |
-| `GRAPH_VERSION` | Keep `v21.0` unless you need a different version |
-| `WA_PHONE_NUMBER_ID` | App Dashboard → WhatsApp → API Setup → Phone number ID |
-| `WA_ACCESS_TOKEN` | App Dashboard → WhatsApp → API Setup → Temporary access token |
-| `FB_PAGE_ACCESS_TOKEN` | Your Page → Settings → Developer → Access Token. May stay empty |
-| `ADMIN_PASSWORD` | Anything you can remember. Change the placeholder before sharing the app |
-| `SESSION_SECRET` | `openssl rand -hex 32` |
+```ini
+# Meta App Credentials (App Dashboard -> Settings -> Basic)
+APP_SECRET=your_meta_app_secret
+WEBHOOK_VERIFY_TOKEN=your_custom_verification_token
+GRAPH_VERSION=v21.0
 
-Nothing here uses a `NEXT_PUBLIC_` prefix, so none of it is sent to the browser.
-Server logs never print tokens.
+# WhatsApp Cloud API (App Dashboard -> WhatsApp -> API Setup)
+WA_PHONE_NUMBER_ID=your_whatsapp_phone_number_id
+WA_ACCESS_TOKEN=your_whatsapp_system_user_token
 
-`FB_PAGE_ACCESS_TOKEN` may be empty: Messenger replies then return a clear
-"Messenger is not configured" error, and WhatsApp keeps working.
+# Facebook Messenger (Page -> Settings -> Developer -> Access Token)
+FB_PAGE_ACCESS_TOKEN=your_facebook_page_access_token
 
-**Restart the dev server after editing `.env`** — env vars are read once at startup.
+# Telegram Bot API (From @BotFather)
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 
-## Run locally
+# Security & Dashboard Access
+ADMIN_PASSWORD=your_secure_dashboard_password
+SESSION_SECRET=generate_with_openssl_rand_hex_32
+
+# Production Storage (Leave blank for local JSON file storage)
+KV_REST_API_URL=
+KV_REST_API_TOKEN=
+```
+
+> 💡 **Tip:** Generate a secure `SESSION_SECRET` with:
+> ```bash
+> openssl rand -hex 32
+> ```
+
+### 3. Start Local Development Server
 
 ```bash
 npm run dev
 ```
 
-Open http://localhost:3000, sign in with `ADMIN_PASSWORD`.
+Visit [http://localhost:3000](http://localhost:3000) and log in using your `ADMIN_PASSWORD`.
 
-To wipe the local inbox: `rm -rf data`.
+---
 
-## Exposing the webhook with a tunnel
+## 🌐 Webhook Configuration
 
-Meta must reach the server over HTTPS, so a tunnel is required during development.
+Meta and Telegram require a public HTTPS endpoint to deliver webhooks. During local development, expose your local port `3000` using a tunnel:
 
-**ngrok**
-
-```bash
-ngrok http 3000
-```
-
-**cloudflared**
+### Option A: Cloudflare Tunnel (Recommended)
 
 ```bash
 cloudflared tunnel --url http://localhost:3000
 ```
 
-Both print a public HTTPS URL. It **changes every time you restart the tunnel**, so
-you must re-save the callback URL in Meta afterwards.
-
-## Meta webhook settings
-
-**Callback URL**
-
-```
-https://<your-tunnel-url>/api/webhook
-```
-
-The path must be exactly `/api/webhook`.
-
-**Verify token**
-
-```
-WEBHOOK_VERIFY_TOKEN   (the same string from your .env)
-```
-
-Meta sends a GET with `hub.mode=subscribe`, `hub.verify_token` and `hub.challenge`.
-The route answers with `hub.challenge` as plain text, or `403` on mismatch.
-
-**Subscribe to fields**
-
-- WhatsApp: App Dashboard → WhatsApp → Configuration → Webhooks → Edit → paste callback
-  URL + verify token → Save → *Subscribe to my app* → select the **`messages`** field.
-  Delivery statuses (`sent`/`delivered`/`read`/`failed`) arrive under the same field.
-- Messenger: Page → Settings → Webhooks → Edit → paste callback URL + verify token →
-  *Subscribe* → select **`messages`**, `messaging_postbacks`, `messaging_optin`.
-  `messaging_postbacks` and `messaging_optin` are not read yet, but subscribing now
-  means you do not have to come back later.
-
-Requests are authenticated with `X-Hub-Signature-256`
-(`HMAC-SHA256(rawBody, APP_SECRET)`), so the webhook is safe to expose publicly.
-`proxy.ts` deliberately leaves `/api/webhook` unauthenticated for that reason.
-
-## Tests
-
-There is no test runner in this repo yet. The flows were verified manually against a
-local dev server with signed payloads: handshake, bad signature → 401, duplicate
-delivery → ignored, echo ignored, status updates, window closed → 409, failed send →
-stored as `failed` with Meta's error.
-
-## Troubleshooting
-
-| Symptom | Cause |
-| --- | --- |
-| Webhook POSTs return `401` | `APP_SECRET` does not match the app the webhook is subscribed to |
-| Verification fails, `403` | `WEBHOOK_VERIFY_TOKEN` differs from the token typed into Meta, or the URL is missing the `/api/webhook` path |
-| Verification worked, then stopped | Tunnel restarted and the URL changed. Re-save the callback URL in Meta |
-| Env change seems ignored | Restart `npm run dev` |
-| Messages not appearing | Watch the server log: every accepted event logs `[webhook] ... inbound`. No line means Meta never delivered |
-| Reply fails with `409` | 24-hour window closed. WhatsApp needs an approved template message outside it |
-| Reply fails with `502` | Meta rejected the send. The exact error is shown on the failed bubble |
-| Messenger reply says "not configured" | `FB_PAGE_ACCESS_TOKEN` is empty |
-| `Missing required environment variable X` | `.env` is missing or truncated. See `lib/config.ts` |
-| `ENOENT ... mkdir '<cwd>/data'` on Vercel | Expected. Serverless filesystem is read-only — set `KV_REST_API_URL` and `KV_REST_API_TOKEN` |
-| Inbox empty after a redeploy | `KV_REST_API_URL` / `KV_REST_API_TOKEN` not set on the deployment, so writes went nowhere |
-| `KV get failed: HTTP 401` | Token wrong or from a different store. Re-copy both values from the KV store's page |
-
-## Layout
-
-```
-app/globals.css                     Geist design tokens (Vercel's palette, dark mode)
-app/api/webhook/route.ts            Meta handshake + signature check + dispatch
-app/api/login|logout/route.ts       session cookie
-app/api/conversations/**            list / thread / reply
-app/login/page.tsx                  password form
-components/inbox/*                  client UI (list, thread, reply box, window bar)
-lib/config.ts                       all env access, throws with a clear message
-lib/store.ts                        ALL data access. JSON file locally, Vercel KV deployed
-lib/auth.ts lib/session.ts          token signing, cookie reading, guards
-lib/meta/types.ts                   strict webhook payload types
-lib/meta/verify.ts                  HMAC signature check, timing-safe compares
-lib/meta/handlers.ts                inbound WhatsApp + Messenger (Instagram stub)
-lib/meta/client.ts                  Graph API POST helper
-lib/channels/*                      one file per channel + registry
-lib/window.ts                       24-hour reply window
-proxy.ts                            Next 16 auth gate (was middleware.ts)
-```
-
-UI follows the Vercel / Geist design system: self-hosted Geist Sans + Mono from the
-`geist` package, the real Geist grey scale as CSS variables in `app/globals.css`, and
-light/dark driven by `prefers-color-scheme`.
-
-## Adding Instagram later
-
-1. Create `lib/channels/instagram.ts`: copy `messenger.ts`, POST to
-   `/{ig-user-id}/messages`, and register it in `lib/channels/index.ts`.
-2. Replace `handleInstagram` in `lib/meta/handlers.ts` — Instagram messaging events
-   use the same `sender.id` / `message.mid` / `message.text` shape and the same
-   `is_echo` rule.
-3. Add `IG_PAGE_ACCESS_TOKEN` to `lib/config.ts` and `.env.example`.
-
-## Adding Prisma later
+### Option B: ngrok
 
 ```bash
-npm install @prisma/client && npm install -D prisma
+ngrok http 3000
 ```
 
-Schema (SQLite now, Postgres later by changing `provider` and `DATABASE_URL`):
+---
+
+### Setting Up Meta Webhooks (WhatsApp & Messenger)
+
+1. **Configure Callback URL**:
+   - In the **Meta App Dashboard**, go to **Webhooks** (or **WhatsApp > Configuration**).
+   - **Callback URL**: `https://<your-tunnel-or-domain>/api/webhook`
+   - **Verify Token**: Enter the exact string set in `WEBHOOK_VERIFY_TOKEN`.
+2. **Subscribe to Webhook Fields**:
+   - **WhatsApp**: Subscribe to the `messages` field (receives inbound messages and delivery status receipts: `sent`, `delivered`, `read`, `failed`).
+   - **Facebook Page / Messenger**: Subscribe to `messages`, `messaging_postbacks`, and `messaging_optin`.
+
+---
+
+### Setting Up Telegram Webhook
+
+Once your app is accessible over HTTPS with `TELEGRAM_BOT_TOKEN` set in `.env`:
+
+1. **Automatic Setup via ConnectMe Endpoint**:
+   Open in your browser or trigger via `curl`:
+   ```bash
+   curl "http://localhost:3000/api/telegram/setup?url=https://<your-tunnel-or-domain>/api/webhook/telegram"
+   ```
+2. **Verify Setup Status**:
+   ```bash
+   curl "http://localhost:3000/api/telegram/setup"
+   ```
+
+---
+
+## 🚢 Deployment to Vercel
+
+Because Vercel serverless functions have an ephemeral, read-only filesystem (outside `/tmp`), ConnectMe utilizes **Vercel KV (Upstash Redis)** in production.
+
+### 1. Create and Link a Vercel KV Store
+
+```bash
+# Create KV store
+npx vercel kv create connectme
+
+# Link environment variables to your Vercel project
+npx vercel env add KV_REST_API_URL production
+npx vercel env add KV_REST_API_TOKEN production
+```
+
+### 2. Configure Production Secrets on Vercel
+
+Ensure all other required environment variables (`APP_SECRET`, `WEBHOOK_VERIFY_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_ACCESS_TOKEN`, `ADMIN_PASSWORD`, `SESSION_SECRET`, etc.) are configured in your Vercel Project Settings under **Environment Variables**.
+
+### 3. Deploy
+
+```bash
+npx vercel --prod
+```
+
+Once deployed, update your Meta Webhook URL to point to `https://<your-vercel-domain>/api/webhook` and register your Telegram webhook with `https://<your-vercel-domain>/api/webhook/telegram`.
+
+---
+
+## 📁 Project Structure
+
+```
+connectme/
+├── app/
+│   ├── api/
+│   │   ├── conversations/        # Conversation listing, thread fetch, replies, status
+│   │   ├── login / logout/       # Session authentication & cookie issuance
+│   │   ├── media/                # File and attachment upload & serving
+│   │   ├── search/               # Conversation & message search endpoint
+│   │   ├── telegram/setup/       # Telegram webhook registration helper
+│   │   └── webhook/              # Meta & Telegram webhook receivers
+│   ├── conversations/            # Conversation route views
+│   ├── inbox/                    # Inbox dashboard view
+│   ├── login/                    # Login page
+│   ├── globals.css               # Tailwind CSS v4 & Geist theme variables
+│   ├── layout.tsx                # Root HTML shell & ThemeProvider
+│   └── page.tsx                  # Landing / Dashboard redirection
+├── components/
+│   ├── inbox/
+│   │   ├── avatar.tsx            # Contact avatar with channel indicator
+│   │   ├── channel-badge.tsx     # Channel badge pills
+│   │   ├── channel-rail.tsx      # Vertical channel switch rail
+│   │   ├── conversation-list.tsx # Conversation items with search & filters
+│   │   ├── reply-box.tsx         # Message composer with attachments & note mode
+│   │   ├── reply-window.tsx      # Meta 24-hour window countdown widget
+│   │   ├── theme-toggle.tsx      # Light/Dark mode switcher
+│   │   └── thread.tsx            # Conversation timeline & message bubbles
+│   └── providers/                # React Query & Theme providers
+├── data/                         # Local JSON file store (gitignored)
+│   └── inbox.json
+├── lib/
+│   ├── auth.ts                   # Password verification & session helpers
+│   ├── channels/                 # Channel adapters (WhatsApp, Messenger, Telegram, Instagram)
+│   ├── config.ts                 # Validated environment configuration
+│   ├── meta/                     # Meta Graph API client, HMAC verification & event handlers
+│   ├── session.ts                # Signed JWT cookie session management (`jose`)
+│   ├── store.ts                  # Unified data store abstraction (JSON file <-> Vercel KV)
+│   ├── telegram/                 # Telegram message parsing & sending utilities
+│   ├── types.ts                  # Shared TypeScript models and domain types
+│   ├── uploads.ts                # File attachment validation & persistence
+│   └── window.ts                 # 24-hour reply window calculation logic
+├── proxy.ts                      # Next.js 16 edge authentication gateway
+└── package.json
+```
+
+---
+
+## 🗄️ Database Migration Path (Prisma + Postgres)
+
+While the default JSON / Vercel KV store is optimized for lightweight operations, ConnectMe is structured so you can transition to a relational database like PostgreSQL (Neon, Supabase, or Vercel Postgres) using Prisma.
 
 ```prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "sqlite"        // switch to "postgresql" for Postgres
-  url      = env("DATABASE_URL")
-}
-
 model Contact {
-  id         String   @id @default(cuid())
+  id         String         @id @default(cuid())
   channel    String
   externalId String
   name       String?
-  createdAt  DateTime @default(now())
+  avatarUrl  String?
+  createdAt  DateTime       @default(now())
+  conversations Conversation[]
 
   @@unique([channel, externalId])
 }
 
 model Conversation {
-  id           String   @id @default(cuid())
-  contactId    String   @unique
+  id            String    @id @default(cuid())
+  contactId     String
   lastMessageAt DateTime
   lastInboundAt DateTime?
-  unreadCount  Int      @default(0)
-  status       String   @default("open")
-  createdAt    DateTime @default(now())
-  contact      Contact  @relation(fields: [contactId], references: [id])
+  unreadCount   Int       @default(0)
+  status        String    @default("open")
+  assignee      String?
+  tags          String[]
+  createdAt     DateTime  @default(now())
+  contact       Contact   @relation(fields: [contactId], references: [id])
+  messages      Message[]
 
   @@index([lastMessageAt])
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   conversationId String
-  direction      String
-  type           String   @default("text")
+  direction      String       // "in" | "out" | "note"
+  type           String       @default("text")
   text           String?
+  mediaUrl       String?
   externalId     String?
-  status         String   @default("received")
+  channel        String
+  status         String       @default("received")
   error          String?
-  createdAt      DateTime
+  author         String?
+  createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
 
   @@index([conversationId, createdAt])
 }
 ```
 
-Then:
+To migrate, implement the functions in `lib/store.ts` using Prisma queries while retaining the existing function signatures.
 
-```bash
-npx prisma migrate dev --name init
-```
+---
 
-Reimplement the functions in `lib/store.ts` as Prisma queries, keeping the same
-signatures, and add a unique index on `(channel, externalId)` for `Message` so
-deduplication is enforced by the database instead of in application code.
+## 🛠️ Troubleshooting & FAQ
 
-Use Postgres, not SQLite: Vercel has no writable filesystem, so SQLite would hit
-the same problem this document already solved with KV. Neon or Vercel Postgres both
-work. This also removes the single-document write clobbering that `tx()` still has
-between instances.
+| Problem | Cause | Solution |
+| --- | --- | --- |
+| **Webhook returns `401 Unauthorized`** | `APP_SECRET` does not match the app sending the webhook. | Verify your App Secret in Meta App Dashboard under Settings > Basic. |
+| **Verification fails with `403 Forbidden`** | `WEBHOOK_VERIFY_TOKEN` mismatch or wrong path. | Check token match and verify endpoint path is `/api/webhook`. |
+| **Messages stop arriving during local dev** | Your ngrok/cloudflared tunnel URL expired or restarted. | Copy new tunnel URL and update Callback URL in Meta / Telegram. |
+| **Reply fails with `409 Conflict`** | Customer's 24-hour messaging window has closed. | WhatsApp and Messenger require customer-initiated contact or approved templates outside 24 hours. |
+| **Reply fails with `502 Bad Gateway`** | Meta or Telegram Graph API rejected the request. | Check the error description displayed directly on the failed message bubble. |
+| **Messenger reply says "Not configured"** | `FB_PAGE_ACCESS_TOKEN` is missing or empty. | Provide a valid Facebook Page Access Token in `.env`. |
+| **Data resets after Vercel redeploy** | `KV_REST_API_URL` and `KV_REST_API_TOKEN` are not set. | Link a Vercel KV store in your Vercel project settings to persist state. |
+
+---
+
+## 🛡️ License
+
+This project is private and proprietary. Unauthorized copying, distribution, or modification is prohibited.

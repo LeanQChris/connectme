@@ -1,4 +1,4 @@
-import { getConversation, resetUnread, setStatus } from "@/lib/store";
+import { getConversation, resetUnread, setStatus, updateConversationMeta } from "@/lib/store";
 import { requireSession } from "@/lib/session";
 import { CONVERSATION_STATUSES, type ConversationStatus } from "@/lib/types";
 
@@ -19,7 +19,12 @@ export async function GET(
   await resetUnread(id);
 
   return Response.json({
-    conversation: { ...detail.conversation, unreadCount: 0 },
+    conversation: {
+      ...detail.conversation,
+      unreadCount: 0,
+      // summarize() ran before the reset, so stamp the boundary we just wrote.
+      lastReadAt: new Date().toISOString(),
+    },
     messages: detail.messages,
   });
 }
@@ -31,14 +36,44 @@ export async function PATCH(
   const guard = await requireSession();
   if (guard) return guard;
 
-  const { status } = (await request.json().catch(() => ({}))) as { status?: unknown };
-  if (!CONVERSATION_STATUSES.includes(status as (typeof CONVERSATION_STATUSES)[number])) {
-    return Response.json({ error: "status must be 'open' or 'closed'" }, { status: 400 });
+  const { id } = await context.params;
+
+  let payload: { status?: unknown; assignee?: unknown; tags?: unknown };
+  try {
+    payload = (await request.json()) as typeof payload;
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { id } = await context.params;
-  if (!(await setStatus(id, status as ConversationStatus))) {
-    return Response.json({ error: "Conversation not found" }, { status: 404 });
+  const tags =
+    Array.isArray(payload.tags) && payload.tags.every((t) => typeof t === "string")
+      ? [...new Set(payload.tags.map((t) => (t as string).trim().toLowerCase()).filter(Boolean))].slice(0, 8)
+      : undefined;
+
+  const assignee =
+    payload.assignee === null || typeof payload.assignee === "string"
+      ? typeof payload.assignee === "string"
+        ? payload.assignee.trim() || null
+        : null
+      : undefined;
+
+  if (payload.status !== undefined) {
+    if (!CONVERSATION_STATUSES.includes(payload.status as ConversationStatus)) {
+      return Response.json({ error: "status must be 'open' or 'closed'" }, { status: 400 });
+    }
+    if (!(await setStatus(id, payload.status as ConversationStatus))) {
+      return Response.json({ error: "Conversation not found" }, { status: 404 });
+    }
+  }
+
+  if (assignee !== undefined || tags !== undefined) {
+    const summary = await updateConversationMeta(id, { assignee, tags });
+    if (!summary) return Response.json({ error: "Conversation not found" }, { status: 404 });
+    return Response.json({ conversation: summary });
+  }
+
+  if (payload.status === undefined) {
+    return Response.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   const detail = await getConversation(id);

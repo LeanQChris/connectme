@@ -6,7 +6,7 @@
 export const CHANNELS = ["whatsapp", "messenger", "instagram", "telegram"] as const;
 export type Channel = (typeof CHANNELS)[number];
 
-export const DIRECTIONS = ["in", "out"] as const;
+export const DIRECTIONS = ["in", "out", "note"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
 export const MESSAGE_TYPES = [
@@ -31,6 +31,9 @@ export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 export const CONVERSATION_STATUSES = ["open", "closed"] as const;
 export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
 
+/** 8 MB, comfortably inside every channel's attachment ceiling. */
+export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
 export interface Contact {
   id: string;
   channel: Channel;
@@ -46,6 +49,10 @@ export interface Conversation {
   lastMessageAt: string;
   lastInboundAt: string | null;
   unreadCount: number;
+  /** When the thread was last opened, so the UI can mark the unread boundary. */
+  lastReadAt: string | null;
+  assignee: string | null;
+  tags: string[];
   status: ConversationStatus;
   createdAt: string;
 }
@@ -61,6 +68,8 @@ export interface Message {
   channel: Channel;
   status: MessageStatus;
   error: string | null;
+  /** Set on internal notes only. */
+  author?: string | null;
   createdAt: string;
 }
 
@@ -83,6 +92,9 @@ export interface ConversationSummary {
   lastMessageAt: string;
   lastInboundAt: string | null;
   unreadCount: number;
+  lastReadAt: string | null;
+  assignee: string | null;
+  tags: string[];
   status: ConversationStatus;
   window: ReplyWindow;
 }
@@ -90,4 +102,21 @@ export interface ConversationSummary {
 export interface ConversationDetail {
   conversation: ConversationSummary;
   messages: Message[];
+}
+
+/** One conversation plus the newest message body that matched a search. */
+export interface SearchHit {
+  conversation: ConversationSummary;
+  snippet: string;
+  createdAt: string;
+  direction: Direction;
+}
+
+/** An uploaded file served back from /api/media. */
+export interface UploadedMedia {
+  url: string;
+  type: MessageType;
+  mimeType: string;
+  name: string;
+  size: number;
 }

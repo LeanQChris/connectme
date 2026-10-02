@@ -1,14 +1,23 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useConversation, useConversations, useSendReply, useSetConversationStatus } from "@/lib/hooks/use-inbox";
+import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
+import {
+  useAddNote,
+  useConversation,
+  useConversations,
+  useSendReply,
+  useSetConversationMeta,
+  useSetConversationStatus,
+} from "@/lib/hooks/use-inbox";
 import type { Channel, ConversationStatus } from "@/lib/types";
 
 import { channelMeta } from "./channel-badge";
 import ChannelRail from "./channel-rail";
 import ConversationList from "./conversation-list";
+import type { ReplyPayload } from "./reply-box";
 import ThemeToggle from "./theme-toggle";
 import Thread from "./thread";
 
@@ -28,6 +37,8 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   const { data: detail, isLoading: loadingThread } = useConversation(selectedId);
   const sendMutation = useSendReply(selectedId);
   const statusMutation = useSetConversationStatus();
+  const metaMutation = useSetConversationMeta(selectedId);
+  const noteMutation = useAddNote(selectedId);
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -68,6 +79,55 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     return unread;
   }, [all]);
 
+  // Keyboard triage: j/k walk the list, Enter opens, a archives, Esc goes back.
+  const visibleRef = useRef(visible);
+  const selectedRef = useRef(selectedId);
+
+  useEffect(() => {
+    visibleRef.current = visible;
+    selectedRef.current = selectedId;
+  }, [visible, selectedId]);
+
+  const move = useCallback((delta: number) => {
+    const list = visibleRef.current;
+    if (list.length === 0) return;
+    const at = list.findIndex((c) => c.id === selectedRef.current);
+    const next = at === -1 ? (delta > 0 ? 0 : list.length - 1) : Math.min(Math.max(at + delta, 0), list.length - 1);
+    const target = list[next];
+    if (!target) return;
+    setSelectedId(target.id);
+    window.history.pushState(null, "", `/conversations/${target.id}`);
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const el = event.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)
+      ) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === "j" || event.key === "ArrowDown") {
+        event.preventDefault();
+        move(1);
+      } else if (event.key === "k" || event.key === "ArrowUp") {
+        event.preventDefault();
+        move(-1);
+      } else if (event.key === "a") {
+        const target = selectedRef.current;
+        if (target) statusMutation.mutate({ id: target, status: "closed" });
+      } else if (event.key === "Escape" && selectedRef.current) {
+        setSelectedId(null);
+        window.history.pushState(null, "", "/inbox");
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [move, statusMutation]);
+
   function select(id: string) {
     setSelectedId(id);
     window.history.pushState(null, "", `/conversations/${id}`);
@@ -78,8 +138,16 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     window.history.pushState(null, "", "/inbox");
   }
 
-  async function handleSend(text: string) {
-    await sendMutation.mutateAsync(text);
+  async function handleSend(payload: ReplyPayload) {
+    await sendMutation.mutateAsync(payload);
+  }
+
+  async function handleNote(text: string) {
+    await noteMutation.mutateAsync({ text });
+  }
+
+  function handleMeta(patch: ConversationMetaPatch) {
+    metaMutation.mutate(patch);
   }
 
   function handleArchive(status: ConversationStatus) {
@@ -204,7 +272,9 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               messages={detail.messages}
               onBack={back}
               onSend={handleSend}
+              onNote={handleNote}
               onArchive={handleArchive}
+              onMeta={handleMeta}
             />
           </main>
         ) : (

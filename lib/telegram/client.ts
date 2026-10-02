@@ -56,6 +56,50 @@ export async function sendTelegramMessage(
   return { messageId: String(data.result.message_id) };
 }
 
+/**
+ * Sends an attachment. Telegram accepts a plain URL as the multipart field,
+ * so the bytes never pass through this process.
+ */
+export async function sendTelegramAttachment(
+  chatId: string | number,
+  mediaUrl: string,
+  type: "image" | "audio" | "video" | "document",
+  caption?: string,
+): Promise<{ messageId: string }> {
+  const token = config.telegramBotToken;
+  if (!token) {
+    throw new ChannelNotConfiguredError(
+      "Telegram is not configured. Set TELEGRAM_BOT_TOKEN to enable replies.",
+    );
+  }
+
+  const method =
+    type === "image" ? "sendPhoto" : type === "video" ? "sendVideo" : type === "audio" ? "sendAudio" : "sendDocument";
+  const field = method === "sendPhoto" ? "photo" : method === "sendVideo" ? "video" : method === "sendAudio" ? "audio" : "document";
+
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  form.append(field, mediaUrl);
+  if (caption) form.append("caption", caption);
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    body: form,
+  });
+
+  const data = (await response.json()) as {
+    ok: boolean;
+    description?: string;
+    result?: { message_id: number };
+  };
+
+  if (!data.ok || !data.result) {
+    throw new Error(data.description || "Failed to send Telegram attachment");
+  }
+
+  return { messageId: String(data.result.message_id) };
+}
+
 export async function getTelegramFileUrl(fileId: string): Promise<string | null> {
   const token = config.telegramBotToken;
   if (!token || !fileId) return null;

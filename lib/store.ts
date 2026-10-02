@@ -27,6 +27,7 @@ import type {
   Message,
   MessageStatus,
   MessageType,
+  SearchHit,
 } from "./types";
 import { replyWindow } from "./window";
 
@@ -130,8 +131,9 @@ import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./me
 function summarize(conv: Conversation, data: StoreData): ConversationSummary | null {
   const contact = data.contacts.find((c) => c.id === conv.contactId);
   if (!contact) return null;
+  // Notes are internal, so they must never become the inbox preview.
   const last = data.messages
-    .filter((m) => m.conversationId === conv.id)
+    .filter((m) => m.conversationId === conv.id && m.direction !== "note")
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .at(-1);
   return {
@@ -145,6 +147,9 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     lastMessageAt: conv.lastMessageAt,
     lastInboundAt: conv.lastInboundAt,
     unreadCount: conv.unreadCount,
+    lastReadAt: conv.lastReadAt ?? null,
+    assignee: conv.assignee ?? null,
+    tags: conv.tags ?? [],
     status: conv.status,
     window: contact.channel === "telegram" ? { open: true, msRemaining: null } : replyWindow(conv.lastInboundAt),
   };
@@ -213,6 +218,9 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
         lastMessageAt: input.createdAt.toISOString(),
         lastInboundAt: input.createdAt.toISOString(),
         unreadCount: 0,
+        lastReadAt: input.createdAt.toISOString(),
+        assignee: null,
+        tags: [],
         status: "open",
         createdAt: input.createdAt.toISOString(),
       };
@@ -406,7 +414,10 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
 export async function resetUnread(id: string): Promise<void> {
   return tx((data) => {
     const conversation = data.conversations.find((c) => c.id === id);
-    if (conversation) conversation.unreadCount = 0;
+    if (conversation) {
+      conversation.unreadCount = 0;
+      conversation.lastReadAt = new Date().toISOString();
+    }
   });
 }
 
@@ -419,4 +430,105 @@ export async function setStatus(id: string, status: ConversationStatus): Promise
     if (status === "closed") conversation.unreadCount = 0;
     return true;
   });
+}
+
+export interface ConversationMetaPatch {
+  assignee?: string | null;
+  tags?: string[];
+}
+
+/** Assigns an owner and/or replaces tags. Returns the fresh summary. */
+export async function updateConversationMeta(
+  id: string,
+  patch: ConversationMetaPatch,
+): Promise<ConversationSummary | null> {
+  return tx((data) => {
+    const conversation = data.conversations.find((c) => c.id === id);
+    if (!conversation) return null;
+    if (patch.assignee !== undefined) conversation.assignee = patch.assignee;
+    if (patch.tags !== undefined) conversation.tags = patch.tags;
+    return summarize(conversation, data);
+  });
+}
+
+/**
+ * Internal note: stored like a message but never sent to the channel, and it
+ * deliberately leaves lastMessageAt alone so it cannot reorder the inbox.
+ */
+export async function recordNote(
+  id: string,
+  text: string,
+  author: string,
+): Promise<{ message: Message; conversation: ConversationSummary } | null> {
+  return tx((data) => {
+    const conversation = data.conversations.find((c) => c.id === id);
+    if (!conversation) return null;
+    const contact = data.contacts.find((c) => c.id === conversation.contactId);
+    if (!contact) return null;
+
+    const message: Message = {
+      id: randomUUID(),
+      conversationId: id,
+      direction: "note",
+      type: "text",
+      text,
+      mediaUrl: null,
+      externalId: null,
+      channel: contact.channel,
+      status: "received",
+      error: null,
+      createdAt: new Date().toISOString(),
+      author,
+    };
+    data.messages.push(message);
+
+    const summary = summarize(conversation, data);
+    return summary ? { message, conversation: summary } : null;
+  });
+}
+
+/**
+ * Searches contact names, platform ids and message bodies. One hit per
+ * conversation, ordered by the newest matching message.
+ */
+export async function searchConversations(query: string, limit = 40): Promise<SearchHit[]> {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+
+  const data = await read();
+  const hits: SearchHit[] = [];
+
+  for (const conv of data.conversations) {
+    const contact = data.contacts.find((c) => c.id === conv.contactId);
+    if (!contact) continue;
+
+    const inContact =
+      `${contactLabel(contact)} ${contact.externalId}`.toLowerCase().includes(needle);
+    const newestMatch = data.messages
+      .filter((m) => m.conversationId === conv.id && m.text?.toLowerCase().includes(needle))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .at(-1);
+
+    if (!inContact && !newestMatch) continue;
+
+    const summary = summarize(conv, data);
+    if (!summary) continue;
+
+    hits.push({
+      conversation: summary,
+      snippet: newestMatch ? snippet(newestMatch.text ?? "", needle) : summary.lastMessage ?? "",
+      createdAt: newestMatch?.createdAt ?? conv.lastMessageAt,
+      direction: newestMatch?.direction ?? "in",
+    });
+  }
+
+  return hits.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+}
+
+function snippet(text: string, needle: string, radius = 48): string {
+  const at = text.toLowerCase().indexOf(needle);
+  if (at === -1) return text.slice(0, radius * 2);
+  const start = Math.max(0, at - radius);
+  const end = Math.min(text.length, at + needle.length + radius);
+  return `${start > 0 ? "…" : ""}${text.slice(start, end).trim()}${end < text.length ? "…" : ""}`;
 }

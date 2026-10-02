@@ -30,4 +30,28 @@ export const messengerAdapter: ChannelAdapter = {
 
     return { externalId: payload?.message_id ?? null };
   },
+
+  async sendMedia({ contact, mediaUrl, type, text }): Promise<SendResult> {
+    const accessToken = config.fbPageAccessToken;
+    if (!accessToken) {
+      throw new ChannelNotConfiguredError("Messenger is not configured.");
+    }
+
+    const attachmentType =
+      type === "image" ? "image" : type === "audio" ? "audio" : type === "video" ? "video" : "file";
+
+    const payload = (await postGraphJson(graphUrl("me/messages"), accessToken, {
+      recipient: { id: contact.externalId },
+      messaging_type: "RESPONSE",
+      message: {
+        attachment: {
+          type: attachmentType,
+          payload: { url: mediaUrl, is_reusable: true },
+        },
+        ...(text ? { text } : {}),
+      },
+    })) as MessengerSendResponse;
+
+    return { externalId: payload?.message_id ?? null };
+  },
 };

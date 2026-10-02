@@ -6,6 +6,8 @@ import type {
   ConversationStatus,
   ConversationSummary,
   Message,
+  MessageType,
+  SearchHit,
 } from "@/lib/types";
 
 export const QUERY_KEYS = {
@@ -76,16 +78,116 @@ export function useSetConversationStatus() {
   });
 }
 
+export interface ConversationMetaPatch {
+  assignee?: string | null;
+  tags?: string[];
+}
+
+/** Assigns an owner and/or replaces the tag list. */
+export function useSetConversationMeta(id: string | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (patch: ConversationMetaPatch) => {
+      if (!id) throw new Error("No conversation selected");
+      const res = await fetch(`/api/conversations/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      return data as { conversation: ConversationSummary };
+    },
+    onMutate: (patch) => {
+      if (!id) return;
+      const previous = queryClient.getQueryData<ConversationDetail>(QUERY_KEYS.conversation(id));
+      const optimistic: ConversationSummary | null = previous
+        ? {
+            ...previous.conversation,
+            assignee: patch.assignee !== undefined ? patch.assignee : previous.conversation.assignee,
+            tags: patch.tags ?? previous.conversation.tags,
+          }
+        : null;
+
+      if (optimistic) {
+        queryClient.setQueryData<ConversationDetail>(QUERY_KEYS.conversation(id), {
+          conversation: optimistic,
+          messages: previous?.messages ?? [],
+        });
+        queryClient.setQueryData<ConversationSummary[]>(QUERY_KEYS.conversations, (list) =>
+          list?.map((c) => (c.id === id ? { ...c, ...optimistic } : c)),
+        );
+      }
+      return { previous, optimistic };
+    },
+    onError: (_error, _patch, context) => {
+      if (!id || !context?.previous) return;
+      queryClient.setQueryData(QUERY_KEYS.conversation(id), context.previous);
+    },
+    onSettled: () => {
+      if (id) void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversation(id) });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
+    },
+  });
+}
+
+/** Appends an internal note, never sent to the customer. */
+export function useAddNote(id: string | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ text, author }: { text: string; author?: string }) => {
+      if (!id) throw new Error("No conversation selected");
+      const res = await fetch(`/api/conversations/${id}/note`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text, author }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      return data as { message: Message; conversation: ConversationSummary };
+    },
+    onSuccess: (data) => {
+      if (!id) return;
+      queryClient.setQueryData<ConversationDetail>(QUERY_KEYS.conversation(id), (prev) =>
+        prev ? { ...prev, messages: [...prev.messages, data.message] } : prev,
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
+    },
+  });
+}
+
+/** Server-side full-text message search. */
+export function useMessageSearch(query: string) {
+  return useQuery({
+    queryKey: ["search", query],
+    queryFn: () =>
+      fetchJson<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}`).then(
+        (data) => data.hits,
+      ),
+    enabled: query.trim().length >= 2,
+    staleTime: 5000,
+  });
+}
+
+export interface ReplyPayload {
+  text: string;
+  mediaUrl?: string | null;
+  mimeType?: string;
+  type?: MessageType;
+}
+
 export function useSendReply(conversationId: string | null) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (text: string) => {
+    mutationFn: async (payload: ReplyPayload) => {
       if (!conversationId) throw new Error("No conversation selected");
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send message");
@@ -93,7 +195,7 @@ export function useSendReply(conversationId: string | null) {
     },
 
     // When mutate is called:
-    onMutate: async (text: string) => {
+    onMutate: async ({ text, mediaUrl = null, type = "text" }: ReplyPayload) => {
       if (!conversationId) return;
 
       // Cancel outgoing refetches
@@ -116,8 +218,9 @@ export function useSendReply(conversationId: string | null) {
           id: optimisticId,
           conversationId,
           direction: "out",
-          type: "text",
+          type,
           text,
+          mediaUrl,
           externalId: null,
           channel: previousDetail.conversation.channel,
           status: "sent",
@@ -156,7 +259,7 @@ export function useSendReply(conversationId: string | null) {
       return { previousDetail, previousList, optimisticId };
     },
 
-    onError: (err, _text, context) => {
+    onError: (err, payload, context) => {
       if (conversationId && context?.previousDetail) {
         // Mark message as failed instead of removing
         const errorMsg = err instanceof Error ? err.message : "Failed to deliver";
@@ -169,7 +272,7 @@ export function useSendReply(conversationId: string | null) {
               conversationId,
               direction: "out",
               type: "text",
-              text: _text,
+              text: payload.text,
               externalId: null,
               channel: context.previousDetail.conversation.channel,
               status: "failed",

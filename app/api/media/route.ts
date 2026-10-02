@@ -1,14 +1,49 @@
 import { config } from "@/lib/config";
+import { requireSession } from "@/lib/session";
+import { readUpload, saveUpload } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
+/** Stores an outbound attachment and returns the URL the UI should send on. */
+export async function POST(request: Request): Promise<Response> {
+  const guard = await requireSession();
+  if (guard) return guard;
+
+  const form = await request.formData().catch(() => null);
+  const file = form?.get("file");
+  if (!(file instanceof File)) {
+    return Response.json({ error: "Expected multipart field 'file'" }, { status: 400 });
+  }
+
+  try {
+    return Response.json(await saveUpload(file), { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed";
+    return Response.json({ error: message }, { status: 400 });
+  }
+}
+
 /**
- * Media proxy for WhatsApp Cloud API attachments.
- * Meta's lookaside.fbsbx.com URLs require the Bearer token in the header,
- * which standard <img> and <audio> tags cannot send directly.
+ * Serves locally uploaded attachments, then proxies Meta's lookaside URLs:
+ * those require the Bearer token in a header, which <img>/<audio> cannot send.
  */
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
+
+  const local = searchParams.get("file");
+  if (local) {
+    const upload = await readUpload(local);
+    if (!upload) return new Response("Not found", { status: 404 });
+    return new Response(new Uint8Array(upload.body), {
+      status: 200,
+      headers: {
+        "content-type": upload.mimeType,
+        "content-length": String(upload.body.byteLength),
+        "cache-control": "private, max-age=3600",
+      },
+    });
+  }
+
   const mediaId = searchParams.get("id");
   const directUrl = searchParams.get("url");
 
