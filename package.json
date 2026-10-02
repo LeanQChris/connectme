@@ -1,30 +1,29 @@
 {
-  "name": "connectme",
-  "version": "0.1.0",
+  "name": "connectme-monorepo",
+  "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@11.11.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@clerk/nextjs": "^7.9.10",
-    "@tanstack/react-query": "^5.104.0",
-    "geist": "^1.7.2",
-    "jose": "^6.2.12",
-    "next": "16.3.8",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@connectme/web",
+    "dev:api": "turbo run dev --filter=@connectme/api",
+    "dev:worker": "turbo run dev --filter=@connectme/worker",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "check-types": "turbo run check-types",
+    "db:sync": "turbo run schema:sync --filter=@connectme/database",
+    "db:migrate": "turbo run migration:run --filter=@connectme/database",
+    "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.8",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.15",
+    "turbo": "^2.4.4",
+    "typescript": "^5",
+    "typescript-eslint": "^8.71.0"
   }
 }

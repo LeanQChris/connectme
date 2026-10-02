@@ -1,0 +1,17 @@
+{
+  "name": "@connectme/typescript-config",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "nextjs.json",
+    "nestjs.json",
+    "package.json"
+  ],
+  "exports": {
+    "./base.json": "./base.json",
+    "./nextjs.json": "./nextjs.json",
+    "./nestjs.json": "./nestjs.json",
+    "./package.json": "./package.json"
+  }
+}
