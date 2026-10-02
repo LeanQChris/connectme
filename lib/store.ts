@@ -158,6 +158,7 @@ export interface InboundInput {
   senderName?: string | null;
   senderAvatarUrl?: string | null;
   text: string | null;
+  mediaUrl?: string | null;
   type: MessageType;
   createdAt: Date;
 }
@@ -167,6 +168,7 @@ export interface OutboundInput {
   contactExternalId: string;
   externalId: string | null;
   text: string;
+  mediaUrl?: string | null;
   type: MessageType;
   status: MessageStatus;
   error?: string | null;
@@ -222,6 +224,7 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
       direction: "in",
       type: input.type,
       text: input.text,
+      mediaUrl: input.mediaUrl ?? null,
       externalId: input.externalId,
       channel: input.channel,
       status: "received",
@@ -251,6 +254,7 @@ export async function recordOutbound(input: OutboundInput): Promise<Message | nu
       direction: "out",
       type: input.type,
       text: input.text,
+      mediaUrl: input.mediaUrl ?? null,
       externalId: input.externalId,
       channel: input.channel,
       status: input.status,

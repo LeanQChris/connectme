@@ -79,7 +79,15 @@ export interface PageMessage {
   /** True when the Page itself sent the message. Must be ignored. */
   is_echo?: boolean;
   app_id?: number;
-  attachments?: Array<{ title?: string; payload?: { url?: string } }>;
+  attachments?: Array<{
+    type?: string;
+    title?: string;
+    payload?: {
+      url?: string;
+      title?: string;
+      sticker_id?: number;
+    };
+  }>;
 }
 
 export interface PageMessagingEvent {

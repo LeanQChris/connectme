@@ -147,7 +147,15 @@ export default function ConversationList({
                             : "text-ink-secondary"
                         }`}
                       >
-                        {conversation.lastMessage ?? "—"}
+                        {(() => {
+                          const msg = conversation.lastMessage;
+                          if (!msg) return "—";
+                          if (msg === "[attachment]" || msg === "[image]") return "📷 Photo";
+                          if (msg === "[video]") return "🎥 Video";
+                          if (msg === "[audio]") return "🎵 Voice message";
+                          if (msg === "[document]") return "📄 Document";
+                          return msg;
+                        })()}
                       </span>
                       {conversation.unreadCount > 0 && (
                         <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 font-mono text-[10px] font-bold text-white shadow-xs">

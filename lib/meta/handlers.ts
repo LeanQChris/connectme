@@ -128,8 +128,28 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
       }
 
       const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now();
-      const hasAttachment = (message.attachments?.length ?? 0) > 0;
-      const type: MessageType = message.text !== undefined ? "text" : "other";
+      const firstAttachment = message.attachments?.[0];
+      let mediaUrl: string | null = null;
+      let type: MessageType = "text";
+      let text = message.text ?? null;
+
+      if (firstAttachment) {
+        const attachType = firstAttachment.type;
+        if (attachType === "image") type = "image";
+        else if (attachType === "audio") type = "audio";
+        else if (attachType === "video") type = "video";
+        else if (attachType === "file") type = "document";
+        else type = "other";
+
+        mediaUrl = firstAttachment.payload?.url ?? null;
+        if (!text) {
+          text = firstAttachment.title || firstAttachment.payload?.title || null;
+        }
+      } else if (message.text !== undefined) {
+        type = "text";
+      } else {
+        type = "other";
+      }
 
       // Fetch user profile name and profile picture from Graph API
       let senderName: string | null = null;
@@ -149,11 +169,12 @@ export async function handleMessenger(body: PageWebhookBody): Promise<void> {
           senderExternalId: senderId,
           senderName,
           senderAvatarUrl,
-          text: message.text ?? (hasAttachment ? "[attachment]" : ""),
+          text,
+          mediaUrl,
           type,
           createdAt: new Date(timestamp),
         });
-        if (inserted) console.log(`[webhook] messenger inbound ${mid} from ${senderName ?? senderId}`);
+        if (inserted) console.log(`[webhook] messenger inbound ${mid} (${type}) from ${senderName ?? senderId}`);
         else console.log(`[webhook] messenger duplicate ${mid}, ignored`);
       } catch (error) {
         console.error("[webhook] failed to store messenger message:", error);

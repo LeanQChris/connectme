@@ -51,6 +51,100 @@ function formatDateDivider(dateStr: string): string {
   });
 }
 
+function MessageAttachment({ message }: { message: Message }) {
+  const { mediaUrl, type } = message;
+  if (!mediaUrl) return null;
+
+  if (type === "image") {
+    return (
+      <div className="mb-2 overflow-hidden rounded-xl bg-black/10">
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group block relative"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={mediaUrl}
+            alt="Attachment"
+            className="max-h-72 w-full object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.02]"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+            <span className="opacity-0 group-hover:opacity-100 bg-black/60 text-white text-[11px] px-2.5 py-1 rounded-full backdrop-blur-xs transition-opacity font-medium">
+              Click to view full image
+            </span>
+          </div>
+        </a>
+      </div>
+    );
+  }
+
+  if (type === "video") {
+    return (
+      <div className="mb-2 overflow-hidden rounded-xl bg-black/20">
+        <video
+          src={mediaUrl}
+          controls
+          className="max-h-72 w-full rounded-xl"
+          preload="metadata"
+        />
+      </div>
+    );
+  }
+
+  if (type === "audio") {
+    return (
+      <div className="mb-2 p-1">
+        <audio src={mediaUrl} controls className="w-full max-w-xs" />
+      </div>
+    );
+  }
+
+  // Document / other files
+  return (
+    <div className="mb-2">
+      <a
+        href={mediaUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2.5 rounded-xl border border-hairline/80 bg-surface/80 p-2.5 text-ink transition-all hover:bg-surface hover:shadow-xs group"
+      >
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/20">
+          <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+            />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[12.5px] font-medium group-hover:text-accent transition-colors">
+            {message.text || "View attached document"}
+          </p>
+          <span className="text-[10.5px] text-ink-muted">Click to open or download</span>
+        </div>
+        <svg
+          className="h-4 w-4 shrink-0 text-ink-muted group-hover:text-accent transition-colors"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+          />
+        </svg>
+      </a>
+    </div>
+  );
+}
+
 export default function Thread({ conversation, messages, onBack, onSend }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -190,9 +284,20 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
                           : "rounded-bl-xs bg-surface-2 text-ink border border-hairline/80 font-normal"
                       }`}
                     >
-                      <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed select-text">
-                        {message.text ?? `[${message.type}]`}
-                      </p>
+                      {/* Attachment Renderer */}
+                      <MessageAttachment message={message} />
+
+                      {/* Text content if present or not redundant with attachment */}
+                      {message.text &&
+                        (!message.mediaUrl || message.type === "image" || message.type === "video") && (
+                          <p className="whitespace-pre-wrap break-words text-[13.5px] leading-relaxed select-text">
+                            {message.text}
+                          </p>
+                        )}
+
+                      {!message.text && !message.mediaUrl && (
+                        <p className="italic text-[13px] opacity-70">[{message.type}]</p>
+                      )}
 
                       <div
                         className={`mt-1.5 flex items-center justify-end gap-1.5 font-mono text-[10px] tabular-nums ${

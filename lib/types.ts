@@ -56,6 +56,7 @@ export interface Message {
   direction: Direction;
   type: MessageType;
   text: string | null;
+  mediaUrl?: string | null;
   externalId: string | null;
   channel: Channel;
   status: MessageStatus;
