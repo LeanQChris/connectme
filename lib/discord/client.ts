@@ -97,6 +97,27 @@ export async function fetchDiscordUserProfile(
   return result;
 }
 
+const discordChannelCache = new Map<string, string>();
+
+/** A Discord conversation is a text channel, so its display name is the channel name. */
+export async function fetchDiscordChannelName(
+  token: string,
+  channelId: string,
+): Promise<string | null> {
+  const cached = discordChannelCache.get(channelId);
+  if (cached) return cached;
+
+  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}`, {
+    headers: { Authorization: `Bot ${token}` },
+  });
+  if (!response.ok) return null;
+
+  const data = (await response.json()) as { name?: string };
+  const name = data.name?.trim() || null;
+  if (name) discordChannelCache.set(channelId, name);
+  return name;
+}
+
 export async function verifyDiscordBot(token: string): Promise<{ ok: boolean; bot?: DiscordUser; error?: string }> {
   if (!token) return { ok: false, error: "Bot token is missing" };
 

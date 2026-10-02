@@ -1,6 +1,6 @@
 import { recordInbound } from "../store";
 import type { MessageType } from "../types";
-import { fetchDiscordUserProfile } from "./client";
+import { fetchDiscordChannelName, fetchDiscordUserProfile } from "./client";
 import type { DiscordMessage } from "./types";
 
 export async function handleDiscordMessage(
@@ -24,6 +24,18 @@ export async function handleDiscordMessage(
     senderAvatarUrl = profile.avatarUrl;
   } catch (err) {
     console.warn("[discord] profile fetch error:", err);
+  }
+
+  // The conversation is the channel itself, so title it by channel name, not sender.
+  let contactName = senderName;
+  try {
+    const channelName = await fetchDiscordChannelName(token, channelId);
+    if (channelName) {
+      contactName = `#${channelName}`;
+      senderAvatarUrl = null;
+    }
+  } catch (err) {
+    console.warn("[discord] channel fetch error:", err);
   }
 
   let text: string | null = message.content || null;
@@ -70,7 +82,7 @@ export async function handleDiscordMessage(
       channel: "discord",
       externalId: messageId,
       senderExternalId: channelId, // reply to this channel
-      senderName,
+      senderName: contactName,
       senderAvatarUrl,
       text,
       mediaUrl,
@@ -79,7 +91,7 @@ export async function handleDiscordMessage(
     });
 
     if (inserted) {
-      console.log(`[webhook] discord inbound ${messageId} (${type}) from ${senderName} (channel ${channelId})`);
+      console.log(`[webhook] discord inbound ${messageId} (${type}) from ${senderName} in ${contactName} (channel ${channelId})`);
     } else {
       console.log(`[webhook] discord duplicate ${messageId}, ignored`);
     }
