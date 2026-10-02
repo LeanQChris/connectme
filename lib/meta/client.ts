@@ -55,6 +55,12 @@ export async function postGraphJson(
 
 import { config } from "../config";
 
+const profileCache = new Map<string, { name: string | null; avatarUrl: string | null }>();
+const attachmentCache = new Map<
+  string,
+  { mediaUrl: string | null; type: "image" | "video" | "audio" | "document" | "other"; text: string | null }
+>();
+
 /**
  * Fetches the user profile (first_name, last_name, name, profile_pic) for a Messenger PSID.
  * Returns nulls gracefully if the call fails or permissions are missing.
@@ -63,6 +69,10 @@ export async function fetchMessengerUserProfile(
   psid: string,
   accessToken?: string,
 ): Promise<{ name: string | null; avatarUrl: string | null }> {
+  if (profileCache.has(psid)) {
+    return profileCache.get(psid)!;
+  }
+
   const token = accessToken ?? config.fbPageAccessToken ?? process.env.FB_PAGE_ACCESS_TOKEN?.trim();
   if (!token) return { name: null, avatarUrl: null };
 
@@ -78,7 +88,10 @@ export async function fetchMessengerUserProfile(
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
       console.warn(`[meta] profile fetch HTTP ${response.status} for PSID ${psid}: ${errText}`);
-      return { name: null, avatarUrl: null };
+      // Cache empty result for 30s to prevent spamming failed calls
+      const empty = { name: null, avatarUrl: null };
+      profileCache.set(psid, empty);
+      return empty;
     }
     const data = (await response.json()) as {
       first_name?: string;
@@ -92,10 +105,12 @@ export async function fetchMessengerUserProfile(
       [data.first_name, data.last_name].filter(Boolean).join(" ").trim() ||
       null;
 
-    return {
+    const result = {
       name: fullName,
       avatarUrl: data.profile_pic ?? null,
     };
+    profileCache.set(psid, result);
+    return result;
   } catch (error) {
     console.warn(`[meta] failed to fetch profile for PSID ${psid}:`, error);
     return { name: null, avatarUrl: null };
@@ -118,6 +133,10 @@ export async function fetchMessengerMessageAttachment(
   mid: string,
   accessToken?: string,
 ): Promise<{ mediaUrl: string | null; type: "image" | "video" | "audio" | "document" | "other"; text: string | null }> {
+  if (attachmentCache.has(mid)) {
+    return attachmentCache.get(mid)!;
+  }
+
   const token = accessToken ?? config.fbPageAccessToken ?? process.env.FB_PAGE_ACCESS_TOKEN?.trim();
   if (!token) return { mediaUrl: null, type: "other", text: null };
 
@@ -130,14 +149,22 @@ export async function fetchMessengerMessageAttachment(
       cache: "no-store",
     });
 
-    if (!response.ok) return { mediaUrl: null, type: "other", text: null };
+    if (!response.ok) {
+      const empty = { mediaUrl: null, type: "other" as const, text: null };
+      attachmentCache.set(mid, empty);
+      return empty;
+    }
     const data = (await response.json()) as {
       attachments?: { data?: GraphAttachment[] };
       message?: string;
     };
 
     const first = data.attachments?.data?.[0];
-    if (!first) return { mediaUrl: null, type: "other", text: null };
+    if (!first) {
+      const empty = { mediaUrl: null, type: "other" as const, text: null };
+      attachmentCache.set(mid, empty);
+      return empty;
+    }
 
     const mime = (first.mime_type || "").toLowerCase();
     let type: "image" | "video" | "audio" | "document" | "other" = "other";
@@ -157,11 +184,13 @@ export async function fetchMessengerMessageAttachment(
       mediaUrl = first.file_url;
     }
 
-    return {
+    const result = {
       mediaUrl,
       type,
       text: data.message || first.name || null,
     };
+    attachmentCache.set(mid, result);
+    return result;
   } catch (error) {
     console.warn(`[meta] failed to fetch attachment for MID ${mid}:`, error);
     return { mediaUrl: null, type: "other", text: null };

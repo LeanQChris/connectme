@@ -313,29 +313,34 @@ async function backfillProfiles(data: StoreData): Promise<boolean> {
 }
 
 export async function listConversations(channel?: Channel): Promise<ConversationSummary[]> {
-  return tx(async (data) => {
-    const updated = await backfillProfiles(data);
-    if (updated) {
-      // Profiles were backfilled
-    }
-    return data.conversations
-      .map((conv) => summarize(conv, data))
-      .filter((summary): summary is ConversationSummary => summary !== null)
-      .filter((summary) => !channel || summary.channel === channel)
-      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+  const data = await read();
+  
+  // Background profile backfill if needed
+  void backfillProfiles(data).then((changed) => {
+    if (changed) void tx(() => {}); // Persist backfill changes in background
   });
+
+  return data.conversations
+    .map((conv) => summarize(conv, data))
+    .filter((summary): summary is ConversationSummary => summary !== null)
+    .filter((summary) => !channel || summary.channel === channel)
+    .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
 }
 
 async function backfillMessages(messages: Message[]): Promise<boolean> {
+  const missing = messages.filter(
+    (m) =>
+      m.channel === "messenger" &&
+      m.externalId &&
+      (!m.mediaUrl || m.text === "[attachment]" || m.type !== "text"),
+  );
+  if (missing.length === 0) return false;
+
   let changed = false;
-  for (const message of messages) {
-    if (
-      message.channel === "messenger" &&
-      message.externalId &&
-      (!message.mediaUrl || message.text === "[attachment]")
-    ) {
+  await Promise.all(
+    missing.map(async (message) => {
       try {
-        const attach = await fetchMessengerMessageAttachment(message.externalId);
+        const attach = await fetchMessengerMessageAttachment(message.externalId!);
         if (attach.mediaUrl && message.mediaUrl !== attach.mediaUrl) {
           message.mediaUrl = attach.mediaUrl;
           message.type = attach.type;
@@ -346,26 +351,28 @@ async function backfillMessages(messages: Message[]): Promise<boolean> {
       } catch {
         // ignore
       }
-    }
-  }
+    }),
+  );
   return changed;
 }
 
 export async function getConversation(id: string): Promise<ConversationDetail | null> {
-  return tx(async (data) => {
-    await backfillProfiles(data);
-    const conversation = data.conversations.find((c) => c.id === id);
-    if (!conversation) return null;
-    const summary = summarize(conversation, data);
-    if (!summary) return null;
-    const messages = data.messages
-      .filter((m) => m.conversationId === id)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    
-    await backfillMessages(messages);
+  const data = await read();
+  const conversation = data.conversations.find((c) => c.id === id);
+  if (!conversation) return null;
+  const summary = summarize(conversation, data);
+  if (!summary) return null;
+  const messages = data.messages
+    .filter((m) => m.conversationId === id)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-    return { conversation: summary, messages };
-  });
+  // Quick parallel attachment backfill
+  const changed = await backfillMessages(messages);
+  if (changed) {
+    void write(data); // persist updated attachments
+  }
+
+  return { conversation: summary, messages };
 }
 
 export async function resetUnread(id: string): Promise<void> {

@@ -104,18 +104,85 @@ export default function Inbox() {
   }
 
   async function send(text: string) {
-    if (!selectedId) return;
+    if (!selectedId || !detail) return;
 
-    const response = await fetch(`/api/conversations/${selectedId}/reply`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    const data = (await response.json()) as { error?: string };
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage = {
+      id: tempId,
+      conversationId: selectedId,
+      direction: "out" as const,
+      type: "text" as const,
+      text,
+      externalId: null,
+      channel: detail.conversation.channel,
+      status: "sent" as const,
+      error: null,
+      createdAt: new Date().toISOString(),
+    };
 
-    if (!response.ok) throw new Error(data.error ?? "Could not send the message");
+    // 1. Instant UI update in thread
+    setDetail((prev) =>
+      prev
+        ? {
+            ...prev,
+            conversation: {
+              ...prev.conversation,
+              lastMessage: text,
+              lastMessageAt: optimisticMessage.createdAt,
+            },
+            messages: [...prev.messages, optimisticMessage],
+          }
+        : null,
+    );
 
-    await loadThread(selectedId);
+    // 2. Instant UI update in conversation list
+    setAll((prev) =>
+      prev.map((c) =>
+        c.id === selectedId
+          ? {
+              ...c,
+              lastMessage: text,
+              lastMessageAt: optimisticMessage.createdAt,
+            }
+          : c,
+      ),
+    );
+
+    // 3. Dispatch to server
+    try {
+      const response = await fetch(`/api/conversations/${selectedId}/reply`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = (await response.json()) as { error?: string; message?: typeof optimisticMessage };
+
+      if (!response.ok) throw new Error(data.error ?? "Could not send the message");
+
+      if (data.message) {
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) => (m.id === tempId ? data.message! : m)),
+              }
+            : null,
+        );
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Send failed";
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === tempId ? { ...m, status: "failed" as const, error: errorMsg } : m,
+              ),
+            }
+          : null,
+      );
+      throw err;
+    }
   }
 
   async function logout() {
