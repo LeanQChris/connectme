@@ -2,7 +2,7 @@
 
 > **Authoritative blueprint** for transitioning ConnectMe from a single-repo prototype into a high-throughput, enterprise-ready, multi-tenant SaaS platform.
 >
-> **Stack Architecture**: **Turborepo** Monorepo + **NestJS** Backend (Clean Architecture / DDD) + **Next.js** Frontend + **PostgreSQL** (Prisma / Drizzle) + **Redis** (Dragonfly / Upstash).
+> **Stack Architecture**: **Turborepo** Monorepo + **NestJS** Backend (Clean Architecture / DDD) + **Next.js** Frontend + **PostgreSQL** (**TypeORM**) + **Redis** (Dragonfly / Upstash).
 
 ---
 

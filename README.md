@@ -1,309 +1,485 @@
-# ConnectMe
+# ConnectMe 💬
 
-> **Unified Multi-Channel Team Inbox** for **WhatsApp Business Cloud API**, **Facebook Messenger**, **Telegram**, and **Instagram Direct**.
+> **Enterprise Multi-Channel Team Inbox & Omnichannel SaaS Platform**  
+> Unify **WhatsApp Business Cloud API**, **Facebook Messenger**, **Instagram Direct**, and **Telegram** into a single, high-throughput, real-time customer communication workspace.
 
-ConnectMe is a multi-tenant SaaS: every account signs in with Google (Clerk under the hood, custom UI), connects **its own** WhatsApp / Messenger / Instagram / Telegram credentials in `/settings`, and those tokens are encrypted at rest before they touch the store. Tenants never see each other's conversations.
-
-Built with **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, and the **Vercel Geist Design System**, ConnectMe requires zero database setup locally and deploys seamlessly to serverless environments (Vercel + Vercel KV / Upstash Redis).
-
----
-
-## ✨ Features
-
-- 🔐 **Multi-Tenant SaaS**: Google-only sign-in (one button, no hosted UI), per-account workspaces, and strict owner scoping on every store read and write.
-- 🧾 **Bring Your Own Credentials**: each user pastes their own Meta and Telegram tokens in `/settings`; tokens are encrypted with AES-256-GCM and never returned to the browser.
-- 💬 **Unified Multi-Channel Inbox**: Centralize messages from WhatsApp, Facebook Messenger, Telegram, and Instagram in real time.
-- ⏱️ **24-Hour Reply Window Tracking**: Built-in countdown timer and visual indicators conforming to Meta's 24-hour customer care messaging policies.
-- 📎 **Rich Media Support**: Send and receive images, voice notes/audio, videos, and document attachments (up to 8 MB).
-- 📝 **Internal Notes & Collaboration**: Add private internal notes directly into conversation threads for team collaboration.
-- 🏷️ **Conversation Management**: Tagging, agent assignment, conversation status toggles (Open / Closed), and unread count badges.
-- ⌨️ **Keyboard-First Triage**: `j`/`k` walk the list, `Enter`/`Esc` open and close a thread, `a` archives — the composer stays focused while you type.
-- 🔍 **Instant Full-Text Search**: Search conversations by customer name, handle/phone number, or message content snippets.
-- ⚡ **Serverless-Ready Polling Architecture**: 3-second smart polling via TanStack Query — no fragile, stateful WebSocket connections required on serverless hosts.
-- 🔒 **Enterprise-Grade Security**:
-  - Webhook payload validation via `X-Hub-Signature-256` (HMAC-SHA256) with timing-safe comparisons.
-  - Clerk-managed accounts with signed HTTP-only session cookies; protected routes are gated in `proxy.ts` and re-checked in every route handler.
-  - Next.js 16 route protection via `proxy.ts`.
-  - Zero client-side token exposure (no `NEXT_PUBLIC_` credential leaks).
-- 💾 **Dual-Mode Data Store**:
-  - **Local Development**: Zero-config file storage at `data/inbox.json`.
-  - **Production**: High-speed, atomic key-value storage via Vercel KV / Upstash Redis.
-- 🌓 **Geist Design System**: Native Dark and Light theme toggle with typography and tokens from Vercel Geist.
+[![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-000000?logo=turborepo)](https://turbo.build/repo)
+[![Next.js 16](https://img.shields.io/badge/Next.js%2016-App%20Router-black?logo=next.js)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React%2019-UI-61DAFB?logo=react)](https://react.dev/)
+[![NestJS 11](https://img.shields.io/badge/NestJS%2011-Backend%20Core-E0234E?logo=nestjs)](https://nestjs.com/)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind%20CSS%20v4-Geist%20Tokens-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
+[![TypeORM](https://img.shields.io/badge/TypeORM-PostgreSQL%2016-FE0803?logo=typeorm)](https://typeorm.io/)
+[![BullMQ](https://img.shields.io/badge/BullMQ-Redis%20Queues-DC382D?logo=redis)](https://bullmq.io/)
+[![Clerk](https://img.shields.io/badge/Auth-Clerk%20OAuth-6C47FF?logo=clerk)](https://clerk.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript%205-Strict-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## 📖 Table of Contents
 
-| Layer | Technology |
-| --- | --- |
-| **Framework** | [Next.js 16 (App Router)](https://nextjs.org/) + [React 19](https://react.dev/) |
-| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) + Geist Design Tokens |
-| **State & Polling** | [@tanstack/react-query](https://tanstack.com/query) |
-| **Authentication** | [Clerk](https://clerk.com) (Google OAuth only, custom `/sign-in` UI, JWT session cookies) |
-| **Secrets at rest** | AES-256-GCM in `lib/secrets.ts`, keyed by `ENCRYPTION_KEY` |
-| **Channels** | WhatsApp Cloud API, Facebook Messenger Graph API, Telegram Bot API, Instagram Graph API |
-| **Storage Engine** | Local JSON File (`data/inbox.json`) or Vercel KV / Upstash Redis |
-| **Language** | TypeScript 5 (Strict Mode) |
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Architecture & Monorepo Topology](#-architecture--monorepo-topology)
+- [Tech Stack](#-tech-stack)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [1. Clone and Install Dependencies](#1-clone-and-install-dependencies)
+  - [2. Start Infrastructure (Postgres & Redis)](#2-start-infrastructure-postgres--redis)
+  - [3. Configure Environment Variables](#3-configure-environment-variables)
+  - [4. Synchronize Database Schema](#4-synchronize-database-schema)
+  - [5. Run Development Servers](#5-run-development-servers)
+- [Channel Integrations & Webhooks](#-channel-integrations--webhooks)
+  - [1-Click Meta OAuth Setup](#1-click-meta-oauth-setup)
+  - [Meta Webhook Verification](#meta-webhook-verification)
+  - [Telegram Bot & Webhook Registration](#telegram-bot--webhook-registration)
+  - [Local Development Tunneling](#local-development-tunneling)
+- [Repository Structure & Workspace Packages](#-repository-structure--workspace-packages)
+- [Available Scripts](#-available-scripts)
+- [Security & Data Isolation](#-security--data-isolation)
+- [Deployment Guide](#-deployment-guide)
+- [Troubleshooting & FAQ](#-troubleshooting--faq)
+- [Contributing & License](#-contributing--license)
 
 ---
 
-## 🚀 Quick Start
+## 🌟 Overview
+
+**ConnectMe** is a multi-tenant, enterprise-grade omnichannel customer engagement platform designed for modern sales, support, and operations teams. Built from the ground up on a **Turborepo** monorepo architecture, ConnectMe combines a sleek **Next.js 16** frontend powered by the **Geist Design System** with a modular **NestJS 11** backend engine and **BullMQ** asynchronous background workers.
+
+Each tenant connects their own messaging accounts (via 1-Click Meta OAuth or direct token entry). Credentials are encrypted at rest with **AES-256-GCM** before persistence, guaranteeing complete tenant isolation and strict zero-trust credential security.
+
+---
+
+## ✨ Key Features
+
+### 💬 Unified Omnichannel Inbox
+- **Multi-Channel Aggregation**: Stream WhatsApp Business, Facebook Messenger, Instagram Direct, and Telegram into one continuous inbox.
+- **Bi-Directional Messaging**: Real-time incoming webhook ingestion and instant outgoing dispatch across all connected providers.
+- **Rich Media Support**: Send and view images, audio/voice notes, videos, and document attachments (PDF, DOCX, etc.) with automatic S3/R2-compatible storage uploads.
+
+### ⏱️ Meta 24-Hour Policy & SLA Tracking
+- **Live Policy Countdown Clock**: Active countdown timer conforming to Meta's strict 24-hour customer care messaging policies.
+- **Visual Warning Badges**: Real-time status badges indicating when a conversation window is open, nearing expiration, or closed.
+- **Template Messaging Gate**: Enforces policy compliance when attempting to message customers outside the 24-hour window.
+
+### 🔐 Multi-Tenant SaaS & Data Isolation
+- **Tenant-Scoped Architecture**: All contacts, conversations, messages, channels, and logs are strictly isolated by `tenantId`.
+- **Clerk Authentication**: Seamless Google OAuth login flow with signed HTTP-only session cookies and custom application authentication routing.
+- **Granular RBAC**: Role-based access control for team members, managers, and tenant administrators.
+
+### 🛡️ Zero-Trust Security & Bring-Your-Own-Credentials (BYOC)
+- **Zero Token Exposure**: Provider tokens and app secrets are encrypted via AES-256-GCM before saving to PostgreSQL and decrypted only in ephemeral memory.
+- **Webhook Integrity Verification**: Validates Meta payloads using `X-Hub-Signature-256` (HMAC-SHA256) with timing-safe comparisons.
+- **CSRF & Edge Protection**: Next.js edge gateway validation and NestJS CORS/helmet protections.
+
+### ⚡ Real-Time & High-Throughput Engine
+- **Socket.IO Real-Time Gateway**: Instant message synchronization across browser tabs and active team members.
+- **BullMQ Asynchronous Job Queues**: Redis-backed distributed task queues for webhook processing, scheduled broadcasts, retry policies, and media uploads.
+- **Intelligent Fallback Polling**: Integrated TanStack Query caching for resilient state revalidation during network reconnects.
+
+### 👥 Collaboration & Workflow Automation
+- **Internal Private Notes**: Drop team-only internal notes inside conversation threads without notifying external customers.
+- **Conversation Management**: Quick status triage (**Open**, **Snoozed**, **Closed**), agent assignment, and custom label tagging.
+- **Keyboard-First Navigation**: Rapid triage with keyboard shortcuts (`j`/`k` to traverse list, `Enter`/`Esc` to open/close threads, `a` to archive).
+- **Instant Full-Text Search**: Filter conversations and messages by customer name, phone number, social handle, or text snippet.
+
+---
+
+## 🏗️ Architecture & Monorepo Topology
+
+```mermaid
+flowchart TD
+    subgraph Clients ["Client Layer"]
+        Web["apps/web\nNext.js 16 (App Router)\nReact 19 + Tailwind v4 + Geist"]
+    end
+
+    subgraph Edge ["Edge & Gateway"]
+        Auth["Clerk OAuth\n(Google Sign-In)"]
+        Tunnel["Cloudflare Tunnel / ngrok\n(Local Webhook Ingress)"]
+    end
+
+    subgraph Backend ["Backend & Processing"]
+        API["apps/api\nNestJS 11 Core API\nREST + WebSockets (Socket.IO)"]
+        Worker["apps/worker\nBullMQ Distributed Worker\n(Scheduled Jobs, Webhook Retries)"]
+    end
+
+    subgraph SharedPackages ["Shared Monorepo Packages"]
+        Contracts["packages/contracts\n(DTOs, Schemas, Domain Types)"]
+        Database["packages/database\n(TypeORM Entities, Migrations)"]
+        Channels["packages/channels\n(WhatsApp, Messenger, IG, Telegram)"]
+        Crypto["packages/crypto\n(AES-256-GCM Vault, HMAC-SHA256)"]
+    end
+
+    subgraph Infrastructure ["Persistence & Storage"]
+        PG[("PostgreSQL 16\n(Multi-Tenant Store)")]
+        Redis[("Redis 7\n(BullMQ Queues & Pub/Sub)")]
+        S3[("S3 / Cloudflare R2\n(Public Media Assets)")]
+    end
+
+    subgraph ExternalProviders ["External Channels"]
+        WA["WhatsApp Cloud API"]
+        FB["Facebook Graph API"]
+        IG["Instagram Graph API"]
+        TG["Telegram Bot API"]
+    end
+
+    Web -->|Auth Flow| Auth
+    Web -->|REST / WS| API
+    Tunnel -->|Forward Inbound Webhooks| API
+    API -->|Queue Jobs| Redis
+    Redis -->|Consume Tasks| Worker
+    API & Worker --> SharedPackages
+    SharedPackages --> PG
+    SharedPackages --> Redis
+    SharedPackages --> S3
+    API & Worker --> WA & FB & IG & TG
+```
+
+---
+
+## 💻 Tech Stack
+
+| Domain | Technologies |
+| :--- | :--- |
+| **Monorepo Engine** | [Turborepo](https://turbo.build/) + [npm Workspaces](https://docs.npmjs.com/cli/using-npm/workspaces) |
+| **Web Frontend** | [Next.js 16](https://nextjs.org/) (App Router), [React 19](https://react.dev/), [Tailwind CSS v4](https://tailwindcss.com/), [Geist Design System](https://vercel.com/font) |
+| **Frontend State & Cache** | [@tanstack/react-query v5](https://tanstack.com/query), [Zustand](https://github.com/pmndrs/zustand), [Socket.IO Client](https://socket.io/) |
+| **Backend Core** | [NestJS 11](https://nestjs.com/), [Express](https://expressjs.com/), [Socket.IO](https://socket.io/) |
+| **Async Queues & Workers** | [BullMQ](https://bullmq.io/), [ioredis](https://github.com/redis/ioredis), [NestJS BullMQ](https://docs.nestjs.com/techniques/queues) |
+| **Database & ORM** | [PostgreSQL 16](https://www.postgresql.org/), [TypeORM 0.3](https://typeorm.io/) |
+| **Authentication** | [Clerk](https://clerk.com/) (Google OAuth, Session Cookies, JWT Validation) |
+| **Cryptography & Vault** | Node.js `crypto` (AES-256-GCM Encryption, SHA-256 HMAC Signature Verification) |
+| **Media & Storage** | AWS S3 / Cloudflare R2 / MinIO compatible object storage |
+| **Type System & Tooling** | TypeScript 5 (Strict Mode), ESLint 9, Prettier |
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- **Node.js**: `v20.9.0` or later (tested on Node 22)
-- **npm** or **pnpm** / **yarn**
+Ensure you have the following installed on your machine:
+- **Node.js**: `v20.9.0` or higher (Node 22 LTS recommended)
+- **npm**: `v10+` (or `pnpm` / `yarn`)
+- **Docker & Docker Compose**: For running local PostgreSQL and Redis instances
 
-### 1. Clone & Install Dependencies
+---
+
+### 1. Clone and Install Dependencies
 
 ```bash
+# Clone repository
 git clone https://github.com/your-org/connectme.git
 cd connectme
+
+# Install all workspace dependencies
 npm install
 ```
 
-### 2. Configure Environment Variables
+---
 
-Copy the example environment configuration:
+### 2. Start Infrastructure (Postgres & Redis)
+
+Launch the containerized PostgreSQL and Redis services defined in [`docker-compose.yml`](file:///Users/apple/Desktop/projects/connectme/docker-compose.yml):
+
+```bash
+docker compose up -d
+```
+
+Verify containers are healthy:
+```bash
+docker compose ps
+```
+
+---
+
+### 3. Configure Environment Variables
+
+Create your local `.env` configuration file from the template:
 
 ```bash
 cp .env.example .env
 ```
 
-Only three app-level secrets remain — provider credentials now belong to each user, not the deployer:
+Open `.env` and fill in the required configuration variables:
 
 ```ini
-# Clerk (Google OAuth). `npx clerk init` writes dev keys to .env.local.
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
+# ==============================================================================
+# 1. Clerk Authentication
+# ==============================================================================
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
 
-# Master key protecting every user's provider tokens (AES-256-GCM).
-ENCRYPTION_KEY=generate_with_openssl_rand_hex_32
+# ==============================================================================
+# 2. Master Token Encryption Key (AES-256-GCM)
+# Generate with: openssl rand -hex 32
+# ==============================================================================
+ENCRYPTION_KEY=your_64_character_hex_encryption_key_here
 
-# Optional: fallback Graph API version, and the production store.
+# ==============================================================================
+# 3. Meta Developer App (1-Click OAuth & Webhooks)
+# ==============================================================================
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+META_WEBHOOK_VERIFY_TOKEN=your_custom_webhook_verify_token
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 GRAPH_VERSION=v21.0
-KV_REST_API_URL=
-KV_REST_API_TOKEN=
+
+# ==============================================================================
+# 4. Database & Cache Infrastructure
+# ==============================================================================
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/connectme
+REDIS_URL=redis://localhost:6379
+
+# ==============================================================================
+# 5. Media Storage (S3 / Cloudflare R2)
+# ==============================================================================
+S3_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+S3_BUCKET=connectme-media
+S3_REGION=auto
+S3_ACCESS_KEY_ID=your_access_key
+S3_SECRET_ACCESS_KEY=your_secret_key
+S3_PUBLIC_BASE_URL=https://media.yourdomain.com
+
+# Contact Info
+CONTACT_EMAIL=support@yourdomain.com
 ```
 
-Enable **Google** in the Clerk dashboard under *Configure → Sign-in methods*, and leave *Require sign-up* off so first-time Google users are provisioned automatically — `/sign-in` is the only auth screen.
-
-> 💡 **Tip:** Generate `ENCRYPTION_KEY` with:
+> 🔑 **Generate a secure `ENCRYPTION_KEY`**:
 > ```bash
 > openssl rand -hex 32
 > ```
-> Rotating it invalidates every stored credential; users re-paste their tokens in `/settings`.
+> *Keep this key safe. Rotating it will invalidate all previously encrypted tenant tokens.*
 
-### 3. Start Local Development Server
+---
 
-### 3. Start Local Development Server
+### 4. Synchronize Database Schema
+
+Synchronize TypeORM entities with your PostgreSQL database:
+
+```bash
+npm run db:sync
+```
+
+*(For production migrations, use `npm run db:migrate`)*.
+
+---
+
+### 5. Run Development Servers
+
+Run the entire application ecosystem with Turborepo:
 
 ```bash
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000), create an account, and you land on `/settings` to connect your first channel.
+This starts all three applications concurrently with hot module reloading:
+- 🌐 **Web Frontend**: [http://localhost:3000](http://localhost:3000)
+- ⚙️ **Backend API**: [http://localhost:4000](http://localhost:4000)
+- 👷 **Background Worker**: BullMQ Consumer running in background
+
+You can also run applications individually:
+```bash
+npm run dev:web     # Start Next.js frontend only
+npm run dev:api     # Start NestJS API only
+npm run dev:worker  # Start BullMQ worker only
+```
 
 ---
 
-## 🌐 Webhook Configuration
+## 🌐 Channel Integrations & Webhooks
 
-Each tenant gets their own webhook URLs from `/settings`:
+### 1-Click Meta OAuth Setup
 
-- **Meta** (WhatsApp, Messenger, Instagram): one callback, `https://<your-domain>/api/webhook`. Events are routed to the right account by the phone number id / page id in the payload, then authenticated with that account's app secret.
-- **Telegram**: one callback per bot, `https://<your-domain>/api/webhook/telegram/<botId>`. The `Register Telegram webhook` button sets it for you.
+ConnectMe supports 1-click authorization for Facebook Pages, Instagram Direct, and WhatsApp Business Accounts:
 
-Meta and Telegram require a public HTTPS endpoint to deliver webhooks. During local development, expose your local port `3000` using a tunnel:
+1. Create an app on [Meta for Developers](https://developers.facebook.com/).
+2. Add **Facebook Login for Business**, **WhatsApp**, and **Instagram Graph API** products.
+3. Configure the OAuth Redirect URI in Meta App Settings:
+   ```
+   http://localhost:3000/api/auth/callback/meta
+   # or https://your-domain.com/api/auth/callback/meta
+   ```
+4. Add your `META_APP_ID` and `META_APP_SECRET` to `.env`.
+5. In ConnectMe, navigate to **Settings → Channels** and click **Connect with Meta**.
 
-### Option A: Cloudflare Tunnel (Recommended)
+---
 
+### Meta Webhook Verification
+
+Meta delivers incoming messages, message delivery status receipts (`sent`, `delivered`, `read`), and customer changes to a single callback URL:
+
+1. In the **Meta App Dashboard**, navigate to **Webhooks** (or **WhatsApp > Configuration**).
+2. Set **Callback URL**:
+   ```
+   https://<your-public-domain>/api/webhook
+   ```
+3. Set **Verify Token**: Enter the exact value matching `META_WEBHOOK_VERIFY_TOKEN` in `.env`.
+4. Subscribe to the following webhook fields:
+   - **WhatsApp**: `messages`
+   - **Facebook Page / Messenger**: `messages`, `messaging_postbacks`, `messaging_optins`
+   - **Instagram**: `messages`, `messaging_postbacks`
+
+---
+
+### Telegram Bot & Webhook Registration
+
+1. Create a bot using [@BotFather](https://t.me/BotFather) on Telegram and obtain your **Bot Token**.
+2. In ConnectMe, go to **Settings → Channels → Telegram**, paste your bot token, and save.
+3. ConnectMe automatically registers the webhook endpoint:
+   ```
+   https://<your-public-domain>/api/webhook/telegram/<bot-id>
+   ```
+
+---
+
+### Local Development Tunneling
+
+External webhook providers (Meta and Telegram) require a public HTTPS endpoint. Expose your local port `3000` (or `4000`) using either **Cloudflare Tunnel** or **ngrok**:
+
+#### Option A: Cloudflare Tunnel (Recommended - No expiry)
 ```bash
 cloudflared tunnel --url http://localhost:3000
 ```
 
-### Option B: ngrok
-
+#### Option B: ngrok
 ```bash
 ngrok http 3000
 ```
 
----
-
-### Setting Up Meta Webhooks (WhatsApp & Messenger)
-
-1. **Configure Callback URL**:
-   - In the **Meta App Dashboard**, go to **Webhooks** (or **WhatsApp > Configuration**).
-   - **Callback URL**: `https://<your-tunnel-or-domain>/api/webhook`
-   - **Verify Token**: Enter the exact string set in `WEBHOOK_VERIFY_TOKEN`.
-2. **Subscribe to Webhook Fields**:
-   - **WhatsApp**: Subscribe to the `messages` field (receives inbound messages and delivery status receipts: `sent`, `delivered`, `read`, `failed`).
-   - **Facebook Page / Messenger**: Subscribe to `messages`, `messaging_postbacks`, and `messaging_optin`.
+Copy the generated HTTPS URL (e.g., `https://random-id.trycloudflare.com`) and use it in your Meta Webhook settings.
 
 ---
 
-### Setting Up Telegram Webhook
-
-Once your app is accessible over HTTPS with `TELEGRAM_BOT_TOKEN` set in `.env`:
-
-1. **Automatic Setup via ConnectMe Endpoint**:
-   Open in your browser or trigger via `curl`:
-   ```bash
-   curl "http://localhost:3000/api/telegram/setup?url=https://<your-tunnel-or-domain>/api/webhook/telegram"
-   ```
-2. **Verify Setup Status**:
-   ```bash
-   curl "http://localhost:3000/api/telegram/setup"
-   ```
-
----
-
-## 🚢 Deployment to Vercel
-
-Because Vercel serverless functions have an ephemeral, read-only filesystem (outside `/tmp`), ConnectMe utilizes **Vercel KV (Upstash Redis)** in production.
-
-### 1. Create and Link a Vercel KV Store
-
-```bash
-# Create KV store
-npx vercel kv create connectme
-
-# Link environment variables to your Vercel project
-npx vercel env add KV_REST_API_URL production
-npx vercel env add KV_REST_API_TOKEN production
-```
-
-### 2. Configure Production Secrets on Vercel
-
-Add the app-level secrets — `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `ENCRYPTION_KEY` — to your Vercel project under **Environment Variables**. Provider tokens are not deployment secrets: every user enters their own in `/settings`.
-
-### 3. Deploy
-
-```bash
-npx vercel --prod
-```
-
-Once deployed, update your Meta Webhook URL to point to `https://<your-vercel-domain>/api/webhook` and register your Telegram webhook with `https://<your-vercel-domain>/api/webhook/telegram`.
-
----
-
-## 📁 Project Structure
+## 📁 Repository Structure & Workspace Packages
 
 ```
 connectme/
-├── app/
-│   ├── api/
-│   │   ├── conversations/        # Conversation listing, thread fetch, replies, status
-│   │   ├── login / logout/       # Session authentication & cookie issuance
-│   │   ├── media/                # File and attachment upload & serving
-│   │   ├── search/               # Conversation & message search endpoint
-│   │   ├── telegram/setup/       # Telegram webhook registration helper
-│   │   └── webhook/              # Meta & Telegram webhook receivers
-│   ├── conversations/            # Conversation route views
-│   ├── inbox/                    # Inbox dashboard view
-│   ├── login/                    # Login page
-│   ├── globals.css               # Tailwind CSS v4 & Geist theme variables
-│   ├── layout.tsx                # Root HTML shell & ThemeProvider
-│   └── page.tsx                  # Landing / Dashboard redirection
-├── components/
-│   ├── inbox/
-│   │   ├── avatar.tsx            # Contact avatar with channel indicator
-│   │   ├── channel-badge.tsx     # Channel badge pills
-│   │   ├── channel-rail.tsx      # Vertical channel switch rail
-│   │   ├── conversation-list.tsx # Conversation items with search & filters
-│   │   ├── reply-box.tsx         # Message composer with attachments & note mode
-│   │   ├── reply-window.tsx      # Meta 24-hour window countdown widget
-│   │   ├── theme-toggle.tsx      # Light/Dark mode switcher
-│   │   └── thread.tsx            # Conversation timeline & message bubbles
-│   └── providers/                # React Query & Theme providers
-├── data/                         # Local JSON file store (gitignored)
-│   └── inbox.json
-├── lib/
-│   ├── auth.ts                   # Password verification & session helpers
-│   ├── channels/                 # Channel adapters (WhatsApp, Messenger, Telegram, Instagram)
-│   ├── config.ts                 # Validated environment configuration
-│   ├── meta/                     # Meta Graph API client, HMAC verification & event handlers
-│   ├── session.ts                # Signed JWT cookie session management (`jose`)
-│   ├── store.ts                  # Unified data store abstraction (JSON file <-> Vercel KV)
-│   ├── telegram/                 # Telegram message parsing & sending utilities
-│   ├── types.ts                  # Shared TypeScript models and domain types
-│   ├── uploads.ts                # File attachment validation & persistence
-│   └── window.ts                 # 24-hour reply window calculation logic
-├── proxy.ts                      # Next.js 16 edge authentication gateway
-└── package.json
+├── apps/
+│   ├── web/                          # Next.js 16 frontend application
+│   │   ├── app/                      # App router pages (inbox, conversations, settings, auth)
+│   │   ├── components/               # React components (thread, reply box, timers, badges)
+│   │   ├── hooks/                    # React Query & WebSocket hooks
+│   │   └── lib/                      # Client utilities, API wrappers, auth proxies
+│   │
+│   ├── api/                          # NestJS 11 REST & WebSocket backend
+│   │   ├── src/
+│   │   │   ├── modules/              # Channel, conversation, message, webhook modules
+│   │   │   ├── gateways/             # Socket.IO real-time event gateways
+│   │   │   ├── guards/               # Clerk auth & tenant isolation guards
+│   │   │   └── main.ts               # API bootstrap entrypoint
+│   │
+│   └── worker/                       # BullMQ async job processor
+│       ├── src/
+│       │   ├── processors/           # Webhook ingestion, broadcast scheduler, retries
+│       │   └── main.ts               # Worker bootstrap entrypoint
+│
+├── packages/
+│   ├── contracts/                    # Shared TypeScript DTOs, API payloads & domain models
+│   ├── database/                     # PostgreSQL TypeORM entities, repositories, migrations
+│   ├── channels/                     # WhatsApp, Messenger, IG, and Telegram adapters
+│   ├── crypto/                       # AES-256-GCM vault & HMAC signature verification
+│   ├── eslint-config/                # Workspace shared ESLint rules
+│   └── typescript-config/            # Workspace shared TypeScript compiler options
+│
+├── docker-compose.yml                # Local infrastructure (PostgreSQL 16, Redis 7)
+├── turbo.json                        # Turborepo task pipeline configuration
+└── package.json                      # Workspace root configuration
 ```
 
 ---
 
-## 🗄️ Database Migration Path (Prisma + Postgres)
+## 📜 Available Scripts
 
-While the default JSON / Vercel KV store is optimized for lightweight operations, ConnectMe is structured so you can transition to a relational database like PostgreSQL (Neon, Supabase, or Vercel Postgres) using Prisma.
+Run commands from the root directory using Turborepo:
 
-```prisma
-model Contact {
-  id         String         @id @default(cuid())
-  channel    String
-  externalId String
-  name       String?
-  avatarUrl  String?
-  createdAt  DateTime       @default(now())
-  conversations Conversation[]
+| Command | Description |
+| :--- | :--- |
+| `npm run dev` | Starts all applications (`web`, `api`, `worker`) in watch mode |
+| `npm run dev:web` | Starts only the Next.js frontend (`@connectme/web`) |
+| `npm run dev:api` | Starts only the NestJS API backend (`@connectme/api`) |
+| `npm run dev:worker` | Starts only the BullMQ worker (`@connectme/worker`) |
+| `npm run build` | Builds all packages and production bundles across the monorepo |
+| `npm run lint` | Runs ESLint across all apps and packages |
+| `npm run check-types` | Performs TypeScript type checking without emitting files |
+| `npm run test` | Executes unit and integration test suites |
+| `npm run db:sync` | Synchronizes TypeORM entity schemas directly with PostgreSQL |
+| `npm run db:migrate` | Runs pending database migrations |
+| `npm run clean` | Deletes build artifacts (`dist`, `.next`, `tsconfig.tsbuildinfo`) |
 
-  @@unique([channel, externalId])
-}
+---
 
-model Conversation {
-  id            String    @id @default(cuid())
-  contactId     String
-  lastMessageAt DateTime
-  lastInboundAt DateTime?
-  unreadCount   Int       @default(0)
-  status        String    @default("open")
-  assignee      String?
-  tags          String[]
-  createdAt     DateTime  @default(now())
-  contact       Contact   @relation(fields: [contactId], references: [id])
-  messages      Message[]
+## 🔒 Security & Data Isolation
 
-  @@index([lastMessageAt])
-}
+1. **Multi-Tenant Scoping**:
+   - Every database query strictly filters by `tenantId`.
+   - Webhook ingress maps incoming external channel identifiers (e.g. `phone_number_id`, `page_id`) to the owning tenant before any data is written.
+2. **Encrypted Token Vault**:
+   - Provider tokens (`access_token`, `bot_token`, `app_secret`) are encrypted via **AES-256-GCM** using an initialization vector (IV) and authentication tag before storage.
+   - Raw tokens are never returned in client API responses.
+3. **Webhook HMAC Validation**:
+   - All inbound Meta requests verify the `X-Hub-Signature-256` header against the tenant's app secret using `crypto.timingSafeEqual` to eliminate timing attack vectors.
+4. **Session Authentication**:
+   - Protected API routes and page views are gated by Clerk JWT session validation and verified at both edge proxy and backend guard layers.
 
-model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  direction      String       // "in" | "out" | "note"
-  type           String       @default("text")
-  text           String?
-  mediaUrl       String?
-  externalId     String?
-  channel        String
-  status         String       @default("received")
-  error          String?
-  author         String?
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
+---
 
-  @@index([conversationId, createdAt])
-}
+## 🚢 Deployment Guide
+
+### Recommended Cloud Topology
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Cloudflare Edge / WAF                           │
+└──────────────────┬─────────────────────────────────┬───────────────────┘
+                   │                                 │
+                   ▼                                 ▼
+┌─────────────────────────────────────┐   ┌──────────────────────────────┐
+│       Frontend (Vercel)             │   │   Backend API (Railway/ECS)  │
+│       @connectme/web                │   │   @connectme/api             │
+└─────────────────────────────────────┘   └──────────────┬───────────────┘
+                                                         │
+                                                         ▼
+                                          ┌──────────────────────────────┐
+                                          │   Worker (Railway/ECS)       │
+                                          │   @connectme/worker          │
+                                          └──────────────┬───────────────┘
+                                                         │
+                   ┌─────────────────────────────────────┴───────────────┐
+                   ▼                                                     ▼
+┌─────────────────────────────────────┐   ┌──────────────────────────────┐
+│  Managed Postgres (Neon / Supabase) │   │  Managed Redis (Upstash)     │
+└─────────────────────────────────────┘   └──────────────────────────────┘
 ```
 
-To migrate, implement the functions in `lib/store.ts` using Prisma queries while retaining the existing function signatures.
+1. **Frontend (`apps/web`)**: Deploy to **Vercel** or **Cloudflare Pages**. Set `NEXT_PUBLIC_APP_URL`, Clerk keys, and API backend URL.
+2. **Backend API (`apps/api`)**: Deploy as a containerized Node.js service on **Railway**, **Render**, **Fly.io**, or **AWS ECS**.
+3. **Background Worker (`apps/worker`)**: Deploy alongside the API with access to the same Redis instance and PostgreSQL database.
+4. **Database & Cache**: Use managed **PostgreSQL** (Neon, Supabase, AWS RDS) and **Redis** (Upstash, AWS ElastiCache).
+5. **Media Storage**: Create an S3 or Cloudflare R2 bucket with public read access for media attachments.
 
 ---
 
 ## 🛠️ Troubleshooting & FAQ
 
-| Problem | Cause | Solution |
-| --- | --- | --- |
-| **Webhook returns `401 Unauthorized`** | The App secret saved in `/settings` does not match the app that sent the event. | Re-enter the App secret in Settings → WhatsApp, then re-paste the webhook URL. |
-| **Verification fails with `403 Forbidden`** | `WEBHOOK_VERIFY_TOKEN` mismatch or wrong path. | Check token match and verify endpoint path is `/api/webhook`. |
-| **Messages stop arriving during local dev** | Your ngrok/cloudflared tunnel URL expired or restarted. | Copy new tunnel URL and update Callback URL in Meta / Telegram. |
-| **Reply fails with `409 Conflict`** | Customer's 24-hour messaging window has closed. | WhatsApp and Messenger require customer-initiated contact or approved templates outside 24 hours. |
-| **Reply fails with `502 Bad Gateway`** | Meta or Telegram Graph API rejected the request. | Check the error description displayed directly on the failed message bubble. |
-| **Messenger reply says "Not configured"** | `FB_PAGE_ACCESS_TOKEN` is missing or empty. | Provide a valid Facebook Page Access Token in `.env`. |
-| **Data resets after Vercel redeploy** | `KV_REST_API_URL` and `KV_REST_API_TOKEN` are not set. | Link a Vercel KV store in your Vercel project settings to persist state. |
+### Why do Meta Webhooks return `401 Unauthorized`?
+- Verify that the Meta App Secret saved in **Settings → Channels** matches your Facebook Developer app.
+- Check that `META_WEBHOOK_VERIFY_TOKEN` matches the token entered in Meta's Webhook configuration screen.
+
+### Messages fail with `409 Conflict: 24-hour window closed`
+- Under Meta's Business Messaging policy, you cannot send freeform text messages to customers if more than 24 hours have elapsed since their last inbound message.
+- To re-engage, send a pre-approved **Meta Message Template**.
+
+### Messages are not updating in real time
+- Ensure `apps/api` is running and the WebSocket gateway on port `4000` is accessible.
+- Verify that Redis is running and reachable by both `apps/api` and `apps/worker`.
+
+### Local webhook events are not arriving
+- Verify that your Cloudflare Tunnel or ngrok instance is active.
+- Ensure the tunnel URL in Meta Developer Portal points to `/api/webhook`.
 
 ---
 
-## 🛡️ License
+## 📄 License
 
-This project is private and proprietary. Unauthorized copying, distribution, or modification is prohibited.
+This repository is proprietary software. All rights reserved. Unauthorized copying, distribution, modification, or commercial use is strictly prohibited.
