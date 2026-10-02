@@ -71,6 +71,22 @@ export function getMetaAuthorizationUrl(userId: string, redirectUri: string): st
 }
 
 /**
+ * Resolves the exact OAuth redirect URI, accounting for production reverse proxies.
+ */
+export function getMetaRedirectUri(request: Request): string {
+  if (config.appUrl && !config.appUrl.includes("localhost") && !config.appUrl.includes("127.0.0.1")) {
+    return `${config.appUrl}/api/auth/meta/callback`;
+  }
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+  if (host) {
+    return `${proto}://${host}/api/auth/meta/callback`;
+  }
+  const url = new URL(request.url);
+  return `${config.appUrl || url.origin}/api/auth/meta/callback`;
+}
+
+/**
  * Exchanges the temporary authorization code for a short-lived user access token.
  */
 export async function exchangeCodeForUserToken(

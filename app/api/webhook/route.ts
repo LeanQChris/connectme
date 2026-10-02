@@ -35,12 +35,16 @@ export async function GET(request: Request): Promise<Response> {
 
 /** Ids inside the payload that identify which tenant sent it. */
 function routingIds(body: Record<string, unknown>): { waPhoneNumberId?: string; pageId?: string } {
+  const isWhatsApp = body.object === "whatsapp_business_account";
   const entries = (body.entry as Array<{ id?: string; changes?: Array<{ value?: { metadata?: { phone_number_id?: string } } }> }> | undefined) ?? [];
-  const pageId = typeof entries[0]?.id === "string" ? entries[0].id : undefined;
+  
   const waPhoneNumberId = entries
     .flatMap((entry) => entry.changes ?? [])
     .map((change) => change.value?.metadata?.phone_number_id)
     .find((id): id is string => typeof id === "string");
+
+  // Only assign pageId for Page or Instagram webhooks, never for WhatsApp Business Accounts
+  const pageId = !isWhatsApp && typeof entries[0]?.id === "string" ? entries[0].id : undefined;
 
   return { waPhoneNumberId, pageId };
 }

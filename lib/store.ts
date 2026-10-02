@@ -756,11 +756,11 @@ export async function credentialsByRoutingId(field: {
     });
     if (hasAccountMatch) return true;
 
-    // 2. Legacy fallback
-    return (
-      (field.waPhoneNumberId ? c.waPhoneNumberId === field.waPhoneNumberId : true) &&
-      (field.pageId ? c.pageId === field.pageId : true) &&
-      (field.telegramBotId ? c.telegramBotId === field.telegramBotId : true)
-    );
+    // 2. Specific channel match
+    if (field.waPhoneNumberId && c.waPhoneNumberId === field.waPhoneNumberId) return true;
+    if (field.pageId && c.pageId === field.pageId) return true;
+    if (field.telegramBotId && c.telegramBotId === field.telegramBotId) return true;
+
+    return false;
   });
 }

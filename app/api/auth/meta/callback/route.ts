@@ -6,6 +6,7 @@ import {
   getAccountsAndPages,
   subscribePageToWebhook,
   verifyOAuthState,
+  getMetaRedirectUri,
 } from "@/lib/meta/oauth";
 import { addOrUpdateConnectedAccounts } from "@/lib/tenant";
 import type { ConnectedAccount } from "@/lib/types";
@@ -35,7 +36,7 @@ export async function GET(request: Request): Promise<Response> {
   const userId = verified.userId;
 
   try {
-    const redirectUri = `${config.appUrl || url.origin}/api/auth/meta/callback`;
+    const redirectUri = getMetaRedirectUri(request);
 
     // 1. Exchange code for short-lived user token
     const shortLivedToken = await exchangeCodeForUserToken(code, redirectUri);

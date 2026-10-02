@@ -243,29 +243,48 @@ export async function authenticateMetaWebhook(
   ids: { waPhoneNumberId?: string; pageId?: string },
 ): Promise<CredentialRecord | null> {
   const { verifyWebhookSignature } = await import("./meta/verify");
-  const { credentialsByRoutingId } = await import("./store");
+  const { credentialsByRoutingId, listCredentials } = await import("./store");
   const { config } = await import("./config");
 
-  const candidates = await credentialsByRoutingId(ids);
+  // 1. Try candidates matched by routing IDs
+  let candidates = await credentialsByRoutingId(ids);
+
+  // 2. If no candidate matched by exact ID, fallback to testing all saved credentials with HMAC
+  if (candidates.length === 0) {
+    candidates = await listCredentials();
+  }
+
+  if (candidates.length === 0) {
+    console.warn(
+      `[webhook] rejected: no tenant credentials found in store. Webhook received with ids:`,
+      ids,
+    );
+    return null;
+  }
+
   for (const candidate of candidates) {
     const secrets = await tenantSecrets(candidate.userId);
-    // Check candidate's tenant-specific secret (WhatsApp app secret or general Meta app secret)
-    const secretsToCheck = [secrets.waAppSecret, secrets.metaAppSecret].filter(Boolean) as string[];
-    let verified = false;
+    // Check candidate's tenant-specific secret (WhatsApp app secret, Meta app secret, or .env META_APP_SECRET)
+    const secretsToCheck = [secrets.waAppSecret, secrets.metaAppSecret, config.metaAppSecret].filter(Boolean) as string[];
+
+    if (secretsToCheck.length === 0) {
+      console.warn(
+        `[webhook] tenant ${candidate.userId} has no App Secret configured (waAppSecret, metaAppSecret, or META_APP_SECRET in .env). Signature check cannot pass.`,
+      );
+      continue;
+    }
+
     for (const secret of secretsToCheck) {
       if (verifyWebhookSignature(rawBody, signature, secret)) {
-        verified = true;
-        break;
+        return candidate;
       }
     }
-    if (verified) {
-      return candidate;
-    }
-    // Check platform's central app secret (for 1-click OAuth users)
-    if (config.metaAppSecret && verifyWebhookSignature(rawBody, signature, config.metaAppSecret)) {
-      return candidate;
-    }
   }
+
+  console.warn(
+    `[webhook] signature mismatch: incoming x-hub-signature-256 did not match secret for candidate tenants:`,
+    candidates.map((c) => ({ userId: c.userId, waPhoneNumberId: c.waPhoneNumberId })),
+  );
   return null;
 }
 

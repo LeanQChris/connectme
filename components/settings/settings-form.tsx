@@ -655,7 +655,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                 </div>
 
                 <a
-                  href="/api/auth/meta"
+                  href="/api/auth/meta/connect"
                   className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#1877F2] px-4 text-[13px] font-medium text-white transition-opacity hover:opacity-95 shadow-xs cursor-pointer"
                 >
                   <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
