@@ -1,58 +1,29 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import type { ConversationDetail, ConversationSummary } from "@/lib/types";
+import { useConversation, useConversations, useSendReply } from "@/lib/hooks/use-inbox";
 
 import ConversationList, { ConversationFilter } from "./conversation-list";
 import ThemeToggle from "./theme-toggle";
 import Thread from "./thread";
 
-const POLL_MS = 3000;
-
 interface InboxProps {
   initialSelectedId?: string;
-}
-
-/**
- * Polls a callback on an interval. `key` restarts the timer whenever the
- * resource changes, and overlapping requests are skipped.
- */
-function usePolling(callback: () => Promise<void>, key: string) {
-  const latest = useRef(callback);
-
-  useEffect(() => {
-    latest.current = callback;
-  });
-
-  useEffect(() => {
-    let busy = false;
-    const tick = async () => {
-      if (busy) return;
-      busy = true;
-      try {
-        await latest.current();
-      } finally {
-        busy = false;
-      }
-    };
-
-    void tick();
-    const id = setInterval(tick, POLL_MS);
-    return () => clearInterval(id);
-  }, [key]);
 }
 
 export default function Inbox({ initialSelectedId }: InboxProps) {
   const router = useRouter();
   const [filter, setFilter] = useState("");
-  const [all, setAll] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
-  const [detail, setDetail] = useState<ConversationDetail | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  // Sync with browser back/forward navigation
+  // React Query cached hooks
+  const { data: all = [], isLoading: loadingList } = useConversations();
+  const { data: detail, isLoading: loadingThread } = useConversation(selectedId);
+  const sendMutation = useSendReply(selectedId);
+
+  // Handle browser back/forward buttons
   useEffect(() => {
     const onPopState = () => {
       const match = window.location.pathname.match(/\/conversations\/([^/]+)/);
@@ -60,14 +31,13 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
         setSelectedId(match[1]);
       } else {
         setSelectedId(null);
-        setDetail(null);
       }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // Filtered views
+  // Filter conversations
   const visible = useMemo(
     () => (filter ? all.filter((c) => c.channel === filter) : all),
     [all, filter],
@@ -86,138 +56,18 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     [all],
   );
 
-  // Poll conversations list
-  usePolling(async () => {
-    try {
-      const response = await fetch("/api/conversations", { cache: "no-store" });
-      if (!response.ok) throw new Error("Could not load conversations");
-      const data = (await response.json()) as { conversations: ConversationSummary[] };
-      setAll(data.conversations);
-    } catch {
-      // Retried on next tick
-    } finally {
-      setLoading(false);
-    }
-  }, "list");
-
-  async function loadThread(id: string) {
-    const response = await fetch(`/api/conversations/${id}`, { cache: "no-store" });
-    if (!response.ok) {
-      if (response.status === 404) {
-        setSelectedId(null);
-        setDetail(null);
-        window.history.replaceState(null, "", "/");
-      }
-      throw new Error("Could not load the conversation");
-    }
-    const data = (await response.json()) as ConversationDetail;
-    setDetail(data);
-    // Mark as read in list
-    setAll((current) => current.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)));
-  }
-
-  // Poll active thread
-  usePolling(async () => {
-    if (!selectedId) return;
-    try {
-      await loadThread(selectedId);
-    } catch {
-      // Retried on next tick
-    }
-  }, selectedId ?? "none");
-
   function select(id: string) {
-    setDetail(null);
     setSelectedId(id);
     window.history.pushState(null, "", `/conversations/${id}`);
   }
 
   function back() {
     setSelectedId(null);
-    setDetail(null);
     window.history.pushState(null, "", "/");
   }
 
-  async function send(text: string) {
-    if (!selectedId || !detail) return;
-
-    const tempId = `temp-${Date.now()}`;
-    const optimisticMessage = {
-      id: tempId,
-      conversationId: selectedId,
-      direction: "out" as const,
-      type: "text" as const,
-      text,
-      externalId: null,
-      channel: detail.conversation.channel,
-      status: "sent" as const,
-      error: null,
-      createdAt: new Date().toISOString(),
-    };
-
-    // 1. Instant optimistic thread update
-    setDetail((prev) =>
-      prev
-        ? {
-            ...prev,
-            conversation: {
-              ...prev.conversation,
-              lastMessage: text,
-              lastMessageAt: optimisticMessage.createdAt,
-            },
-            messages: [...prev.messages, optimisticMessage],
-          }
-        : null,
-    );
-
-    // 2. Instant optimistic list update
-    setAll((prev) =>
-      prev.map((c) =>
-        c.id === selectedId
-          ? {
-              ...c,
-              lastMessage: text,
-              lastMessageAt: optimisticMessage.createdAt,
-            }
-          : c,
-      ),
-    );
-
-    // 3. Dispatch to API
-    try {
-      const response = await fetch(`/api/conversations/${selectedId}/reply`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      const data = (await response.json()) as { error?: string; message?: typeof optimisticMessage };
-
-      if (!response.ok) throw new Error(data.error ?? "Could not send the message");
-
-      if (data.message) {
-        setDetail((prev) =>
-          prev
-            ? {
-                ...prev,
-                messages: prev.messages.map((m) => (m.id === tempId ? data.message! : m)),
-              }
-            : null,
-        );
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Send failed";
-      setDetail((prev) =>
-        prev
-          ? {
-              ...prev,
-              messages: prev.messages.map((m) =>
-                m.id === tempId ? { ...m, status: "failed" as const, error: errorMsg } : m,
-              ),
-            }
-          : null,
-      );
-      throw err;
-    }
+  async function handleSend(text: string) {
+    await sendMutation.mutateAsync(text);
   }
 
   async function logout() {
@@ -228,7 +78,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
 
   return (
     <div className="flex h-[100dvh] flex-col bg-bg text-ink selection:bg-accent/20">
-      {/* Executive Top Navigation Bar */}
+      {/* Executive Header */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline bg-surface/80 px-4 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <a
@@ -237,7 +87,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               e.preventDefault();
               back();
             }}
-            className="flex items-center gap-2.5 group cursor-pointer"
+            className="flex items-center gap-2.5 group cursor-pointer select-none"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-xs transition-transform group-hover:scale-105">
               ⚡
@@ -254,8 +104,8 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
 
           <span className="hidden h-4 w-px bg-hairline md:block" />
 
-          {/* Connected Channels Pill */}
-          <div className="hidden items-center gap-2 md:flex">
+          {/* Active Channels Health Indicator */}
+          <div className="hidden items-center gap-2 md:flex select-none">
             <div className="flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
               <span>Messenger</span>
@@ -302,7 +152,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
             conversations={visible}
             selectedId={selectedId}
             onSelect={select}
-            loading={loading}
+            loading={loadingList}
           />
         </aside>
 
@@ -313,7 +163,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               conversation={detail.conversation}
               messages={detail.messages}
               onBack={back}
-              onSend={send}
+              onSend={handleSend}
             />
           </main>
         ) : (
@@ -327,11 +177,11 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
                 💬
               </div>
               <p className="text-[15px] font-semibold text-ink">
-                {selectedId ? "Loading conversation…" : "Select a conversation"}
+                {loadingThread && selectedId ? "Loading conversation…" : "Select a conversation"}
               </p>
               <p className="mt-1 text-[13px] text-ink-muted leading-relaxed">
                 {selectedId
-                  ? "Fetching the message thread history."
+                  ? "Fetching messages from cache…"
                   : "Choose a conversation from the left sidebar to start chatting."}
               </p>
             </div>
