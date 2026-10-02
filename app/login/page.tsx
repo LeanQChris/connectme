@@ -39,14 +39,14 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center px-4">
+    <main className="flex justify-center items-center px-4 min-h-[100dvh]">
       <form onSubmit={onSubmit} className="w-full max-w-xs">
-        <h1 className="text-sm font-medium tracking-tight text-ink">Inbox</h1>
+        <h1 className="font-medium text-ink text-sm tracking-tight">Inbox</h1>
         <p className="mt-1 text-[13px] text-ink-secondary">
           WhatsApp and Messenger, in one place. Internal only.
         </p>
 
-        <label htmlFor="password" className="mt-8 block text-xs text-ink-secondary">
+        <label htmlFor="password" className="block mt-8 text-ink-secondary text-xs">
           Password
         </label>
         <input
@@ -57,7 +57,7 @@ export default function LoginPage() {
           autoFocus
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="mt-1.5 w-full rounded-md border border-hairline-strong bg-bg px-2.5 py-2 text-[13px] text-ink outline-none transition-colors focus:border-ink-muted"
+          className="bg-bg mt-1.5 px-2.5 py-2 border border-hairline-strong focus:border-ink-muted rounded-md outline-none w-full text-[13px] text-ink transition-colors"
         />
 
         {error ? (
@@ -69,7 +69,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={pending || !password}
-          className="mt-4 w-full rounded-md bg-ink px-3 py-2 text-[13px] font-medium text-bg transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
+          className="bg-ink hover:opacity-80 disabled:opacity-30 mt-4 px-3 py-2 rounded-md w-full font-medium text-[13px] text-bg transition-opacity disabled:cursor-not-allowed"
         >
           {pending ? "Signing in…" : "Sign in"}
         </button>
