@@ -16,7 +16,7 @@ function formatLeft(msLeft: number): string {
   const totalMinutes = Math.max(0, Math.floor(msLeft / 60000));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours}h ${minutes}m left` : `${minutes}m left`;
+  return hours > 0 ? `${hours}h ${minutes}m remaining` : `${minutes}m remaining`;
 }
 
 export default function ReplyWindowBar({ lastInboundAt }: { lastInboundAt: string | null }) {
@@ -30,52 +30,52 @@ export default function ReplyWindowBar({ lastInboundAt }: { lastInboundAt: strin
   const urgent = open && percent <= 25;
 
   return (
-    <div className="border-b border-hairline bg-surface-2/40 px-4 py-2 text-[11px]">
+    <div className="border-b border-hairline bg-canvas px-4 py-2 text-[11px]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             {open && (
               <span
                 className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
-                  urgent ? "bg-amber-400" : "bg-emerald-400"
+                  urgent ? "bg-warning" : "bg-emerald-500"
                 }`}
               />
             )}
             <span
               className={`relative inline-flex h-2 w-2 rounded-full ${
-                open ? (urgent ? "bg-amber-500" : "bg-emerald-500") : "bg-red-500"
+                open ? (urgent ? "bg-warning" : "bg-emerald-500") : "bg-error"
               }`}
             />
           </span>
           <span
             className={`font-medium ${
-              open ? (urgent ? "text-amber-500" : "text-ink") : "text-red-500"
+              open ? (urgent ? "text-warning" : "text-body") : "text-error"
             }`}
           >
-            {open ? "24-Hour Reply Window Open" : "24-Hour Reply Window Closed"}
+            {open ? "24h Standard Messaging Window Active" : "24h Window Closed"}
           </span>
         </div>
 
-        <span className="font-mono text-[11px] tabular-nums text-ink-muted">
-          {open ? formatLeft(msLeft) : "Expired"}
+        <span className="font-mono text-[11px] tabular-nums text-mute">
+          {open ? formatLeft(msLeft) : "Window Expired"}
         </span>
       </div>
 
       <div
-        className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-hairline"
+        className="mt-1.5 h-[2px] w-full overflow-hidden rounded-full bg-hairline"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={24}
         aria-valuenow={Math.max(0, Math.round(msLeft / 3600000))}
-        aria-label="Reply window remaining"
+        aria-label="Reply window progress"
       >
         <div
-          className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${
+          className={`h-full transition-[width] duration-1000 ease-linear ${
             !open
-              ? "bg-red-500"
+              ? "bg-error"
               : urgent
-                ? "bg-gradient-to-r from-amber-500 to-orange-500"
-                : "bg-gradient-to-r from-emerald-500 to-teal-400"
+                ? "bg-warning"
+                : "bg-ink"
           }`}
           style={{ width: `${percent}%` }}
         />

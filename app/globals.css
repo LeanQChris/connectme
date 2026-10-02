@@ -1,124 +1,151 @@
 @import "tailwindcss";
 
 /*
- * High-craft design tokens for ConnectMe (Light + Dark + System).
+ * Vercel / Geist Design System Tokens (per DESIGN.md)
  */
 
 :root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --hairline: #e2e8f0;
-  --hairline-strong: #cbd5e1;
-  --ink: #0f172a;
-  --ink-secondary: #475569;
-  --ink-muted: #94a3b8;
-  --accent: #2563eb;
-  --danger: #ef4444;
+  --canvas: #fafafa;
+  --canvas-elevated: #ffffff;
+  --surface-well: #f2f2f2;
+  --hairline: #ebebeb;
+  --hairline-soft: #f2f2f2;
+  --hairline-strong: #d4d4d4;
+  --ink: #171717;
+  --body: #4d4d4d;
+  --mute: #8f8f8f;
+  --faint: #a1a1a1;
+  --primary: #171717;
+  --on-primary: #ffffff;
+  --link: #0070f3;
+  --link-deep: #0761d1;
+  --link-soft: #d3e5ff;
+  --error: #ee0000;
+  --warning: #f5a623;
+  --whatsapp: #25d366;
+  --messenger: #0084ff;
   --bubble-in: #ffffff;
-  --bubble-in-border: #e2e8f0;
-  --bubble-in-text: #0f172a;
-  --bubble-out: #2563eb;
+  --bubble-in-border: #ebebeb;
+  --bubble-out: #171717;
   --bubble-out-text: #ffffff;
 }
 
 html.dark,
 :root[data-theme="dark"] {
-  --bg: #09090b;
-  --surface: #121215;
-  --surface-2: #1c1c21;
-  --hairline: #27272a;
-  --hairline-strong: #3f3f46;
-  --ink: #f4f4f5;
-  --ink-secondary: #a1a1aa;
-  --ink-muted: #71717a;
-  --accent: #3b82f6;
-  --danger: #f87171;
-  --bubble-in: #1c1c21;
-  --bubble-in-border: #2e2e38;
-  --bubble-in-text: #f4f4f5;
-  --bubble-out: #3b82f6;
-  --bubble-out-text: #ffffff;
+  --canvas: #000000;
+  --canvas-elevated: #0a0a0a;
+  --surface-well: #141414;
+  --hairline: #242424;
+  --hairline-soft: #1a1a1a;
+  --hairline-strong: #333333;
+  --ink: #ededed;
+  --body: #a1a1a1;
+  --mute: #707070;
+  --faint: #525252;
+  --primary: #ededed;
+  --on-primary: #000000;
+  --link: #0070f3;
+  --link-deep: #0761d1;
+  --link-soft: #0a2540;
+  --error: #ee0000;
+  --warning: #f5a623;
+  --whatsapp: #25d366;
+  --messenger: #0084ff;
+  --bubble-in: #111111;
+  --bubble-in-border: #242424;
+  --bubble-out: #ededed;
+  --bubble-out-text: #000000;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #09090b;
-    --surface: #121215;
-    --surface-2: #1c1c21;
-    --hairline: #27272a;
-    --hairline-strong: #3f3f46;
-    --ink: #f4f4f5;
-    --ink-secondary: #a1a1aa;
-    --ink-muted: #71717a;
-    --accent: #3b82f6;
-    --danger: #f87171;
-    --bubble-in: #1c1c21;
-    --bubble-in-border: #2e2e38;
-    --bubble-in-text: #f4f4f5;
-    --bubble-out: #3b82f6;
-    --bubble-out-text: #ffffff;
+    --canvas: #000000;
+    --canvas-elevated: #0a0a0a;
+    --surface-well: #141414;
+    --hairline: #242424;
+    --hairline-soft: #1a1a1a;
+    --hairline-strong: #333333;
+    --ink: #ededed;
+    --body: #a1a1a1;
+    --mute: #707070;
+    --faint: #525252;
+    --primary: #ededed;
+    --on-primary: #000000;
+    --link: #0070f3;
+    --link-deep: #0761d1;
+    --link-soft: #0a2540;
+    --error: #ee0000;
+    --warning: #f5a623;
+    --whatsapp: #25d366;
+    --messenger: #0084ff;
+    --bubble-in: #111111;
+    --bubble-in-border: #242424;
+    --bubble-out: #ededed;
+    --bubble-out-text: #000000;
   }
 }
 
 @theme inline {
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
+  --color-canvas: var(--canvas);
+  --color-canvas-elevated: var(--canvas-elevated);
+  --color-surface-well: var(--surface-well);
   --color-hairline: var(--hairline);
+  --color-hairline-soft: var(--hairline-soft);
   --color-hairline-strong: var(--hairline-strong);
   --color-ink: var(--ink);
-  --color-ink-secondary: var(--ink-secondary);
-  --color-ink-muted: var(--ink-muted);
-  --color-accent: var(--accent);
-  --color-danger: var(--danger);
+  --color-body: var(--body);
+  --color-mute: var(--mute);
+  --color-faint: var(--faint);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-link: var(--link);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+  --color-whatsapp: var(--whatsapp);
+  --color-messenger: var(--messenger);
   --color-bubble-in: var(--bubble-in);
   --color-bubble-in-border: var(--bubble-in-border);
-  --color-bubble-in-text: var(--bubble-in-text);
   --color-bubble-out: var(--bubble-out);
   --color-bubble-out-text: var(--bubble-out-text);
-  --color-whatsapp: #25d366;
-  --color-messenger: #0084ff;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--bg);
+  background-color: var(--canvas);
   color: var(--ink);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* One visible focus treatment everywhere */
+/* 1px Vercel focus outline */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--link);
   outline-offset: 2px;
 }
 
-/* Custom smooth scrollbars */
+/* Vercel subtle micro-scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--hairline-strong);
+  background: var(--hairline);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-muted);
+  background: var(--mute);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+/* Mesh Gradient utility */
+.mesh-gradient {
+  background-image: 
+    radial-gradient(at 10% 20%, rgba(0, 124, 240, 0.15) 0px, transparent 50%),
+    radial-gradient(at 85% 15%, rgba(121, 40, 202, 0.12) 0px, transparent 50%),
+    radial-gradient(at 50% 80%, rgba(255, 0, 128, 0.1) 0px, transparent 50%),
+    radial-gradient(at 90% 85%, rgba(249, 203, 40, 0.08) 0px, transparent 50%);
 }

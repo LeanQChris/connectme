@@ -34,7 +34,7 @@ export default function ReplyBox({ onSend, disabled }: Props) {
         textareaRef.current.style.height = "auto";
       }
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "Could not send the message");
+      setError(sendError instanceof Error ? sendError.message : "Failed to send message");
     } finally {
       setPending(false);
     }
@@ -42,18 +42,17 @@ export default function ReplyBox({ onSend, disabled }: Props) {
 
   if (disabled) {
     return (
-      <div className="border-t border-hairline bg-surface-2/60 px-4 py-3.5 backdrop-blur-sm">
-        <div className="flex items-center gap-2.5 text-[12.5px] text-amber-500 font-medium">
-          <svg className="h-4 w-4 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
+      <div className="border-t border-hairline bg-canvas px-4 py-3">
+        <div className="flex items-center gap-2 text-[12px] text-warning font-medium">
+          <svg className="h-4 w-4 shrink-0 fill-current" viewBox="0 0 20 20">
             <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              fillRule="evenodd"
+              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+              clipRule="evenodd"
             />
           </svg>
           <span>
-            The 24-hour reply window is closed. Free-form replies cannot be delivered until the customer sends a new message.
+            24-hour reply window expired. Meta policy requires the customer to message first before you can send free-form replies.
           </span>
         </div>
       </div>
@@ -61,21 +60,21 @@ export default function ReplyBox({ onSend, disabled }: Props) {
   }
 
   return (
-    <div className="border-t border-hairline bg-surface/30 p-3 backdrop-blur-md">
+    <div className="border-t border-hairline bg-canvas p-3">
       {error && (
-        <div className="mb-2.5 flex items-center justify-between rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-[12px] text-red-500">
+        <div className="mb-2.5 flex items-center justify-between rounded-[6px] border border-error/20 bg-error/10 px-3 py-2 text-[12px] text-error font-medium">
           <span>{error}</span>
           <button
             type="button"
             onClick={() => setError(null)}
-            className="text-red-400 hover:text-red-300 font-bold ml-2"
+            className="text-error hover:opacity-75 font-bold ml-2"
           >
             ✕
           </button>
         </div>
       )}
 
-      <div className="relative flex items-end gap-2 rounded-xl border border-hairline bg-surface-2/80 p-1.5 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/30 transition-all shadow-xs">
+      <div className="relative flex items-end gap-2 rounded-[6px] border border-hairline bg-canvas-elevated p-1.5 focus-within:border-ink transition-colors shadow-2xs">
         <textarea
           ref={textareaRef}
           value={text}
@@ -87,18 +86,18 @@ export default function ReplyBox({ onSend, disabled }: Props) {
             }
           }}
           rows={1}
-          placeholder="Type your reply here… (Press Enter ↵ to send)"
-          className="max-h-36 min-h-[38px] flex-1 resize-none bg-transparent px-3 py-2 text-[13px] text-ink outline-none placeholder:text-ink-muted leading-relaxed"
+          placeholder="Write a reply… (Press Enter to send)"
+          className="max-h-36 min-h-[36px] flex-1 resize-none bg-transparent px-2.5 py-1.5 text-[13px] text-ink placeholder:text-mute focus:outline-none leading-relaxed"
         />
 
         <button
           type="button"
           onClick={() => void submit()}
           disabled={pending || !text.trim()}
-          className="flex h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 text-[13px] font-medium text-white shadow-xs transition-all hover:brightness-110 active:scale-98 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:brightness-100"
+          className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[6px] bg-primary px-3.5 text-[13px] font-medium text-on-primary transition-opacity hover:opacity-90 active:opacity-95 disabled:cursor-not-allowed disabled:opacity-30"
         >
           {pending ? (
-            <>
+            <div className="flex items-center gap-1.5">
               <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle
                   className="opacity-25"
@@ -115,19 +114,20 @@ export default function ReplyBox({ onSend, disabled }: Props) {
                 />
               </svg>
               <span>Sending</span>
-            </>
+            </div>
           ) : (
-            <>
+            <div className="flex items-center gap-1.5">
               <span>Send</span>
-              <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
+              <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
               </svg>
-            </>
+            </div>
           )}
         </button>
       </div>
-      <div className="mt-1 flex justify-between px-1 text-[10.5px] text-ink-muted">
-        <span>Enter to send · Shift+Enter for new line</span>
+
+      <div className="mt-1.5 flex items-center justify-between px-1 text-[11px] text-mute">
+        <span className="font-mono text-[10.5px]">Enter to send · Shift + Enter for new line</span>
       </div>
     </div>
   );

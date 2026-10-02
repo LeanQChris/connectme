@@ -77,9 +77,9 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-bg text-ink selection:bg-accent/20">
-      {/* Executive Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline bg-surface/80 px-4 backdrop-blur-md">
+    <div className="flex h-[100dvh] flex-col bg-canvas text-ink selection:bg-ink selection:text-on-primary">
+      {/* 48px Geist Navbar (per DESIGN.md nav-bar) */}
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-hairline bg-canvas px-4">
         <div className="flex items-center gap-3">
           <a
             href="/"
@@ -87,43 +87,45 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               e.preventDefault();
               back();
             }}
-            className="flex items-center gap-2.5 group cursor-pointer select-none"
+            className="group flex items-center gap-2.5 cursor-pointer select-none"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-xs transition-transform group-hover:scale-105">
-              ⚡
+            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] border border-hairline bg-ink text-on-primary shadow-2xs">
+              <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M12 2L2 19.7778H22L12 2Z" />
+              </svg>
             </div>
-            <div className="flex flex-col">
-              <span className="text-[14px] font-bold tracking-tight text-ink leading-none">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold tracking-[-0.02em] text-ink">
                 ConnectMe
               </span>
-              <span className="text-[10px] text-ink-muted font-medium mt-0.5">
-                Meta Unified Gateway
+              <span className="rounded-[4px] border border-hairline bg-surface-well px-1.5 py-0.2 font-mono text-[9.5px] uppercase tracking-wider text-mute">
+                Unified Gateway
               </span>
             </div>
           </a>
 
-          <span className="hidden h-4 w-px bg-hairline md:block" />
+          <span className="hidden h-3.5 w-px bg-hairline md:block" />
 
-          {/* Active Channels Health Indicator */}
-          <div className="hidden items-center gap-2 md:flex select-none">
-            <div className="flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-              <span>Messenger</span>
+          {/* Connected Gateway Health */}
+          <div className="hidden items-center gap-2 md:flex select-none font-mono text-[11px]">
+            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-messenger" />
+              <span className="text-[10px] text-mute uppercase">Messenger</span>
             </div>
-            <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>WhatsApp</span>
+            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-whatsapp" />
+              <span className="text-[10px] text-mute uppercase">WhatsApp</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <ThemeToggle />
 
           <button
             type="button"
             onClick={() => void logout()}
-            className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink-secondary transition-all hover:bg-surface-2 hover:text-ink shadow-2xs"
+            className="flex h-8 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body transition-colors hover:bg-surface-well hover:text-ink shadow-2xs"
           >
             <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -141,11 +143,11 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
       <div className="flex min-h-0 flex-1">
         {/* Conversations Sidebar */}
         <aside
-          className={`min-h-0 w-full shrink-0 flex-col border-r border-hairline bg-surface/30 md:flex md:w-[350px] ${
+          className={`min-h-0 w-full shrink-0 flex-col border-r border-hairline bg-canvas md:flex md:w-[320px] ${
             selectedId ? "hidden" : "flex"
           }`}
         >
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-hairline px-3.5 bg-surface/50">
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-hairline px-3 bg-canvas">
             <ConversationFilter value={filter} onChange={setFilter} counts={counts} />
           </div>
           <ConversationList
@@ -168,21 +170,23 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
           </main>
         ) : (
           <main
-            className={`min-h-0 min-w-0 flex-1 items-center justify-center bg-surface/20 ${
+            className={`min-h-0 min-w-0 flex-1 items-center justify-center bg-canvas ${
               selectedId ? "flex" : "hidden md:flex"
             }`}
           >
-            <div className="flex flex-col items-center justify-center text-center p-8 max-w-sm">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-2 text-2xl shadow-xs ring-1 ring-hairline mb-4">
-                💬
+            <div className="flex flex-col items-center justify-center text-center p-8 max-w-xs">
+              <div className="flex h-12 w-12 items-center justify-center rounded-[10px] border border-hairline bg-canvas-elevated text-mute shadow-2xs mb-3">
+                <svg className="h-6 w-6 stroke-current" fill="none" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
               </div>
-              <p className="text-[15px] font-semibold text-ink">
-                {loadingThread && selectedId ? "Loading conversation…" : "Select a conversation"}
+              <p className="text-[13px] font-medium text-ink">
+                {loadingThread && selectedId ? "Loading conversation…" : "No conversation selected"}
               </p>
-              <p className="mt-1 text-[13px] text-ink-muted leading-relaxed">
+              <p className="mt-1 text-[12px] text-body leading-relaxed">
                 {selectedId
-                  ? "Fetching messages from cache…"
-                  : "Choose a conversation from the left sidebar to start chatting."}
+                  ? "Fetching cached messages from memory…"
+                  : "Select a conversation from the sidebar to view thread history and reply."}
               </p>
             </div>
           </main>

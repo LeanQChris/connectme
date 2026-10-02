@@ -34,9 +34,9 @@ export default function ConversationList({
 
   if (!loading && conversations.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-2 text-ink-muted ring-1 ring-hairline">
-          <svg className="h-6 w-6 stroke-current" fill="none" viewBox="0 0 24 24">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2.5 px-6 text-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-hairline bg-canvas-elevated text-mute shadow-2xs">
+          <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -45,21 +45,21 @@ export default function ConversationList({
             />
           </svg>
         </div>
-        <p className="text-[14px] font-semibold text-ink">No conversations yet</p>
-        <p className="max-w-[26ch] text-[12px] leading-relaxed text-ink-secondary">
-          Waiting for messages from WhatsApp or Messenger.
+        <p className="text-[13px] font-medium text-ink">No conversations</p>
+        <p className="max-w-[24ch] text-[12px] leading-relaxed text-body">
+          Incoming messages from WhatsApp & Messenger will appear here.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
       {conversations.length > 0 && (
-        <div className="border-b border-hairline px-3 py-2">
+        <div className="border-b border-hairline p-2.5">
           <div className="relative flex items-center">
             <svg
-              className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-ink-muted"
+              className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-mute"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -75,16 +75,16 @@ export default function ConversationList({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search conversations..."
-              className="h-8 w-full rounded-lg border border-hairline bg-surface-2 pl-8 pr-3 text-[12px] text-ink placeholder:text-ink-muted focus:border-accent focus:bg-bg focus:outline-none transition-all"
+              placeholder="Search conversations…"
+              className="h-8 w-full rounded-[6px] border border-hairline bg-canvas-elevated pl-8 pr-3 text-[12px] text-ink placeholder:text-mute focus:border-ink focus:outline-none transition-colors"
             />
           </div>
         </div>
       )}
 
-      <ul className="min-h-0 flex-1 divide-y divide-hairline/60 overflow-y-auto">
+      <ul className="min-h-0 flex-1 divide-y divide-hairline overflow-y-auto">
         {filtered.length === 0 ? (
-          <li className="p-6 text-center text-[12px] text-ink-muted">
+          <li className="p-6 text-center text-[12px] text-mute">
             No matches found for &ldquo;{search}&rdquo;
           </li>
         ) : (
@@ -98,16 +98,12 @@ export default function ConversationList({
                   type="button"
                   onClick={() => onSelect(conversation.id)}
                   aria-current={selected}
-                  className={`group relative flex w-full items-center gap-3 px-3.5 py-3 text-left transition-all ${
+                  className={`group relative flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors ${
                     selected
-                      ? "bg-surface-2 shadow-xs"
-                      : "hover:bg-surface/80"
+                      ? "bg-canvas-elevated shadow-[inset_2px_0_0_var(--ink)]"
+                      : "hover:bg-surface-well"
                   }`}
                 >
-                  {selected && (
-                    <span className="absolute inset-y-0 left-0 w-1 rounded-r-full bg-accent" />
-                  )}
-
                   <Avatar
                     name={conversation.contactName}
                     avatarUrl={conversation.avatarUrl}
@@ -118,23 +114,23 @@ export default function ConversationList({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className={`truncate text-[13px] tracking-tight ${
+                        className={`truncate text-[13px] tracking-[-0.01em] ${
                           selected
                             ? "font-semibold text-ink"
                             : conversation.unreadCount > 0
-                              ? "font-bold text-ink"
+                              ? "font-semibold text-ink"
                               : "font-medium text-ink"
                         }`}
                       >
                         {conversation.contactName}
                       </span>
-                      <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-ink-muted">
+                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-mute">
                         {formatRelative(conversation.lastMessageAt)}
                       </span>
                     </div>
 
                     {hasRealName && (
-                      <p className="truncate font-mono text-[10.5px] text-ink-muted opacity-80">
+                      <p className="truncate font-mono text-[10px] text-mute">
                         {conversation.contactExternalId}
                       </p>
                     )}
@@ -144,21 +140,21 @@ export default function ConversationList({
                         className={`truncate text-[12px] leading-snug ${
                           conversation.unreadCount > 0
                             ? "font-medium text-ink"
-                            : "text-ink-secondary"
+                            : "text-body"
                         }`}
                       >
                         {(() => {
                           const msg = conversation.lastMessage;
                           if (!msg) return "—";
-                          if (msg === "[attachment]" || msg === "[image]") return "📷 Photo";
+                          if (msg === "[attachment]" || msg === "[image]") return "📷 Image";
                           if (msg === "[video]") return "🎥 Video";
-                          if (msg === "[audio]") return "🎵 Voice message";
+                          if (msg === "[audio]") return "🎵 Audio";
                           if (msg === "[document]") return "📄 Document";
                           return msg;
                         })()}
                       </span>
                       {conversation.unreadCount > 0 && (
-                        <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 font-mono text-[10px] font-bold text-white shadow-xs">
+                        <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-on-primary">
                           {conversation.unreadCount}
                         </span>
                       )}
@@ -198,25 +194,25 @@ export function ConversationFilter({
             key={option.value || "all"}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
               active
-                ? "bg-ink text-bg shadow-xs"
-                : "text-ink-secondary hover:bg-surface-2 hover:text-ink"
+                ? "bg-ink text-on-primary shadow-2xs"
+                : "text-body hover:bg-surface-well hover:text-ink"
             }`}
           >
             <span>{option.label}</span>
             {counts[option.value] !== undefined ? (
               <span
-                className={`rounded-md px-1.5 py-0.2 font-mono text-[10px] tabular-nums ${
-                  active ? "bg-bg/20 text-bg" : "bg-surface-2 text-ink-muted"
+                className={`rounded-full px-1.5 font-mono text-[9.5px] tabular-nums ${
+                  active ? "bg-white/20 text-on-primary" : "bg-hairline text-mute"
                 }`}
               >
                 {counts[option.value]}
               </span>
             ) : option.value === "" && counts.total ? (
               <span
-                className={`rounded-md px-1.5 py-0.2 font-mono text-[10px] tabular-nums ${
-                  active ? "bg-bg/20 text-bg" : "bg-surface-2 text-ink-muted"
+                className={`rounded-full px-1.5 font-mono text-[9.5px] tabular-nums ${
+                  active ? "bg-white/20 text-on-primary" : "bg-hairline text-mute"
                 }`}
               >
                 {counts.total}
