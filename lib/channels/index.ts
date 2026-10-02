@@ -1,5 +1,7 @@
 import type { Channel } from "../types";
+import { instagramAdapter } from "./instagram";
 import { messengerAdapter } from "./messenger";
+import { telegramAdapter } from "./telegram";
 import type { ChannelAdapter } from "./types";
 import { whatsappAdapter } from "./whatsapp";
 
@@ -8,14 +10,12 @@ export { ChannelNotConfiguredError, MetaSendError } from "../meta/client";
 
 /**
  * Channel registry.
- *
- * Adding Instagram later: create lib/channels/instagram.ts exporting an adapter
- * (copy messenger.ts, POST to /{ig-user-id}/messages), then add it to this map.
- * Nothing else in the app needs to change.
  */
 const adapters: Partial<Record<Channel, ChannelAdapter>> = {
   whatsapp: whatsappAdapter,
   messenger: messengerAdapter,
+  instagram: instagramAdapter,
+  telegram: telegramAdapter,
 };
 
 export function getChannel(channel: Channel): ChannelAdapter | undefined {

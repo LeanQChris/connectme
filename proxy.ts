@@ -10,7 +10,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
  *
  * Public paths: / (home page), /login, /api/login, and /api/webhook.
  */
-const PUBLIC_PATHS = ["/", "/login", "/api/login", "/api/webhook"];
+const PUBLIC_PATHS = ["/", "/login", "/api/login", "/api/webhook", "/api/telegram"];
 
 function isPublic(pathname: string): boolean {
   if (pathname === "/") return true;

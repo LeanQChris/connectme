@@ -47,7 +47,7 @@ export default function ConversationList({
         </div>
         <p className="text-[13px] font-medium text-ink">No conversations</p>
         <p className="max-w-[24ch] text-[12px] leading-relaxed text-body">
-          Incoming messages from WhatsApp & Messenger will appear here.
+          Incoming messages from WhatsApp &amp; Messenger will appear here.
         </p>
       </div>
     );
@@ -181,8 +181,11 @@ export function ConversationFilter({
 }) {
   const options = [
     { value: "", label: "All" },
-    { value: "messenger", label: channelMeta("messenger").label },
     { value: "whatsapp", label: channelMeta("whatsapp").label },
+    { value: "messenger", label: channelMeta("messenger").label },
+    { value: "telegram", label: channelMeta("telegram").label },
+    { value: "instagram", label: channelMeta("instagram").label },
+    { value: "archived", label: "Archived" },
   ];
 
   return (

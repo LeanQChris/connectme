@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ConversationSummary, Message, MessageStatus } from "@/lib/types";
+import type {
+  ConversationStatus,
+  ConversationSummary,
+  Message,
+  MessageStatus,
+} from "@/lib/types";
 
 import Avatar from "./avatar";
 import { channelMeta } from "./channel-badge";
@@ -14,6 +19,7 @@ interface Props {
   messages: Message[];
   onBack: () => void;
   onSend: (text: string) => Promise<void>;
+  onArchive: (status: ConversationStatus) => void;
 }
 
 const STATUS_GLYPH: Record<MessageStatus, { text: string; color: string }> = {
@@ -144,10 +150,11 @@ function MessageAttachment({ message }: { message: Message }) {
   );
 }
 
-export default function Thread({ conversation, messages, onBack, onSend }: Props) {
+export default function Thread({ conversation, messages, onBack, onSend, onArchive }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const windowOpen = conversation.window.open;
+  const archived = conversation.status === "closed";
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -204,6 +211,11 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
               >
                 {channelInfo.label}
               </span>
+              {archived && (
+                <span className="inline-flex items-center rounded-full bg-surface-well px-2 py-0.2 font-mono text-[10px] font-medium tracking-wide uppercase text-mute">
+                  Archived
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-1.5 text-[11px] text-mute">
@@ -230,9 +242,43 @@ export default function Thread({ conversation, messages, onBack, onSend }: Props
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => onArchive(archived ? "open" : "closed")}
+          title={archived ? "Restore to inbox" : "Archive conversation"}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink"
+        >
+          <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M3 3h18v5H3zM10 12h4"
+            />
+          </svg>
+          <span className="hidden sm:inline">{archived ? "Restore" : "Archive"}</span>
+        </button>
       </header>
 
-      <ReplyWindowBar lastInboundAt={conversation.lastInboundAt} />
+      {archived && (
+        <div className="flex items-center gap-2 border-b border-hairline bg-surface-well px-4 py-2 text-[11px] text-body">
+          <svg className="h-3.5 w-3.5 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M3 3h18v5H3z"
+            />
+          </svg>
+          <span>
+            This conversation is archived. It stays in the thread history until the customer messages
+            again.
+          </span>
+        </div>
+      )}
+
+      <ReplyWindowBar lastInboundAt={conversation.lastInboundAt} channel={conversation.channel} />
 
       {/* Messages Stream */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 space-y-4">

@@ -3,7 +3,7 @@
  * so this file must stay free of any server-only imports.
  */
 
-export const CHANNELS = ["whatsapp", "messenger", "instagram"] as const;
+export const CHANNELS = ["whatsapp", "messenger", "instagram", "telegram"] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const DIRECTIONS = ["in", "out"] as const;

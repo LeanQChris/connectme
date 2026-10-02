@@ -3,11 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { useConversation, useConversations, useSendReply } from "@/lib/hooks/use-inbox";
+import { useConversation, useConversations, useSendReply, useSetConversationStatus } from "@/lib/hooks/use-inbox";
+import type { ConversationStatus } from "@/lib/types";
 
 import ConversationList, { ConversationFilter } from "./conversation-list";
 import ThemeToggle from "./theme-toggle";
 import Thread from "./thread";
+
+const ARCHIVED = "archived";
 
 interface InboxProps {
   initialSelectedId?: string;
@@ -22,6 +25,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   const { data: all = [], isLoading: loadingList } = useConversations();
   const { data: detail, isLoading: loadingThread } = useConversation(selectedId);
   const sendMutation = useSendReply(selectedId);
+  const statusMutation = useSetConversationStatus();
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -37,24 +41,30 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // Filter conversations
+  // Archived threads live in their own view; the rest only shows open ones.
   const visible = useMemo(
-    () => (filter ? all.filter((c) => c.channel === filter) : all),
+    () =>
+      filter === ARCHIVED
+        ? all.filter((c) => c.status === "closed")
+        : filter
+          ? all.filter((c) => c.channel === filter && c.status === "open")
+          : all.filter((c) => c.status === "open"),
     [all, filter],
   );
 
-  const counts = useMemo(
-    () => ({
-      total: all.length,
+  const counts = useMemo(() => {
+    const open = all.filter((c) => c.status === "open");
+    return {
+      total: open.length,
+      [ARCHIVED]: all.length - open.length,
       ...Object.fromEntries(
-        ["whatsapp", "messenger"].map((channel) => [
+        ["whatsapp", "messenger", "telegram", "instagram"].map((channel) => [
           channel,
-          all.filter((c) => c.channel === channel).length,
+          open.filter((c) => c.channel === channel).length,
         ]),
       ),
-    }),
-    [all],
-  );
+    };
+  }, [all]);
 
   function select(id: string) {
     setSelectedId(id);
@@ -68,6 +78,11 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
 
   async function handleSend(text: string) {
     await sendMutation.mutateAsync(text);
+  }
+
+  function handleArchive(status: ConversationStatus) {
+    if (!selectedId) return;
+    statusMutation.mutate({ id: selectedId, status });
   }
 
   async function logout() {
@@ -109,12 +124,20 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
           {/* Connected Gateway Health */}
           <div className="hidden items-center gap-2 md:flex select-none font-mono text-[11px]">
             <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-whatsapp" />
+              <span className="text-[10px] text-mute uppercase">WhatsApp</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
               <span className="h-1.5 w-1.5 rounded-full bg-messenger" />
               <span className="text-[10px] text-mute uppercase">Messenger</span>
             </div>
             <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-whatsapp" />
-              <span className="text-[10px] text-mute uppercase">WhatsApp</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+              <span className="text-[10px] text-mute uppercase">Telegram</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-hairline bg-canvas-elevated px-2 py-0.5 text-body shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
+              <span className="text-[10px] text-mute uppercase">Instagram</span>
             </div>
           </div>
         </div>
@@ -166,6 +189,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               messages={detail.messages}
               onBack={back}
               onSend={handleSend}
+              onArchive={handleArchive}
             />
           </main>
         ) : (

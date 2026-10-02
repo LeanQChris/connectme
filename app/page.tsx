@@ -66,13 +66,13 @@ export default function HomePage() {
           {/* Display Headline with tight tracking */}
           <h1 className="mt-6 text-[38px] font-semibold leading-[1.08] tracking-[-0.05em] text-ink sm:text-[56px] md:text-[64px]">
             One inbox for WhatsApp, <br className="hidden sm:inline" />
-            Messenger, and Instagram.
+            Telegram, Messenger & Instagram.
           </h1>
 
           {/* Subtitle */}
           <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-relaxed text-body sm:text-[17px]">
-            ConnectMe aggregates your Meta messaging channels into a single, high-speed
-            workspace with real-time webhooks, 24-hour policy intelligence, and 0ms cached UI.
+            ConnectMe aggregates your customer conversations into a single, high-speed
+            workspace with real-time webhooks, policy compliance, and 0ms cached UI.
           </p>
 
           {/* Action CTAs (Pills per DESIGN.md marketing buttons) */}
@@ -100,7 +100,11 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-messenger" />
-              <span>Messenger Graph API</span>
+              <span>Messenger</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-sky-500" />
+              <span>Telegram Bot API</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-pink-500" />

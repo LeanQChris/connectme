@@ -19,8 +19,39 @@ function formatLeft(msLeft: number): string {
   return hours > 0 ? `${hours}h ${minutes}m remaining` : `${minutes}m remaining`;
 }
 
-export default function ReplyWindowBar({ lastInboundAt }: { lastInboundAt: string | null }) {
+export default function ReplyWindowBar({
+  lastInboundAt,
+  channel,
+}: {
+  lastInboundAt: string | null;
+  channel?: string;
+}) {
   const now = useNow(1000);
+
+  if (channel === "telegram") {
+    return (
+      <div className="border-b border-hairline bg-canvas px-4 py-2 text-[11px]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
+            </span>
+            <span className="font-medium text-body">
+              Unlimited Messaging Window Active
+            </span>
+          </div>
+
+          <span className="font-mono text-[11px] tabular-nums text-sky-500 font-medium">
+            No Time Limit
+          </span>
+        </div>
+
+        <p className="mt-1 leading-snug text-mute">
+          <span className="font-medium text-body">Telegram rule:</span> Telegram bots have no 24-hour window restriction. You can reply anytime.
+        </p>
+      </div>
+    );
+  }
 
   const msLeft = lastInboundAt
     ? REPLY_WINDOW_MS - (now - new Date(lastInboundAt).getTime())
@@ -60,6 +91,20 @@ export default function ReplyWindowBar({ lastInboundAt }: { lastInboundAt: strin
           {open ? formatLeft(msLeft) : "Window Expired"}
         </span>
       </div>
+
+      <p className={`mt-1 leading-snug ${open ? "text-mute" : "text-error/90"}`}>
+        {open ? (
+          <>
+            <span className="font-medium text-body">Meta rule:</span> free-form replies are allowed for
+            24h after the customer&apos;s last message. After that you must send an approved template.
+          </>
+        ) : (
+          <>
+            <span className="font-medium">Meta rule:</span> 24h elapsed, so free-form replies are
+            blocked. Wait for the customer to message first, or send an approved template.
+          </>
+        )}
+      </p>
 
       <div
         className="mt-1.5 h-[2px] w-full overflow-hidden rounded-full bg-hairline"

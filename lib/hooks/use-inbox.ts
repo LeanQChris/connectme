@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ConversationDetail, ConversationSummary, Message } from "@/lib/types";
+import type {
+  ConversationDetail,
+  ConversationStatus,
+  ConversationSummary,
+  Message,
+} from "@/lib/types";
 
 export const QUERY_KEYS = {
   conversations: ["conversations"] as const,
@@ -36,6 +41,38 @@ export function useConversation(id: string | null) {
     enabled: Boolean(id),
     refetchInterval: 2500,
     staleTime: 2000,
+  });
+}
+
+export function useSetConversationStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: ConversationStatus }) => {
+      const res = await fetch(`/api/conversations/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      return data as { conversation: ConversationSummary | null };
+    },
+    onSuccess: (_data, { id, status }) => {
+      queryClient.setQueryData<ConversationDetail>(QUERY_KEYS.conversation(id), (prev) =>
+        prev
+          ? {
+              ...prev,
+              conversation: {
+                ...prev.conversation,
+                status,
+                unreadCount: status === "closed" ? 0 : prev.conversation.unreadCount,
+              },
+            }
+          : prev,
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
+    },
   });
 }
 

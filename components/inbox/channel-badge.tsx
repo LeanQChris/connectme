@@ -4,6 +4,7 @@ const CHANNEL_META: Record<Channel, { label: string; dot: string; text: string }
   whatsapp: { label: "WhatsApp", dot: "bg-whatsapp", text: "text-whatsapp" },
   messenger: { label: "Messenger", dot: "bg-messenger", text: "text-messenger" },
   instagram: { label: "Instagram", dot: "bg-pink-500", text: "text-pink-500" },
+  telegram: { label: "Telegram", dot: "bg-sky-500", text: "text-sky-500" },
 };
 
 export function channelMeta(channel: Channel) {

@@ -56,6 +56,11 @@ export const config = {
     return readOptional("FB_PAGE_ACCESS_TOKEN");
   },
 
+  /** Telegram Bot API token from @BotFather. */
+  get telegramBotToken(): string | undefined {
+    return readOptional("TELEGRAM_BOT_TOKEN");
+  },
+
   /** Shared dashboard password. */
   get adminPassword(): string {
     return read("ADMIN_PASSWORD");

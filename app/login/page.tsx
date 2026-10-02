@@ -148,13 +148,21 @@ export default function LoginPage() {
         </div>
 
         {/* Brand footer */}
-        <div className="mt-6 flex items-center justify-center gap-4 font-mono text-[11px] text-mute">
+        <div className="mt-6 flex items-center justify-center gap-3 font-mono text-[11px] text-mute flex-wrap">
           <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-messenger" /> Messenger API
+            <span className="h-1.5 w-1.5 rounded-full bg-whatsapp" /> WhatsApp
           </span>
           <span>·</span>
           <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-whatsapp" /> WhatsApp Cloud
+            <span className="h-1.5 w-1.5 rounded-full bg-messenger" /> Messenger
+          </span>
+          <span>·</span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-500" /> Telegram
+          </span>
+          <span>·</span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-pink-500" /> Instagram
           </span>
         </div>
       </div>

@@ -23,6 +23,7 @@ import type {
   Conversation,
   ConversationDetail,
   ConversationSummary,
+  ConversationStatus,
   Message,
   MessageStatus,
   MessageType,
@@ -145,7 +146,7 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     lastInboundAt: conv.lastInboundAt,
     unreadCount: conv.unreadCount,
     status: conv.status,
-    window: replyWindow(conv.lastInboundAt),
+    window: contact.channel === "telegram" ? { open: true, msRemaining: null } : replyWindow(conv.lastInboundAt),
   };
 }
 
@@ -235,6 +236,8 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
     conversation.lastInboundAt = input.createdAt.toISOString();
     conversation.lastMessageAt = input.createdAt.toISOString();
     conversation.unreadCount += 1;
+    // A new inbound message always resurfaces the thread, archived or not.
+    conversation.status = "open";
     return true;
   });
 }
@@ -404,5 +407,16 @@ export async function resetUnread(id: string): Promise<void> {
   return tx((data) => {
     const conversation = data.conversations.find((c) => c.id === id);
     if (conversation) conversation.unreadCount = 0;
+  });
+}
+
+/** Archives or restores a conversation. Returns false when the id is unknown. */
+export async function setStatus(id: string, status: ConversationStatus): Promise<boolean> {
+  return tx((data) => {
+    const conversation = data.conversations.find((c) => c.id === id);
+    if (!conversation) return false;
+    conversation.status = status;
+    if (status === "closed") conversation.unreadCount = 0;
+    return true;
   });
 }
