@@ -34,7 +34,7 @@ export class SettingsController {
       discord: Boolean(creds?.discordBotTokenEnc || accounts.some((a) => a.channel === "DISCORD")),
     };
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
 
     const mappedAccounts: ConnectedAccountDto[] = accounts.map((a) => ({
       id: a.id,

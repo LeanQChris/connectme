@@ -41,7 +41,7 @@ export class AuthMetaController {
   @Get("connect")
   connect(@TenantId() tenantId: string, @Res() res: Response) {
     const appId = process.env.META_CLIENT_ID || process.env.META_APP_ID;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
     const redirectUri = `${appUrl}/api/auth/meta/callback`;
 
     if (!appId) {
@@ -84,7 +84,7 @@ export class AuthMetaController {
     @Query("state") state: string,
     @Res() res: Response,
   ) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
     const appId = process.env.META_CLIENT_ID || process.env.META_APP_ID;
     const appSecret = process.env.META_CLIENT_SECRET || process.env.META_APP_SECRET;
     const redirectUri = `${appUrl}/api/auth/meta/callback`;

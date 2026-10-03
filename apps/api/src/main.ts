@@ -20,7 +20,7 @@ async function bootstrap() {
 
   configureApp(app);
 
-  const port = process.env.API_PORT || process.env.PORT || 4000;
+  const port = process.env.API_PORT || process.env.PORT || 8081;
   await app.listen(port);
   logger.log(`🚀 ConnectMe NestJS API is listening on port ${port}`);
 }

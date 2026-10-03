@@ -15,7 +15,7 @@ import {
 
 export const AppDataSource = new DataSource({
   type: "postgres",
-  url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/connectme",
+  url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5434/connectme",
   synchronize: String(process.env.DB_SYNCHRONIZE ?? "false") === "true",
   logging: process.env.NODE_ENV === "development",
   entities: [

@@ -104,7 +104,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     }),
     TypeOrmModule.forRoot({
       type: "postgres",
-      url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/connectme",
+      url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5434/connectme",
       entities: [
         Tenant,
         User,

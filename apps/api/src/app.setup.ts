@@ -11,7 +11,7 @@ function allowedOrigins(): string[] {
     .filter(Boolean);
 
   if (process.env.NODE_ENV !== "production") {
-    configured.push("http://localhost:3000");
+    configured.push("http://localhost:3001");
   }
 
   return Array.from(new Set(configured));

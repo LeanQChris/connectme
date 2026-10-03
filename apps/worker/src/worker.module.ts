@@ -41,7 +41,7 @@ import { validateEnv } from "./env.validation";
     }),
     TypeOrmModule.forRoot({
       type: "postgres",
-      url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/connectme",
+      url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5434/connectme",
       entities: [
         Tenant,
         User,

@@ -20,7 +20,7 @@ function socketOrigins(): string[] | boolean {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
-  if (process.env.NODE_ENV !== "production") configured.push("http://localhost:3000");
+  if (process.env.NODE_ENV !== "production") configured.push("http://localhost:3001");
   const unique = Array.from(new Set(configured));
   return unique.length ? unique : false;
 }

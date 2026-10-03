@@ -222,14 +222,14 @@ ENCRYPTION_KEY=your_64_character_hex_encryption_key_here
 META_APP_ID=your_meta_app_id
 META_APP_SECRET=your_meta_app_secret
 META_WEBHOOK_VERIFY_TOKEN=your_custom_webhook_verify_token
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3001
 GRAPH_VERSION=v21.0
 
 # ==============================================================================
 # 4. Database & Cache Infrastructure
 # ==============================================================================
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/connectme
-REDIS_URL=redis://localhost:6379
+DATABASE_URL=postgres://postgres:postgres@localhost:5434/connectme
+REDIS_URL=redis://localhost:6381
 
 # ==============================================================================
 # 5. Media Storage (S3 / Cloudflare R2)
@@ -274,8 +274,8 @@ npm run dev
 ```
 
 This starts all three applications concurrently with hot module reloading:
-- 🌐 **Web Frontend**: [http://localhost:3000](http://localhost:3000)
-- ⚙️ **Backend API**: [http://localhost:4000](http://localhost:4000)
+- 🌐 **Web Frontend**: [http://localhost:3001](http://localhost:3001)
+- ⚙️ **Backend API**: [http://localhost:8081](http://localhost:8081)
 - 👷 **Background Worker**: BullMQ Consumer running in background
 
 You can also run applications individually:
@@ -297,7 +297,7 @@ ConnectMe supports 1-click authorization for Facebook Pages, Instagram Direct, a
 2. Add **Facebook Login for Business**, **WhatsApp**, and **Instagram Graph API** products.
 3. Configure the OAuth Redirect URI in Meta App Settings:
    ```
-   http://localhost:3000/api/auth/callback/meta
+   http://localhost:3001/api/auth/callback/meta
    # or https://your-domain.com/api/auth/callback/meta
    ```
 4. Add your `META_APP_ID` and `META_APP_SECRET` to `.env`.
@@ -335,11 +335,11 @@ Meta delivers incoming messages, message delivery status receipts (`sent`, `deli
 
 ### Local Development Tunneling
 
-External webhook providers (Meta and Telegram) require a public HTTPS endpoint. Expose your local port `3000` (or `4000`) using either **Cloudflare Tunnel** or **ngrok**:
+External webhook providers (Meta and Telegram) require a public HTTPS endpoint. Expose your local port `3001` (or `8081`) using either **Cloudflare Tunnel** or **ngrok**:
 
 #### Option A: Cloudflare Tunnel (Recommended - No expiry)
 ```bash
-cloudflared tunnel --url http://localhost:3000
+cloudflared tunnel --url http://localhost:3001
 ```
 
 #### Option B: ngrok
@@ -471,7 +471,7 @@ Run commands from the root directory using Turborepo:
 - To re-engage, send a pre-approved **Meta Message Template**.
 
 ### Messages are not updating in real time
-- Ensure `apps/api` is running and the WebSocket gateway on port `4000` is accessible.
+- Ensure `apps/api` is running and the WebSocket gateway on port `8081` is accessible.
 - Verify that Redis is running and reachable by both `apps/api` and `apps/worker`.
 
 ### Local webhook events are not arriving
