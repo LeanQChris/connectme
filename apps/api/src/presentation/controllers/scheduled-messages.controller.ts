@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Delete, Body, Param, Query } from "@nestjs/common";
 import { ScheduledMessageStatus } from "@connectme/database";
-import { CreateScheduledMessageDto } from "@connectme/contracts";
+import { CreateScheduledMessageDto, CreateScheduledMessageDtoSchema } from "@connectme/contracts";
+import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import { CreateScheduledMessageUseCase } from "../../application/use-cases/scheduling/create-scheduled-message.use-case";
 import { ListScheduledMessagesUseCase } from "../../application/use-cases/scheduling/list-scheduled-messages.use-case";
 import { CancelScheduledMessageUseCase } from "../../application/use-cases/scheduling/cancel-scheduled-message.use-case";
@@ -16,7 +17,10 @@ export class ScheduledMessagesController {
   ) {}
 
   @Post()
-  async create(@TenantId() tenantId: string, @Body() dto: CreateScheduledMessageDto) {
+  async create(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(CreateScheduledMessageDtoSchema)) dto: CreateScheduledMessageDto,
+  ) {
     const row = await this.createUseCase.execute({ tenantId, dto, createdBy: dto.createdBy });
     return toScheduledMessageDto(row);
   }

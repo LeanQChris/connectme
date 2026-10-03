@@ -16,6 +16,9 @@ export function usePwa() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // One-time hydration from browser APIs; subscriptions below are the effect's
+    // actual external-system synchronization.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setIsOnline(navigator.onLine);
 
     const handleOnline = () => setIsOnline(true);
@@ -29,6 +32,7 @@ export function usePwa() {
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsStandalone(isStandaloneMode);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // Listen for PWA install prompt
     const handleBeforeInstallPrompt = (e: Event) => {

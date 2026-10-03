@@ -24,7 +24,7 @@ export default function SchedulingModule() {
   const { data: settings } = useSettings();
   const accounts = useMemo(() => settings?.settings?.accounts ?? [], [settings]);
 
-  useSchedulingRealtime("system");
+  useSchedulingRealtime();
 
   const postsQuery = useScheduledPosts();
   const messagesQuery = useScheduledMessages();

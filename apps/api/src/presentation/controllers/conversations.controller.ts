@@ -13,8 +13,10 @@ import { GetConversationDetailUseCase } from "../../application/use-cases/conver
 import { UpdateConversationUseCase } from "../../application/use-cases/conversations/update-conversation.use-case";
 import { SendReplyUseCase } from "../../application/use-cases/messages/send-reply.use-case";
 import { AddInternalNoteUseCase } from "../../application/use-cases/messages/add-internal-note.use-case";
-import { UpdateConversationDto } from "@connectme/contracts";
+import { UpdateConversationDto, UpdateConversationDtoSchema } from "@connectme/contracts";
 import { TenantId } from "../auth/tenant-id.decorator";
+import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
+import { ReplyBodySchema, NoteBodySchema } from "../validation/schemas";
 
 @Controller("api/conversations")
 export class ConversationsController {
@@ -54,7 +56,7 @@ export class ConversationsController {
   async update(
     @TenantId() tenantId: string,
     @Param("id") id: string,
-    @Body() dto: UpdateConversationDto,
+    @Body(new ZodValidationPipe(UpdateConversationDtoSchema)) dto: UpdateConversationDto,
   ) {
     const conversation = await this.updateUseCase.execute(tenantId, id, dto);
     return { conversation };
@@ -64,7 +66,8 @@ export class ConversationsController {
   async reply(
     @TenantId() tenantId: string,
     @Param("id") id: string,
-    @Body() body: { text?: string; mediaUrl?: string; type?: string; author?: string },
+    @Body(new ZodValidationPipe(ReplyBodySchema))
+    body: { text?: string; mediaUrl?: string; type?: string; author?: string },
   ) {
     const message = await this.sendReplyUseCase.execute({
       tenantId,
@@ -81,7 +84,7 @@ export class ConversationsController {
   async addNote(
     @TenantId() tenantId: string,
     @Param("id") id: string,
-    @Body() body: { text: string; author?: string },
+    @Body(new ZodValidationPipe(NoteBodySchema)) body: { text: string; author?: string },
   ) {
     const message = await this.addNoteUseCase.execute({
       tenantId,

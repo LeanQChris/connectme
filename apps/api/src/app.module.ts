@@ -82,12 +82,15 @@ import { SetupController } from "./presentation/controllers/setup.controller";
 // Auth
 import { ClerkAuthGuard } from "./presentation/auth/clerk-auth.guard";
 import { ClerkTokenVerifier } from "./presentation/auth/clerk-token-verifier.service";
+import { validateEnv } from "./infrastructure/config/env.validation";
+import { HealthController } from "./presentation/controllers/health.controller";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [".env.local", ".env"],
+      validate: validateEnv,
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     TypeOrmModule.forRoot({
@@ -137,6 +140,7 @@ import { ClerkTokenVerifier } from "./presentation/auth/clerk-token-verifier.ser
     SetupController,
     ScheduledPostsController,
     ScheduledMessagesController,
+    HealthController,
   ],
   providers: [
     // Global guards: rate limiting first, then authentication.

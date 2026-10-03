@@ -6,7 +6,6 @@ import { usePwa } from "@/core/pwa/use-pwa";
 export function NotificationsSettings() {
   const {
     isSupported,
-    permission,
     isGranted,
     isDenied,
     soundEnabled,

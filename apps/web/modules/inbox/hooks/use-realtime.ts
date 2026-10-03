@@ -8,6 +8,13 @@ import { NotificationService } from "@/core/notifications/notification-service";
 import { envConfig } from "@/core/config/env.config";
 import { QUERY_KEYS } from "./use-inbox";
 
+interface RealtimeMessage {
+  direction?: string;
+  channel?: string;
+  type?: string;
+  text?: string | null;
+}
+
 export function useRealtimeInbox(activeConversationId?: string | null) {
   const queryClient = useQueryClient();
   const { getToken, isLoaded, isSignedIn } = useAuth();
@@ -36,7 +43,7 @@ export function useRealtimeInbox(activeConversationId?: string | null) {
         }
       });
 
-      socket.on("message:new", ({ conversationId, message }: { conversationId: string; message?: any }) => {
+      socket.on("message:new", ({ conversationId, message }: { conversationId: string; message?: RealtimeMessage }) => {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversation(conversationId) });
 

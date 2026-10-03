@@ -9,7 +9,13 @@ import {
   Query,
 } from "@nestjs/common";
 import { ScheduledPostStatus, ChannelType } from "@connectme/database";
-import { CreateScheduledPostDto, UpdateScheduledPostDto } from "@connectme/contracts";
+import {
+  CreateScheduledPostDto,
+  UpdateScheduledPostDto,
+  CreateScheduledPostDtoSchema,
+  UpdateScheduledPostDtoSchema,
+} from "@connectme/contracts";
+import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import { CreateScheduledPostUseCase } from "../../application/use-cases/scheduling/create-scheduled-post.use-case";
 import { ListScheduledPostsUseCase } from "../../application/use-cases/scheduling/list-scheduled-posts.use-case";
 import { CancelScheduledPostUseCase } from "../../application/use-cases/scheduling/cancel-scheduled-post.use-case";
@@ -27,7 +33,10 @@ export class ScheduledPostsController {
   ) {}
 
   @Post()
-  async create(@TenantId() tenantId: string, @Body() dto: CreateScheduledPostDto) {
+  async create(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(CreateScheduledPostDtoSchema)) dto: CreateScheduledPostDto,
+  ) {
     const row = await this.createUseCase.execute({ tenantId, dto, createdBy: dto.createdBy });
     return toScheduledPostDto(row!);
   }
@@ -61,7 +70,7 @@ export class ScheduledPostsController {
   async update(
     @TenantId() tenantId: string,
     @Param("id") id: string,
-    @Body() dto: UpdateScheduledPostDto,
+    @Body(new ZodValidationPipe(UpdateScheduledPostDtoSchema)) dto: UpdateScheduledPostDto,
   ) {
     const row = await this.updateUseCase.execute({ tenantId, id, dto });
     return toScheduledPostDto(row!);

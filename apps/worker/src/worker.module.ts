@@ -27,12 +27,14 @@ import { WebhookInboundProcessor } from "./processors/webhook-inbound.processor"
 import { OutboundSchedulerProcessor } from "./processors/outbound-scheduler.processor";
 import { OUTBOUND_SCHEDULER_QUEUE } from "./queue.constants";
 import { RealtimePublisher } from "./realtime/realtime-publisher";
+import { validateEnv } from "./env.validation";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [".env.local", ".env"],
+      validate: validateEnv,
     }),
     TypeOrmModule.forRoot({
       type: "postgres",

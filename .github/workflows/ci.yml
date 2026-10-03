@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint all workspaces
+        run: npx turbo run lint
+
       - name: Typecheck all workspaces
         run: npx turbo run check-types
 

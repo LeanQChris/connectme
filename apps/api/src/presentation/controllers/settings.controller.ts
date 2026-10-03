@@ -9,6 +9,8 @@ import {
 } from "@connectme/contracts";
 import { TenantId } from "../auth/tenant-id.decorator";
 import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
+import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
+import { SaveSettingsBodySchema, ChannelSchema } from "../validation/schemas";
 
 @Controller("api/settings")
 export class SettingsController {
@@ -73,7 +75,7 @@ export class SettingsController {
   @Post()
   async saveSettings(
     @TenantId() tenantId: string,
-    @Body() body: { secrets: ProviderSecretsDto },
+    @Body(new ZodValidationPipe(SaveSettingsBodySchema)) body: { secrets: ProviderSecretsDto },
   ) {
     const s = body.secrets || {};
 
@@ -96,7 +98,7 @@ export class SettingsController {
   @Post("verify")
   async verifyConnection(
     @TenantId() tenantId: string,
-    @Body() body: { channel: string },
+    @Body(new ZodValidationPipe(ChannelSchema)) body: { channel: string },
   ) {
     const creds = await this.tenantRepo.getCredentials(tenantId);
     if (!creds) return { ok: false, detail: "No credentials saved." };

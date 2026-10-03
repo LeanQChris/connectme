@@ -17,6 +17,8 @@ import { S3PresignService } from "../../infrastructure/storage/s3-presign.servic
 import { TenantId } from "../auth/tenant-id.decorator";
 import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
 import { isAllowedMediaHost } from "../../infrastructure/security/allowed-media-hosts";
+import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
+import { PresignBodySchema } from "../validation/schemas";
 
 const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
 
@@ -38,7 +40,7 @@ export class MediaController {
   @Post("presign")
   async presign(
     @TenantId() tenantId: string,
-    @Body() body: { filename?: string; contentType?: string },
+    @Body(new ZodValidationPipe(PresignBodySchema)) body: { filename?: string; contentType?: string },
   ) {
     const safeName = (body?.filename || "upload.bin")
       .replace(/[^a-zA-Z0-9._-]/g, "_")
@@ -89,8 +91,13 @@ export class MediaController {
 
       const mediaRes = await fetch(downloadUrl, {
         headers: { Authorization: `Bearer ${token}` },
-        redirect: "error",
+        redirect: "follow",
       });
+
+      // A redirect could point somewhere unexpected; re-check the final URL.
+      if (!isAllowedMediaHost(mediaRes.url)) {
+        throw new BadRequestException("Media redirect target is not allowed.");
+      }
 
       const declaredLength = Number(mediaRes.headers.get("content-length") || "0");
       if (declaredLength > MAX_MEDIA_BYTES) {

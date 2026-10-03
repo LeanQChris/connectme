@@ -17,6 +17,8 @@ import { IdempotencyLockService } from "../../infrastructure/redis/idempotency-l
 import { TenantId } from "../auth/tenant-id.decorator";
 import { Public } from "../auth/public.decorator";
 import { encodeOAuthState, decodeOAuthState } from "../../infrastructure/security/oauth-state";
+import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
+import { DisconnectBodySchema } from "../validation/schemas";
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const GRAPH_VERSION = "v22.0";
@@ -152,7 +154,10 @@ export class AuthMetaController {
   }
 
   @Post("disconnect")
-  async disconnect(@TenantId() tenantId: string, @Body() body: { accountId: string }) {
+  async disconnect(
+    @TenantId() tenantId: string,
+    @Body(new ZodValidationPipe(DisconnectBodySchema)) body: { accountId: string },
+  ) {
     if (body.accountId) {
       await this.tenantRepo.removeConnectedAccount(tenantId, body.accountId);
     }

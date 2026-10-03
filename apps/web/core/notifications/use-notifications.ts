@@ -14,6 +14,9 @@ export function useNotifications() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // Reading browser-only APIs on mount is intentional; the lint rule targets
+    // render-cascades, which do not apply to this one-time hydration.
+    /* eslint-disable react-hooks/set-state-in-effect */
     const supported = NotificationService.isSupported();
     setIsSupported(supported);
     setPermission(supported ? NotificationService.getPermission() : "unsupported");
@@ -22,6 +25,7 @@ export function useNotifications() {
     if (savedSound !== null) {
       setSoundEnabled(savedSound === "true");
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const requestPermission = useCallback(async () => {
