@@ -38,6 +38,21 @@ export function InboxHeader({ onBackToRoot }: InboxHeaderProps) {
         <ThemeToggle />
 
         <Link
+          href="/dashboard"
+          className="flex h-8 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body transition-colors hover:bg-surface-well hover:text-ink shadow-2xs"
+        >
+          <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.8"
+              d="M4 13h6V4H4v9zm0 7h6v-5H4v5zm10 0h6v-9h-6v9zm0-16v5h6V4h-6z"
+            />
+          </svg>
+          <span className="hidden sm:inline">Dashboard</span>
+        </Link>
+
+        <Link
           href="/scheduled"
           className="flex h-8 items-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2.5 text-[12px] font-medium text-body transition-colors hover:bg-surface-well hover:text-ink shadow-2xs"
         >

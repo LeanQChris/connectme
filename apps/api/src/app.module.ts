@@ -23,6 +23,7 @@ import { TypeOrmConversationRepository } from "./infrastructure/database/reposit
 import { TypeOrmMessageRepository } from "./infrastructure/database/repositories/typeorm-message.repository";
 import { TypeOrmScheduledPostRepository } from "./infrastructure/database/repositories/typeorm-scheduled-post.repository";
 import { TypeOrmScheduledMessageRepository } from "./infrastructure/database/repositories/typeorm-scheduled-message.repository";
+import { TypeOrmStatsRepository } from "./infrastructure/database/repositories/typeorm-stats.repository";
 
 // Infrastructure Services
 import { RedisModule } from "./infrastructure/redis/redis.module";
@@ -67,6 +68,7 @@ import { ListScheduledMessagesUseCase } from "./application/use-cases/scheduling
 import { CancelScheduledPostUseCase } from "./application/use-cases/scheduling/cancel-scheduled-post.use-case";
 import { CancelScheduledMessageUseCase } from "./application/use-cases/scheduling/cancel-scheduled-message.use-case";
 import { UpdateScheduledPostUseCase } from "./application/use-cases/scheduling/update-scheduled-post.use-case";
+import { GetDashboardStatsUseCase } from "./application/use-cases/stats/get-dashboard-stats.use-case";
 
 // Controllers
 import { WebhookController } from "./presentation/controllers/webhook.controller";
@@ -78,6 +80,7 @@ import { AuthMetaController } from "./presentation/controllers/auth-meta.control
 import { MediaController } from "./presentation/controllers/media.controller";
 import { ScheduledPostsController } from "./presentation/controllers/scheduled-posts.controller";
 import { ScheduledMessagesController } from "./presentation/controllers/scheduled-messages.controller";
+import { StatsController } from "./presentation/controllers/stats.controller";
 
 import { SetupController } from "./presentation/controllers/setup.controller";
 
@@ -154,6 +157,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     SetupController,
     ScheduledPostsController,
     ScheduledMessagesController,
+    StatsController,
     HealthController,
   ],
   providers: [
@@ -169,6 +173,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     { provide: "IMessageRepository", useClass: TypeOrmMessageRepository },
     { provide: "IScheduledPostRepository", useClass: TypeOrmScheduledPostRepository },
     { provide: "IScheduledMessageRepository", useClass: TypeOrmScheduledMessageRepository },
+    { provide: "IStatsRepository", useClass: TypeOrmStatsRepository },
 
     // Infrastructure services (RedisService + IdempotencyLockService come from RedisModule)
     AesVaultService,
@@ -203,6 +208,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     CancelScheduledPostUseCase,
     CancelScheduledMessageUseCase,
     UpdateScheduledPostUseCase,
+    GetDashboardStatsUseCase,
   ],
 })
 export class AppModule {}

@@ -19,9 +19,14 @@ export function SiteFooter({ userId }: SiteFooterProps) {
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-mute">
           {userId ? (
-            <Link href="/inbox" className="transition-colors hover:text-ink">
-              Inbox
-            </Link>
+            <>
+              <Link href="/dashboard" className="transition-colors hover:text-ink">
+                Dashboard
+              </Link>
+              <Link href="/inbox" className="transition-colors hover:text-ink">
+                Inbox
+              </Link>
+            </>
           ) : (
             <Link href="/sign-in" className="transition-colors hover:text-ink">
               Sign in

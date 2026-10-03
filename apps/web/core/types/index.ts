@@ -27,7 +27,7 @@ export const MESSAGE_STATUSES = [
 ] as const;
 export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 
-export const CONVERSATION_STATUSES = ["open", "closed"] as const;
+export const CONVERSATION_STATUSES = ["open", "closed", "snoozed"] as const;
 export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
 
 /** 8 MB, comfortably inside every channel's attachment ceiling. */

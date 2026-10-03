@@ -63,6 +63,12 @@ export default function SiteHeader({ variant = "public" }: SiteHeaderProps) {
         ) : userId ? (
           <>
             <Link
+              href="/dashboard"
+              className="hidden h-8 items-center rounded-[6px] border border-hairline bg-canvas-elevated px-3 text-[12px] font-medium text-ink shadow-2xs transition-colors hover:bg-surface-well sm:flex"
+            >
+              Dashboard
+            </Link>
+            <Link
               href="/inbox"
               className="flex h-8 items-center rounded-[6px] bg-primary px-3 text-[12px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90"
             >
