@@ -50,15 +50,15 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
   } = useSettingsForm(initial);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:py-10">
+    <div className="w-full">
       {/* Page Title & Subtitle */}
-      <div className="mb-6">
-        <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-ink sm:text-[28px]">
-          Workspace Settings
-        </h1>
-        <p className="mt-1 text-[13.5px] text-body">
-          Configure customer channels, OAuth permissions, and webhook endpoints for your inbox.
-        </p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-ink">Settings</h1>
+          <p className="mt-0.5 text-[12.5px] text-mute">
+            Configure customer channels, OAuth permissions, and webhook endpoints for your inbox.
+          </p>
+        </div>
       </div>
 
       {/* Global Success Alert */}
