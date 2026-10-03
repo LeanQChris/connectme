@@ -55,8 +55,12 @@ export class SettingsController {
         pageId: accounts.find((a) => a.channel === "MESSENGER")?.externalId ?? null,
         pageName: accounts.find((a) => a.channel === "MESSENGER")?.name ?? null,
         instagramUsername: accounts.find((a) => a.channel === "INSTAGRAM")?.name ?? null,
-        telegramBotId: accounts.find((a) => a.channel === "TELEGRAM")?.externalId ?? null,
-        discordBotId: accounts.find((a) => a.channel === "DISCORD")?.externalId ?? null,
+        telegramBotId:
+          accounts.find((a) => a.channel === "TELEGRAM" && a.provider === "telegram")
+            ?.externalId ?? null,
+        discordBotId:
+          accounts.find((a) => a.channel === "DISCORD" && a.provider === "discord")?.externalId ??
+          null,
         updatedAt: creds?.updatedAt ? creds.updatedAt.toISOString() : null,
         webhookVerifyToken: creds?.webhookVerifyToken || "connectme_verify_token",
         waPhoneNumberId: creds?.waPhoneNumberId ?? null,
@@ -103,21 +107,42 @@ export class SettingsController {
       const botId = token.split(":")[0];
       if (botId) await this.upsertAccount(tenantId, ChannelType.TELEGRAM, "telegram", botId, `Telegram bot ${botId}`);
     }
+    if (s.telegramChannelId) {
+      await this.upsertAccount(
+        tenantId,
+        ChannelType.TELEGRAM,
+        "telegram-channel",
+        s.telegramChannelId,
+        `Telegram channel ${s.telegramChannelId}`,
+      );
+    }
+    if (s.discordChannelId) {
+      await this.upsertAccount(
+        tenantId,
+        ChannelType.DISCORD,
+        "discord-channel",
+        s.discordChannelId,
+        `Discord channel ${s.discordChannelId}`,
+      );
+    }
 
     return { ok: true };
   }
 
   private async upsertAccount(
     tenantId: string,
-    channel: "WHATSAPP" | "TELEGRAM",
+    channel: ChannelType,
     provider: string,
     externalId: string,
     name: string,
   ): Promise<void> {
-    const existing = await this.tenantRepo.findAccountByExternalId(channel as any, externalId);
+    const existing = await this.tenantRepo.findAccountByExternalId(channel, externalId, provider);
     if (existing) {
-      if (!existing.isActive || existing.name !== name || existing.tenantId !== tenantId) {
-        await this.tenantRepo.saveConnectedAccount({ id: existing.id, isActive: true, name });
+      // Never mutate an account owned by another tenant: external ids are a
+      // global routing key, so a second tenant must not hijack it.
+      if (existing.tenantId !== tenantId) return;
+      if (!existing.isActive || existing.name !== name) {
+        await this.tenantRepo.saveConnectedAccount({ tenantId, id: existing.id, isActive: true, name });
       }
       return;
     }

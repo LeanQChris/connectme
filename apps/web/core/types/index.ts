@@ -122,7 +122,7 @@ export interface UploadedMedia {
 export interface ConnectedAccount {
   id: string;
   tenantId: string;
-  provider: "meta" | "telegram" | "discord";
+  provider: "meta" | "telegram" | "telegram-channel" | "discord" | "discord-channel";
   channel: Channel;
   name: string;
   externalId: string;

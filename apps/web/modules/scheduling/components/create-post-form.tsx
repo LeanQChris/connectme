@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import type { ConnectedAccount } from "@/core/types";
 import { Button } from "@/components/ui/button";
-import { isPostSchedulable, type ScheduledPost } from "../data/scheduling.types";
+import {
+  isPostSchedulable,
+  POST_CHANNEL_LABELS,
+  type ScheduledPost,
+} from "../data/scheduling.types";
 import {
   useCreateScheduledPost,
   useUpdateScheduledPost,
@@ -24,11 +28,11 @@ export function CreatePostForm({
   onDone,
   onCancelEdit,
 }: CreatePostFormProps) {
-  const schedulable = useMemo(() => accounts.filter((a) => isPostSchedulable(a.channel)), [accounts]);
+  const schedulable = useMemo(() => accounts.filter((a) => isPostSchedulable(a)), [accounts]);
 
   const [accountId, setAccountId] = useState(editing?.accountId ?? schedulable[0]?.id ?? "");
   const [caption, setCaption] = useState(editing?.caption ?? "");
-  const [mediaUrl, setMediaUrl] = useState<string | null>(editing?.mediaUrls?.[0] ?? null);
+  const [mediaUrls, setMediaUrls] = useState<string[]>(editing?.mediaUrls ?? []);
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,14 +44,24 @@ export function CreatePostForm({
   const selectedAccount = schedulable.find((a) => a.id === accountId);
   const isNative = selectedAccount?.channel === "messenger";
 
-  const handleFile = async (file: File) => {
+  const handleFiles = async (files: FileList) => {
     setError(null);
     try {
-      const result = await uploadMutation.mutateAsync(file);
-      setMediaUrl(result.publicUrl);
+      const remaining = Math.max(0, 10 - mediaUrls.length);
+      const selected = Array.from(files).slice(0, remaining);
+      const uploaded: string[] = [];
+      for (const file of selected) {
+        const result = await uploadMutation.mutateAsync(file);
+        uploaded.push(result.publicUrl);
+      }
+      setMediaUrls((current) => [...current, ...uploaded]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     }
+  };
+
+  const removeMedia = (url: string) => {
+    setMediaUrls((current) => current.filter((item) => item !== url));
   };
 
   const handleSchedule = async (scheduledForIso: string) => {
@@ -58,7 +72,7 @@ export function CreatePostForm({
           id: editing.id,
           input: {
             caption: caption || undefined,
-            mediaUrls: mediaUrl ? [mediaUrl] : [],
+            mediaUrls,
             scheduledFor: scheduledForIso,
           },
         });
@@ -66,13 +80,13 @@ export function CreatePostForm({
         if (!accountId) throw new Error("Choose a connected Page or Instagram account.");
         await createMutation.mutateAsync({
           accountId,
-          kind: mediaUrl ? "image" : "text",
+          kind: mediaUrls.length > 1 ? "carousel" : mediaUrls.length === 1 ? "image" : "text",
           caption: caption || undefined,
-          mediaUrls: mediaUrl ? [mediaUrl] : [],
+          mediaUrls,
           scheduledFor: scheduledForIso,
         });
         setCaption("");
-        setMediaUrl(null);
+        setMediaUrls([]);
       }
       setShowPicker(false);
       onDone?.();
@@ -103,7 +117,7 @@ export function CreatePostForm({
         >
           {schedulable.map((account) => (
             <option key={account.id} value={account.id}>
-              {account.channel === "messenger" ? "Facebook Page" : "Instagram"} · {account.name}
+              {POST_CHANNEL_LABELS[account.channel] ?? account.channel} · {account.name}
             </option>
           ))}
         </select>
@@ -117,36 +131,55 @@ export function CreatePostForm({
         className="mb-2 w-full resize-none rounded-[6px] border border-hairline bg-canvas px-2.5 py-2 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
       />
 
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-[6px] border border-hairline px-2.5 text-[11.5px] text-body transition-colors hover:bg-surface-well hover:text-ink">
-          <input
-            type="file"
-            className="hidden"
-            accept="image/*,video/*"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void handleFile(file);
-              event.target.value = "";
-            }}
-          />
-          {uploadMutation.isPending ? "Uploading…" : mediaUrl ? "Replace media" : "Add media"}
-        </label>
-        {mediaUrl && (
-          <button
-            type="button"
-            onClick={() => setMediaUrl(null)}
-            className="text-[11px] text-error hover:opacity-80 cursor-pointer"
-          >
-            Remove media
-          </button>
-        )}
-        {isNative && (
-          <span className="font-mono text-[10px] text-mute">
-            Facebook native · min 10 min lead
-          </span>
-        )}
-        {!isNative && selectedAccount?.channel === "instagram" && (
-          <span className="font-mono text-[10px] text-mute">Instagram · media required</span>
+      <div className="mb-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex h-8 cursor-pointer items-center gap-1.5 rounded-[6px] border border-hairline px-2.5 text-[11.5px] text-body transition-colors hover:bg-surface-well hover:text-ink">
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              accept="image/*,video/*"
+              onChange={(event) => {
+                const files = event.target.files;
+                if (files?.length) void handleFiles(files);
+                event.target.value = "";
+              }}
+            />
+            {uploadMutation.isPending ? "Uploading…" : "Add media"}
+          </label>
+          {mediaUrls.length > 0 && (
+            <span className="font-mono text-[10px] text-mute">{mediaUrls.length}/10</span>
+          )}
+          {isNative && (
+            <span className="font-mono text-[10px] text-mute">
+              Facebook native · min 10 min lead
+            </span>
+          )}
+          {!isNative && selectedAccount?.channel === "instagram" && (
+            <span className="font-mono text-[10px] text-mute">
+              Instagram · 2+ media becomes a carousel
+            </span>
+          )}
+        </div>
+        {mediaUrls.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {mediaUrls.map((url) => (
+              <li
+                key={url}
+                className="flex items-center gap-1 rounded-[6px] border border-hairline bg-canvas px-2 py-1 text-[10.5px] text-body"
+              >
+                <span className="max-w-[160px] truncate">{url.split("/").pop()}</span>
+                <button
+                  type="button"
+                  onClick={() => removeMedia(url)}
+                  aria-label="Remove media"
+                  className="cursor-pointer text-error hover:opacity-80"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -169,7 +202,7 @@ export function CreatePostForm({
         <div className="flex items-center gap-2">
           <Button
             type="button"
-            disabled={pending || (!caption.trim() && !mediaUrl)}
+            disabled={pending || (!caption.trim() && mediaUrls.length === 0)}
             onClick={() => setShowPicker(true)}
             className="h-8 text-[12px]"
           >

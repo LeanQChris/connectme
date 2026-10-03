@@ -49,9 +49,15 @@ export class TypeOrmScheduledPostRepository implements IScheduledPostRepository 
     return qb.getMany();
   }
 
-  async update(id: string, partial: Partial<ScheduledPost>): Promise<ScheduledPost> {
-    await this.repo.update({ id }, partial);
-    return (await this.repo.findOne({ where: { id } }))!;
+  async update(
+    tenantId: string,
+    id: string,
+    partial: Partial<ScheduledPost>,
+  ): Promise<ScheduledPost> {
+    await this.repo.update({ tenantId, id }, partial);
+    const updated = await this.repo.findOne({ where: { tenantId, id } });
+    if (!updated) throw new Error(`Scheduled post ${id} not found for tenant.`);
+    return updated;
   }
 
   async findDue(

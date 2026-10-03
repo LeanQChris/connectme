@@ -197,10 +197,13 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
           channelStatus={channelStatus}
           onSave={() =>
             saveChannel(
-              { telegramBotToken: telegramForm.telegramBotToken },
+              {
+                telegramBotToken: telegramForm.telegramBotToken,
+                telegramChannelId: telegramForm.telegramChannelId,
+              },
               "telegram",
               "Telegram bot token saved successfully!",
-              () => setTelegramForm({ telegramBotToken: "" }),
+              () => setTelegramForm({ telegramBotToken: "", telegramChannelId: "" }),
             )
           }
           onRegisterWebhook={registerTelegram}
@@ -221,10 +224,16 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
               {
                 discordBotToken: discordForm.discordBotToken,
                 discordPublicKey: discordForm.discordPublicKey,
+                discordChannelId: discordForm.discordChannelId,
               },
               "discord",
               "Discord settings saved successfully!",
-              () => setDiscordForm({ discordBotToken: "", discordPublicKey: "" }),
+              () =>
+                setDiscordForm({
+                  discordBotToken: "",
+                  discordPublicKey: "",
+                  discordChannelId: "",
+                }),
             )
           }
           onRegisterSlash={registerDiscord}

@@ -22,6 +22,8 @@ import {
   DiscordClient,
   FacebookPostClient,
   InstagramPostClient,
+  TelegramPostClient,
+  DiscordPostClient,
 } from "@connectme/channels";
 import { WebhookInboundProcessor } from "./processors/webhook-inbound.processor";
 import { OutboundSchedulerProcessor } from "./processors/outbound-scheduler.processor";
@@ -89,6 +91,8 @@ import { validateEnv } from "./env.validation";
     DiscordClient,
     FacebookPostClient,
     InstagramPostClient,
+    TelegramPostClient,
+    DiscordPostClient,
 
     // Processors
     WebhookInboundProcessor,

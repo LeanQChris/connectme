@@ -4,6 +4,8 @@ import { CreateScheduledPostDto } from "@connectme/contracts";
 import {
   FacebookPostClient,
   InstagramPostClient,
+  TelegramPostClient,
+  DiscordPostClient,
   PostPublishContext,
 } from "@connectme/channels";
 import { ITenantRepository } from "../../../domain/repositories/i-tenant.repository";
@@ -33,6 +35,8 @@ export class CreateScheduledPostUseCase {
     private readonly schedulingQueue: SchedulingQueueService,
     private readonly facebookPostClient: FacebookPostClient,
     private readonly instagramPostClient: InstagramPostClient,
+    private readonly telegramPostClient: TelegramPostClient,
+    private readonly discordPostClient: DiscordPostClient,
   ) {}
 
   async execute(input: CreateScheduledPostInput) {
@@ -49,12 +53,14 @@ export class CreateScheduledPostUseCase {
         ? this.facebookPostClient
         : channel === ChannelType.INSTAGRAM
           ? this.instagramPostClient
-          : null;
+          : channel === ChannelType.TELEGRAM
+            ? this.telegramPostClient
+            : channel === ChannelType.DISCORD
+              ? this.discordPostClient
+              : null;
 
     if (!client) {
-      throw new BadRequestException(
-        "Post scheduling is only supported for Facebook Pages and Instagram accounts.",
-      );
+      throw new BadRequestException("Post scheduling is not supported for this channel.");
     }
 
     const fireAt = new Date(dto.scheduledFor);
@@ -103,7 +109,7 @@ export class CreateScheduledPostUseCase {
     if (client.nativeScheduling) {
       try {
         const result = await client.schedule(ctx);
-        await this.scheduledRepo.update(row.id, {
+        await this.scheduledRepo.update(tenantId, row.id, {
           status: ScheduledPostStatus.SCHEDULED,
           platformPostId: result.platformPostId,
           attempts: row.attempts + 1,
@@ -111,7 +117,7 @@ export class CreateScheduledPostUseCase {
         row.status = ScheduledPostStatus.SCHEDULED;
         row.platformPostId = result.platformPostId;
       } catch (err: any) {
-        await this.scheduledRepo.update(row.id, {
+        await this.scheduledRepo.update(tenantId, row.id, {
           status: ScheduledPostStatus.FAILED,
           lastError: err?.message || "Native scheduling failed",
         });

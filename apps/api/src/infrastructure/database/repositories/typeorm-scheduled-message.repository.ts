@@ -46,9 +46,15 @@ export class TypeOrmScheduledMessageRepository implements IScheduledMessageRepos
     return qb.getMany();
   }
 
-  async update(id: string, partial: Partial<ScheduledMessage>): Promise<ScheduledMessage> {
-    await this.repo.update({ id }, partial);
-    return (await this.repo.findOne({ where: { id } }))!;
+  async update(
+    tenantId: string,
+    id: string,
+    partial: Partial<ScheduledMessage>,
+  ): Promise<ScheduledMessage> {
+    await this.repo.update({ tenantId, id }, partial);
+    const updated = await this.repo.findOne({ where: { tenantId, id } });
+    if (!updated) throw new Error(`Scheduled message ${id} not found for tenant.`);
+    return updated;
   }
 
   async findDue(now: Date, limit: number): Promise<ScheduledMessage[]> {

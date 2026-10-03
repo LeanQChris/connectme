@@ -76,7 +76,7 @@ export class SendReplyUseCase {
     const credentials = await this.tenantRepo.getCredentials(input.tenantId);
 
     // Save preliminary outbound message
-    const msg = await this.messageRepo.createMessage({
+    const msg = await this.messageRepo.createMessage(input.tenantId, {
       conversationId: conv.id,
       direction: MessageDirection.OUTBOUND,
       channel: conv.channel,
@@ -143,12 +143,12 @@ export class SendReplyUseCase {
 
       msg.externalId = externalId;
       msg.status = MessageStatus.DELIVERED;
-      await this.messageRepo.updateStatus(msg.id, MessageStatus.DELIVERED);
+      await this.messageRepo.updateStatus(input.tenantId, msg.id, MessageStatus.DELIVERED);
     } catch (err: any) {
       delivered = false;
       msg.status = MessageStatus.FAILED;
       msg.errorDetail = err.message || "Failed to dispatch message to channel";
-      await this.messageRepo.updateStatus(msg.id, MessageStatus.FAILED, msg.errorDetail ?? undefined);
+      await this.messageRepo.updateStatus(input.tenantId, msg.id, MessageStatus.FAILED, msg.errorDetail ?? undefined);
     }
 
     if (delivered) {

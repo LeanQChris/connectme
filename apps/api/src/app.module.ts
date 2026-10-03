@@ -46,6 +46,8 @@ import {
   DiscordClient,
   FacebookPostClient,
   InstagramPostClient,
+  TelegramPostClient,
+  DiscordPostClient,
 } from "@connectme/channels";
 
 // Gateways
@@ -181,6 +183,8 @@ import { HealthController } from "./presentation/controllers/health.controller";
     DiscordClient,
     FacebookPostClient,
     InstagramPostClient,
+    TelegramPostClient,
+    DiscordPostClient,
 
     // Realtime Gateway
     InboxRealtimeGateway,

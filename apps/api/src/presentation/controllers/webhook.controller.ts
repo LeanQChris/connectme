@@ -121,7 +121,11 @@ export class WebhookController {
     @Headers("x-telegram-bot-api-secret-token") secretHeader: string,
     @Body() update: TelegramWebhookUpdate,
   ) {
-    const account = await this.tenantRepo.findAccountByExternalId(ChannelType.TELEGRAM, botId);
+    const account = await this.tenantRepo.findAccountByExternalId(
+      ChannelType.TELEGRAM,
+      botId,
+      "telegram",
+    );
     if (!account?.tenantId) {
       throw new ForbiddenException("Unknown Telegram bot");
     }
@@ -206,6 +210,7 @@ export class WebhookController {
       const account = await this.tenantRepo.findAccountByExternalId(
         ChannelType.DISCORD,
         applicationId,
+        "discord",
       );
       if (account?.tenantId) {
         const creds = await this.tenantRepo.getCredentials(account.tenantId);

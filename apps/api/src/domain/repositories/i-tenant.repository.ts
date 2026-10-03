@@ -10,7 +10,11 @@ export interface ITenantRepository {
   findAccountById(tenantId: string, accountId: string): Promise<ConnectedAccount | null>;
   saveConnectedAccount(account: Partial<ConnectedAccount>): Promise<ConnectedAccount>;
   removeConnectedAccount(tenantId: string, accountId: string): Promise<void>;
-  findAccountByExternalId(channel: ChannelType, externalId: string): Promise<ConnectedAccount | null>;
+  findAccountByExternalId(
+    channel: ChannelType,
+    externalId: string,
+    provider?: string,
+  ): Promise<ConnectedAccount | null>;
   findUserById(userId: string): Promise<User | null>;
   saveUser(user: Partial<User>): Promise<User>;
 }

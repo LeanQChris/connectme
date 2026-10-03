@@ -90,6 +90,12 @@ export class TypeOrmTenantRepository implements ITenantRepository {
   }
 
   async saveConnectedAccount(account: Partial<ConnectedAccount>): Promise<ConnectedAccount> {
+    if (account.id && account.tenantId) {
+      const existing = await this.accountRepo.findOne({
+        where: { id: account.id, tenantId: account.tenantId },
+      });
+      if (!existing) throw new Error("Connected account not found for tenant.");
+    }
     return this.accountRepo.save(account);
   }
 
@@ -97,8 +103,14 @@ export class TypeOrmTenantRepository implements ITenantRepository {
     await this.accountRepo.delete({ id: accountId, tenantId });
   }
 
-  async findAccountByExternalId(channel: ChannelType, externalId: string): Promise<ConnectedAccount | null> {
-    return this.accountRepo.findOne({ where: { channel, externalId, isActive: true } });
+  async findAccountByExternalId(
+    channel: ChannelType,
+    externalId: string,
+    provider?: string,
+  ): Promise<ConnectedAccount | null> {
+    return this.accountRepo.findOne({
+      where: { channel, externalId, isActive: true, ...(provider ? { provider } : {}) },
+    });
   }
 
   async findUserById(userId: string): Promise<User | null> {

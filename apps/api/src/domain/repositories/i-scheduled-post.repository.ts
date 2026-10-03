@@ -34,6 +34,6 @@ export interface IScheduledPostRepository {
   create(data: CreateScheduledPostData): Promise<ScheduledPost>;
   findById(tenantId: string, id: string): Promise<ScheduledPost | null>;
   list(tenantId: string, filter?: ScheduledPostFilter): Promise<ScheduledPost[]>;
-  update(id: string, partial: Partial<ScheduledPost>): Promise<ScheduledPost>;
+  update(tenantId: string, id: string, partial: Partial<ScheduledPost>): Promise<ScheduledPost>;
   findDue(now: Date, statuses: ScheduledPostStatus[], limit: number): Promise<ScheduledPost[]>;
 }

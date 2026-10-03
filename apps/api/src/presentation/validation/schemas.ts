@@ -41,7 +41,9 @@ export const ProviderSecretsSchema = z
     webhookVerifyToken: z.string().max(256).optional(),
     pageAccessToken: z.string().max(4096).optional(),
     telegramBotToken: z.string().max(512).optional(),
+    telegramChannelId: z.string().max(64).optional(),
     discordBotToken: z.string().max(512).optional(),
+    discordChannelId: z.string().max(64).optional(),
     discordPublicKey: z.string().max(128).optional(),
     graphVersion: z.string().max(16).optional(),
   })

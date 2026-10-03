@@ -1,4 +1,4 @@
-import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
+import { Controller, Get, Inject, ServiceUnavailableException } from "@nestjs/common";
 import { SkipThrottle } from "@nestjs/throttler";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { DataSource } from "typeorm";
@@ -21,6 +21,7 @@ export class HealthController {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    @Inject(RedisService)
     private readonly redis: RedisService,
   ) {}
 

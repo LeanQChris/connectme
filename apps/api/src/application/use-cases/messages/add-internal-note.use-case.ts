@@ -27,7 +27,7 @@ export class AddInternalNoteUseCase {
       throw new NotFoundException("Conversation not found");
     }
 
-    const note = await this.messageRepo.createMessage({
+    const note = await this.messageRepo.createMessage(input.tenantId, {
       conversationId: conv.id,
       direction: MessageDirection.INTERNAL_NOTE,
       channel: conv.channel,

@@ -1,6 +1,11 @@
 import { Injectable, BadRequestException, NotFoundException, Inject } from "@nestjs/common";
 import { ChannelType, ScheduleMode, ScheduledPostStatus } from "@connectme/database";
-import { FacebookPostClient, InstagramPostClient } from "@connectme/channels";
+import {
+  FacebookPostClient,
+  InstagramPostClient,
+  TelegramPostClient,
+  DiscordPostClient,
+} from "@connectme/channels";
 import { ITenantRepository } from "../../../domain/repositories/i-tenant.repository";
 import { IScheduledPostRepository } from "../../../domain/repositories/i-scheduled-post.repository";
 import { SchedulingQueueService } from "../../../infrastructure/queue/scheduling-queue.service";
@@ -15,6 +20,8 @@ export class CancelScheduledPostUseCase {
     private readonly schedulingQueue: SchedulingQueueService,
     private readonly facebookPostClient: FacebookPostClient,
     private readonly instagramPostClient: InstagramPostClient,
+    private readonly telegramPostClient: TelegramPostClient,
+    private readonly discordPostClient: DiscordPostClient,
   ) {}
 
   async execute(tenantId: string, id: string) {
@@ -37,7 +44,11 @@ export class CancelScheduledPostUseCase {
             ? this.facebookPostClient
             : row.channel === ChannelType.INSTAGRAM
               ? this.instagramPostClient
-              : null;
+              : row.channel === ChannelType.TELEGRAM
+                ? this.telegramPostClient
+                : row.channel === ChannelType.DISCORD
+                  ? this.discordPostClient
+                  : null;
         if (client) {
           await client
             .cancel(
@@ -54,6 +65,6 @@ export class CancelScheduledPostUseCase {
     }
 
     await this.schedulingQueue.remove(row.id);
-    return this.repo.update(row.id, { status: ScheduledPostStatus.CANCELED });
+    return this.repo.update(tenantId, row.id, { status: ScheduledPostStatus.CANCELED });
   }
 }

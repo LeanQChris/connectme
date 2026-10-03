@@ -301,7 +301,7 @@ All handlers resolve `tenantId` via `x-tenant-id` (same pattern as `apps/api/src
 | **TikTok** | Content Posting audit, no native scheduling. |
 | **Threads / YouTube / Pinterest** | Lower demand; add after core Meta + DM scheduling ships. |
 | **WhatsApp** | No feed/status publishing in Cloud API. |
-| **Telegram / Discord** | Excluded from this plan by request (both are the easiest to add later — no messaging windows). |
+| **Telegram / Discord** | Implemented as system-side post scheduling to a registered channel target (bots + `telegram-channel` / `discord-channel` accounts); no messaging windows. |
 
 ---
 
@@ -354,6 +354,11 @@ All handlers resolve `tenantId` via `x-tenant-id` (same pattern as `apps/api/src
 - Composer scheduling: clock action in `reply-box.tsx` → `schedule-picker` → `POST /api/scheduled-messages`; wired through `use-reply-box` → `use-inbox-controller` → `thread` → `inbox-module`.
 - Realtime invalidation on `scheduled:update`; create/edit/cancel/retry-with-edit flows.
 
+### Phase 3 — extensions (complete)
+
+- **Carousel / multi-media**: `CreateScheduledPostDtoSchema` rejects `<2` or `>10` carousel items and media-less image/video/reel posts. Instagram builds child containers (`is_carousel_item`) + a parent `CAROUSEL` container; Facebook uploads each photo unpublished then attaches them via `attached_media` on one feed post. The composer accepts multiple files and derives `kind` (`carousel` when >1).
+- **Telegram / Discord post scheduling** (system-side, no native scheduling): `TelegramPostClient` (bot token + target chat id) and `DiscordPostClient` (bot token + target channel id), selected by channel in create/update/cancel use cases and the worker. Post targets are registered as `ConnectedAccount`s with providers `telegram-channel` / `discord-channel` via the Telegram/Discord settings forms (`telegramChannelId`, `discordChannelId`). Webhook routing lookups are provider-scoped so a post target can never shadow the inbound bot account.
+
 ### Remaining external prerequisites (not code)
 
 - **Meta App Review**: `pages_manage_posts`, `instagram_content_publish`, `instagram_manage_messages`, `pages_messaging`.
@@ -365,4 +370,4 @@ All handlers resolve `tenantId` via `x-tenant-id` (same pattern as `apps/api/src
 
 - Facebook Pages are modeled as `ChannelType.MESSENGER`; Page post scheduling uses the MESSENGER channel + `FacebookPostClient`.
 - Instagram has no native scheduling (containers expire ~24h), so posts are published system-side at fire time.
-- Post scheduling supports text + single image/video in this phase; carousels/multi-media are a follow-up.
+- Post scheduling supports text, single image/video, and carousels/multi-media (Facebook + Instagram), plus Telegram/Discord channel targets.

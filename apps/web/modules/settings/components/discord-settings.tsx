@@ -9,11 +9,13 @@ interface DiscordSettingsProps {
   discordForm: {
     discordBotToken: string;
     discordPublicKey: string;
+    discordChannelId: string;
   };
   setDiscordForm: React.Dispatch<
     React.SetStateAction<{
       discordBotToken: string;
       discordPublicKey: string;
+      discordChannelId: string;
     }>
   >;
   visibleSecrets: Record<string, boolean>;
@@ -104,6 +106,24 @@ export function DiscordSettings({
               placeholder="General Information → Public Key"
             />
             <span className="text-[11px] text-mute">Used to verify Discord interaction signatures</span>
+          </div>
+
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label className="text-[12.5px] font-medium text-ink">
+              Channel ID for scheduled posts
+            </label>
+            <Input
+              type="text"
+              value={discordForm.discordChannelId}
+              onChange={(e) =>
+                setDiscordForm((prev) => ({ ...prev, discordChannelId: e.target.value }))
+              }
+              placeholder="e.g. 123456789012345678"
+            />
+            <span className="text-[11px] text-mute">
+              Invite the bot to the server, then paste the target channel id. Leave blank to keep
+              the current target.
+            </span>
           </div>
         </div>
 

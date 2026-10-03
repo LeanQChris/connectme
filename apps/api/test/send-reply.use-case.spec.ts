@@ -40,7 +40,7 @@ function build(options: {
       calls.created = true;
       return { id: "msg-1", status: MessageStatus.SENT };
     },
-    updateStatus: async (_id: string, status: MessageStatus) => {
+    updateStatus: async (_tenantId: string, _id: string, status: MessageStatus) => {
       calls.finalStatus = status;
     },
   };

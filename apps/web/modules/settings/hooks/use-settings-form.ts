@@ -53,11 +53,13 @@ export function useSettingsForm(initial: SettingsPayload) {
 
   const [telegramForm, setTelegramForm] = useState({
     telegramBotToken: "",
+    telegramChannelId: "",
   });
 
   const [discordForm, setDiscordForm] = useState({
     discordBotToken: "",
     discordPublicKey: "",
+    discordChannelId: "",
   });
 
   const [showManualMeta, setShowManualMeta] = useState(false);

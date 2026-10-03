@@ -23,6 +23,6 @@ export class CancelScheduledMessageUseCase {
     }
 
     await this.schedulingQueue.remove(row.id);
-    return this.repo.update(row.id, { status: ScheduledMessageStatus.CANCELED });
+    return this.repo.update(tenantId, row.id, { status: ScheduledMessageStatus.CANCELED });
   }
 }

@@ -10,8 +10,11 @@ interface TelegramSettingsProps {
   isTelegramConnected: boolean;
   telegramForm: {
     telegramBotToken: string;
+    telegramChannelId: string;
   };
-  setTelegramForm: React.Dispatch<React.SetStateAction<{ telegramBotToken: string }>>;
+  setTelegramForm: React.Dispatch<
+    React.SetStateAction<{ telegramBotToken: string; telegramChannelId: string }>
+  >;
   visibleSecrets: Record<string, boolean>;
   toggleSecret: (key: string) => void;
   busy: string | null;
@@ -77,7 +80,9 @@ export function TelegramSettings({
               <Input
                 type={visibleSecrets.telegramBotToken ? "text" : "password"}
                 value={telegramForm.telegramBotToken}
-                onChange={(e) => setTelegramForm({ telegramBotToken: e.target.value })}
+                onChange={(e) =>
+                  setTelegramForm((prev) => ({ ...prev, telegramBotToken: e.target.value }))
+                }
                 placeholder={isTelegramConnected ? "••••••••••••  (Active & Encrypted)" : "123456789:ABCdefGHIjklMNOpqr..."}
                 className="pr-10"
               />
@@ -94,7 +99,25 @@ export function TelegramSettings({
               <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-ink underline">
                 @BotFather
               </a>{" "}
-              on Telegram
+               on Telegram
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12.5px] font-medium text-ink">
+              Channel / Chat ID for scheduled posts
+            </label>
+            <Input
+              type="text"
+              value={telegramForm.telegramChannelId}
+              onChange={(e) =>
+                setTelegramForm((prev) => ({ ...prev, telegramChannelId: e.target.value }))
+              }
+              placeholder="e.g. -1001234567890"
+            />
+            <span className="text-[11px] text-mute">
+              Add the bot as an admin of the target channel, then paste its chat id. Leave blank to
+              keep the current target.
             </span>
           </div>
 

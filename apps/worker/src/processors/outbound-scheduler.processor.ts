@@ -26,6 +26,8 @@ import {
   DiscordClient,
   FacebookPostClient,
   InstagramPostClient,
+  TelegramPostClient,
+  DiscordPostClient,
   ChannelSendContext,
   PostPublishContext,
 } from "@connectme/channels";
@@ -65,6 +67,8 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
     private readonly discordClient: DiscordClient,
     private readonly facebookPostClient: FacebookPostClient,
     private readonly instagramPostClient: InstagramPostClient,
+    private readonly telegramPostClient: TelegramPostClient,
+    private readonly discordPostClient: DiscordPostClient,
     private readonly realtime: RealtimePublisher,
   ) {
     super();
@@ -162,11 +166,11 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
     }
 
     const conv = await this.conversationRepo.findOne({
-      where: { id: row.conversationId },
+      where: { id: row.conversationId, tenantId: data.tenantId },
       relations: ["contact", "account"],
     });
     if (!conv || !conv.contact) {
-      await this.scheduledMessageRepo.update(row.id, {
+      await this.scheduledMessageRepo.update({ id: row.id, tenantId: data.tenantId }, {
         status: ScheduledMessageStatus.FAILED,
         lastError: "Conversation or contact missing.",
       });
@@ -184,7 +188,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
         } else {
           const detail =
             "The 24-hour reply window is closed for this contact. Wait for an inbound message or use an approved template.";
-          await this.scheduledMessageRepo.update(row.id, {
+          await this.scheduledMessageRepo.update({ id: row.id, tenantId: data.tenantId }, {
             status: ScheduledMessageStatus.FAILED,
             lastError: detail,
           });
@@ -261,7 +265,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       conv.lastMessageAt = new Date();
       await this.conversationRepo.save(conv);
 
-      await this.scheduledMessageRepo.update(row.id, {
+      await this.scheduledMessageRepo.update({ id: row.id, tenantId: data.tenantId }, {
         status: ScheduledMessageStatus.SENT,
         externalId,
         attempts: row.attempts + 1,
@@ -285,7 +289,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
 
       this.logger.log(`Scheduled message ${row.id} sent (externalId=${externalId}).`);
     } catch (err: any) {
-      await this.recordFailure(this.scheduledMessageRepo, row.id, job, row.attempts, err);
+      await this.recordFailure(this.scheduledMessageRepo, data.tenantId, row.id, job, row.attempts, err);
       await this.realtime.publish({
         type: "scheduled:update",
         tenantId: data.tenantId,
@@ -321,7 +325,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       ? await this.accountRepo.findOne({ where: { id: row.accountId, tenantId: data.tenantId } })
       : null;
     if (!account) {
-      await this.scheduledPostRepo.update(row.id, {
+      await this.scheduledPostRepo.update({ id: row.id, tenantId: data.tenantId }, {
         status: ScheduledPostStatus.FAILED,
         lastError: "Connected account missing.",
       });
@@ -333,9 +337,13 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
         ? this.facebookPostClient
         : row.channel === ChannelType.INSTAGRAM
           ? this.instagramPostClient
-          : null;
+          : row.channel === ChannelType.TELEGRAM
+            ? this.telegramPostClient
+            : row.channel === ChannelType.DISCORD
+              ? this.discordPostClient
+              : null;
     if (!client) {
-      await this.scheduledPostRepo.update(row.id, {
+      await this.scheduledPostRepo.update({ id: row.id, tenantId: data.tenantId }, {
         status: ScheduledPostStatus.FAILED,
         lastError: "Unsupported channel for post scheduling.",
       });
@@ -359,7 +367,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
           ? await client.isPublished(ctx, row.platformPostId)
           : false;
         if (published) {
-          await this.scheduledPostRepo.update(row.id, { status: ScheduledPostStatus.PUBLISHED });
+          await this.scheduledPostRepo.update({ id: row.id, tenantId: data.tenantId }, { status: ScheduledPostStatus.PUBLISHED });
           await this.realtime.publish({
             type: "scheduled:update",
             tenantId: data.tenantId,
@@ -371,7 +379,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
         const graceMs = 30 * 60 * 1000;
         if (Date.now() > new Date(row.scheduledFor).getTime() + graceMs) {
           const detail = "Platform did not confirm the native scheduled post within 30 minutes.";
-          await this.scheduledPostRepo.update(row.id, {
+          await this.scheduledPostRepo.update({ id: row.id, tenantId: data.tenantId }, {
             status: ScheduledPostStatus.FAILED,
             lastError: detail,
           });
@@ -381,7 +389,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       }
 
       const result = await client.publishNow(ctx);
-      await this.scheduledPostRepo.update(row.id, {
+      await this.scheduledPostRepo.update({ id: row.id, tenantId: data.tenantId }, {
         status: ScheduledPostStatus.PUBLISHED,
         platformPostId: result.platformPostId,
         platformContainerId: result.platformContainerId,
@@ -395,7 +403,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       this.logger.log(`Scheduled post ${row.id} published (id=${result.platformPostId}).`);
     } catch (err: any) {
       if (err instanceof UnrecoverableError) throw err;
-      await this.recordFailure(this.scheduledPostRepo, row.id, job, row.attempts, err);
+      await this.recordFailure(this.scheduledPostRepo, data.tenantId, row.id, job, row.attempts, err);
       await this.realtime.publish({
         type: "scheduled:update",
         tenantId: data.tenantId,
@@ -422,6 +430,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
 
   private async recordFailure(
     repo: Repository<any>,
+    tenantId: string,
     id: string,
     job: Job,
     attemptsBefore: number,
@@ -429,7 +438,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
   ): Promise<void> {
     const isFinal = this.isFinalAttempt(job);
     const detail = err?.message || "Dispatch failed";
-    await repo.update(id, {
+    await repo.update({ id, tenantId }, {
       attempts: attemptsBefore + 1,
       lastError: detail,
       ...(isFinal ? { status: "FAILED" } : {}),

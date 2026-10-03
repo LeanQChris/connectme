@@ -10,4 +10,6 @@ export * from "./meta/instagram.client";
 export * from "./meta/facebook-post.client";
 export * from "./meta/instagram-post.client";
 export * from "./telegram/telegram.client";
+export * from "./telegram/telegram-post.client";
 export * from "./discord/discord.client";
+export * from "./discord/discord-post.client";

@@ -76,18 +76,47 @@ export interface CreateScheduledPostDto {
   createdBy?: string;
 }
 
+const MEDIA_URLS_SCHEMA = z.array(z.string().max(2048)).max(10);
+
 export const CreateScheduledPostDtoSchema = z
   .object({
     accountId: z.string().min(1),
     channel: ChannelSchema.optional(),
     kind: ScheduledPostKindSchema.optional(),
     caption: z.string().max(2200).optional(),
-    mediaUrls: z.array(z.string().max(2048)).max(10).optional(),
+    mediaUrls: MEDIA_URLS_SCHEMA.optional(),
     scheduledFor: z.string().datetime({ offset: true }),
     timezone: z.string().max(64).optional(),
     createdBy: z.string().max(128).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    const mediaCount = value.mediaUrls?.length ?? 0;
+    if (value.kind === "carousel" && mediaCount < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["mediaUrls"],
+        message: "A carousel requires at least 2 media items.",
+      });
+    }
+    if (value.kind === "carousel" && mediaCount > 10) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["mediaUrls"],
+        message: "A carousel supports at most 10 media items.",
+      });
+    }
+    if (
+      (value.kind === "image" || value.kind === "video" || value.kind === "reel") &&
+      mediaCount < 1
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["mediaUrls"],
+        message: `${value.kind} posts require at least one media item.`,
+      });
+    }
+  });
 
 export interface UpdateScheduledPostDto {
   caption?: string;

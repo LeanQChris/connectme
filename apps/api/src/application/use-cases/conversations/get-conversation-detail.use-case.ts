@@ -35,6 +35,7 @@ export class GetConversationDetailUseCase {
     await this.convRepo.markAsRead(tenantId, conversationId);
 
     const messages = await this.messageRepo.findMessagesPage(
+      tenantId,
       conversationId,
       options.limit ?? 50,
       options.before,

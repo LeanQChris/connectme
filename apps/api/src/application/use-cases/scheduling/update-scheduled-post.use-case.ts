@@ -1,7 +1,13 @@
 import { Injectable, BadRequestException, NotFoundException, Inject, Logger } from "@nestjs/common";
 import { ChannelType, ScheduleMode, ScheduledPostStatus } from "@connectme/database";
 import { UpdateScheduledPostDto } from "@connectme/contracts";
-import { FacebookPostClient, InstagramPostClient, PostPublishContext } from "@connectme/channels";
+import {
+  FacebookPostClient,
+  InstagramPostClient,
+  TelegramPostClient,
+  DiscordPostClient,
+  PostPublishContext,
+} from "@connectme/channels";
 import { ITenantRepository } from "../../../domain/repositories/i-tenant.repository";
 import { IScheduledPostRepository } from "../../../domain/repositories/i-scheduled-post.repository";
 import {
@@ -31,6 +37,8 @@ export class UpdateScheduledPostUseCase {
     private readonly schedulingQueue: SchedulingQueueService,
     private readonly facebookPostClient: FacebookPostClient,
     private readonly instagramPostClient: InstagramPostClient,
+    private readonly telegramPostClient: TelegramPostClient,
+    private readonly discordPostClient: DiscordPostClient,
   ) {}
 
   async execute(input: UpdateScheduledPostInput) {
@@ -50,9 +58,13 @@ export class UpdateScheduledPostUseCase {
         ? this.facebookPostClient
         : row.channel === ChannelType.INSTAGRAM
           ? this.instagramPostClient
-          : null;
+          : row.channel === ChannelType.TELEGRAM
+            ? this.telegramPostClient
+            : row.channel === ChannelType.DISCORD
+              ? this.discordPostClient
+              : null;
     if (!client) {
-      throw new BadRequestException("Post scheduling is only supported for Facebook Pages and Instagram.");
+      throw new BadRequestException("Post scheduling is not supported for this channel.");
     }
 
     const fireAt = dto.scheduledFor ? new Date(dto.scheduledFor) : row.scheduledFor;
@@ -116,7 +128,7 @@ export class UpdateScheduledPostUseCase {
     if (client.nativeScheduling) {
       try {
         const result = await client.schedule(ctx);
-        await this.repo.update(row.id, {
+        await this.repo.update(tenantId, row.id, {
           caption: caption ?? null,
           mediaUrls: mediaUrls ?? [],
           scheduledFor: fireAt,
@@ -125,14 +137,14 @@ export class UpdateScheduledPostUseCase {
           lastError: null,
         });
       } catch (err: any) {
-        await this.repo.update(row.id, {
+        await this.repo.update(tenantId, row.id, {
           status: ScheduledPostStatus.FAILED,
           lastError: err?.message || "Native rescheduling failed",
         });
         throw new BadRequestException(err?.message || "Native rescheduling failed");
       }
     } else {
-      await this.repo.update(row.id, {
+      await this.repo.update(tenantId, row.id, {
         caption: caption ?? null,
         mediaUrls: mediaUrls ?? [],
         scheduledFor: fireAt,

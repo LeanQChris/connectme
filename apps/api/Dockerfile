@@ -2,23 +2,21 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json turbo.json ./
-COPY packages/ ./packages/
-COPY apps/api/ ./apps/api/
+COPY . .
 
 RUN npm ci
-RUN npm run build --workspace=@connectme/api
+RUN npx turbo run build --filter=@connectme/api --ui=stream
 
 FROM node:24-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY package*.json ./
-COPY packages/ ./packages/
+COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY apps/api/package.json ./apps/api/package.json
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 
 EXPOSE 4000
 

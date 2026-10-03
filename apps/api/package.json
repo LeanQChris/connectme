@@ -44,9 +44,12 @@
     "@connectme/typescript-config": "*",
     "@nestjs/cli": "^11.0.1",
     "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.2.7",
     "@types/express": "^5.0.0",
     "@types/node": "^20.17.19",
     "@types/pg": "^8.11.11",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.3.1",
     "typescript": "^5.7.3"
   }
 }

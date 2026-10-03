@@ -28,6 +28,6 @@ export interface IScheduledMessageRepository {
   create(data: CreateScheduledMessageData): Promise<ScheduledMessage>;
   findById(tenantId: string, id: string): Promise<ScheduledMessage | null>;
   list(tenantId: string, filter?: ScheduledMessageFilter): Promise<ScheduledMessage[]>;
-  update(id: string, partial: Partial<ScheduledMessage>): Promise<ScheduledMessage>;
+  update(tenantId: string, id: string, partial: Partial<ScheduledMessage>): Promise<ScheduledMessage>;
   findDue(now: Date, limit: number): Promise<ScheduledMessage[]>;
 }

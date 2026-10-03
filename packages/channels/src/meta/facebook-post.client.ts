@@ -50,7 +50,8 @@ export class FacebookPostClient implements IPostClient {
   ): Promise<PostPublishResult> {
     const token = this.token(ctx);
     const pageId = ctx.accountExternalId;
-    const imageUrl = ctx.mediaUrls?.[0];
+    const mediaUrls = ctx.mediaUrls ?? [];
+    const imageUrl = mediaUrls[0];
 
     const body: Record<string, unknown> = scheduledFor
       ? {
@@ -60,7 +61,16 @@ export class FacebookPostClient implements IPostClient {
       : { published: true };
 
     let path: string;
-    if (imageUrl) {
+    if (mediaUrls.length > 1) {
+      // Multi-photo: upload each photo unpublished, then attach them to one feed post.
+      const mediaIds: string[] = [];
+      for (const url of mediaUrls) {
+        mediaIds.push(await this.uploadUnpublishedPhoto(token, pageId, url));
+      }
+      path = `${pageId}/feed`;
+      body.message = ctx.caption || "";
+      body.attached_media = mediaIds.map((id) => ({ media_fbid: id }));
+    } else if (imageUrl) {
       path = `${pageId}/photos`;
       body.url = imageUrl;
       body.caption = ctx.caption || "";
@@ -88,6 +98,27 @@ export class FacebookPostClient implements IPostClient {
       platformPostId: json?.id ?? json?.post_id ?? null,
       nativeScheduled: Boolean(scheduledFor),
     };
+  }
+
+  private async uploadUnpublishedPhoto(
+    token: string,
+    pageId: string,
+    url: string,
+  ): Promise<string> {
+    const res = await fetchWithTimeout(graphUrl(`${pageId}/photos`), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url, published: false }),
+    });
+    const json: any = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.id) {
+      this.logger.error(`Facebook photo upload error: ${JSON.stringify(json)}`);
+      throw new Error(json?.error?.message || "Facebook photo upload failed");
+    }
+    return json.id;
   }
 
   async cancel(ctx: PostPublishContext, platformPostId: string): Promise<void> {

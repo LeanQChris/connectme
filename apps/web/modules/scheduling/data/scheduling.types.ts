@@ -94,11 +94,29 @@ export interface PresignedUpload {
 }
 
 /**
- * Post scheduling is supported for Facebook Pages (native scheduling) and
- * Instagram (system-side). Pages are modeled with the `messenger` channel.
+ * Post scheduling is supported for Facebook Pages (native), Instagram,
+ * Telegram channel targets, and Discord channel targets (all system-side).
+ * Pages are modeled with the `messenger` channel.
  */
-export const POST_SCHEDULABLE_CHANNELS: Channel[] = ["messenger", "instagram"];
+export const POST_CHANNEL_LABELS: Partial<Record<Channel, string>> = {
+  messenger: "Facebook Page",
+  instagram: "Instagram",
+  telegram: "Telegram channel",
+  discord: "Discord channel",
+};
 
-export function isPostSchedulable(channel: Channel): boolean {
-  return POST_SCHEDULABLE_CHANNELS.includes(channel);
+export const POST_SCHEDULABLE_CHANNELS: Channel[] = [
+  "messenger",
+  "instagram",
+  "telegram",
+  "discord",
+];
+
+export function isPostSchedulable(account: { channel: Channel; provider: string }): boolean {
+  if (!POST_SCHEDULABLE_CHANNELS.includes(account.channel)) return false;
+  // A Telegram/Discord bot account is a messaging endpoint; only a registered
+  // channel target can receive scheduled posts.
+  if (account.channel === "telegram") return account.provider === "telegram-channel";
+  if (account.channel === "discord") return account.provider === "discord-channel";
+  return true;
 }
