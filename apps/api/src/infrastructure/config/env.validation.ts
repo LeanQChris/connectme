@@ -8,7 +8,7 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
 
   const required = ["ENCRYPTION_KEY"];
   if (nodeEnv === "production") {
-    required.push("CLERK_SECRET_KEY", "DATABASE_URL");
+    required.push("CLERK_SECRET_KEY", "DATABASE_URL", "REDIS_URL");
     if (!config.CORS_ORIGINS && !config.NEXT_PUBLIC_APP_URL) {
       throw new Error(
         "Production requires CORS_ORIGINS or NEXT_PUBLIC_APP_URL so CORS is not left open.",

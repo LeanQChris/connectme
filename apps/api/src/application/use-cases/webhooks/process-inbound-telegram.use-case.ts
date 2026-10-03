@@ -33,7 +33,9 @@ export class ProcessInboundTelegramUseCase {
   async execute(botId: string, update: TelegramWebhookUpdate) {
     if (!update?.message) return;
 
-    const lockKey = `telegram:${update.update_id}`;
+    // update_id is only unique per bot: scope by botId so different tenants
+    // cannot collide and drop each other's messages.
+    const lockKey = `telegram:${botId}:${update.update_id}`;
     const acquired = await this.idempotency.acquire(lockKey);
     if (!acquired) return; // Deduplicated
 

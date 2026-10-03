@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bullmq";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -25,8 +25,10 @@ import { TypeOrmScheduledPostRepository } from "./infrastructure/database/reposi
 import { TypeOrmScheduledMessageRepository } from "./infrastructure/database/repositories/typeorm-scheduled-message.repository";
 
 // Infrastructure Services
+import { RedisModule } from "./infrastructure/redis/redis.module";
+import { RedisThrottlerStorage } from "./infrastructure/redis/redis-throttler.storage";
 import { RedisService } from "./infrastructure/redis/redis.service";
-import { IdempotencyLockService } from "./infrastructure/redis/idempotency-lock.service";
+import { buildBullConnection } from "./infrastructure/redis/redis-options";
 import {
   SchedulingQueueService,
   OUTBOUND_SCHEDULER_QUEUE,
@@ -92,7 +94,14 @@ import { HealthController } from "./presentation/controllers/health.controller";
       envFilePath: [".env.local", ".env"],
       validate: validateEnv,
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    RedisModule,
+    ThrottlerModule.forRootAsync({
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [{ ttl: 60_000, limit: 120 }],
+        storage: new RedisThrottlerStorage(redis),
+      }),
+    }),
     TypeOrmModule.forRoot({
       type: "postgres",
       url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/connectme",
@@ -121,11 +130,15 @@ import { HealthController } from "./presentation/controllers/health.controller";
       ScheduledPost,
       ScheduledMessage,
     ]),
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT || "6379", 10),
-      },
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: buildBullConnection(
+          config.get<string>("REDIS_URL"),
+          config.get<string>("REDIS_HOST"),
+          config.get<string>("REDIS_PORT"),
+        ),
+      }),
     }),
     BullModule.registerQueue({ name: OUTBOUND_SCHEDULER_QUEUE }),
   ],
@@ -156,9 +169,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     { provide: "IScheduledPostRepository", useClass: TypeOrmScheduledPostRepository },
     { provide: "IScheduledMessageRepository", useClass: TypeOrmScheduledMessageRepository },
 
-    // Infrastructure services
-    RedisService,
-    IdempotencyLockService,
+    // Infrastructure services (RedisService + IdempotencyLockService come from RedisModule)
     AesVaultService,
     SchedulingQueueService,
     S3PresignService,

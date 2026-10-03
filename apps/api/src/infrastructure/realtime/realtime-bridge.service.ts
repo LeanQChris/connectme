@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import Redis from "ioredis";
 import { InboxRealtimeGateway } from "../../presentation/gateways/inbox-realtime.gateway";
+import { RedisService } from "../redis/redis.service";
 import { REALTIME_CHANNEL } from "./realtime.constants";
 
 interface BridgeEvent {
@@ -19,28 +20,31 @@ export class RealtimeBridgeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RealtimeBridgeService.name);
   private subscriber: Redis | null = null;
 
-  constructor(private readonly gateway: InboxRealtimeGateway) {}
+  constructor(
+    private readonly redis: RedisService,
+    private readonly gateway: InboxRealtimeGateway,
+  ) {}
 
   onModuleInit(): void {
-    const url =
-      process.env.REDIS_URL ||
-      `redis://${process.env.REDIS_HOST || "localhost"}:${process.env.REDIS_PORT || "6379"}`;
     try {
-      this.subscriber = new Redis(url, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        retryStrategy: () => null,
+      // A dedicated connection is required: a client in subscriber mode cannot
+      // run normal commands. `duplicate()` reuses the shared client's options.
+      const subscriber = this.redis.duplicate();
+      this.subscriber = subscriber;
+      subscriber.on("error", (err) => {
+        this.logger.warn(`Realtime bridge Redis error: ${err.message}`);
       });
-      this.subscriber.on("error", () => undefined);
-      this.subscriber.on("message", (_channel, message) => this.handle(message));
-      this.subscriber
-        .connect()
-        .then(() => this.subscriber?.subscribe(REALTIME_CHANNEL))
-        .catch(() => {
-          this.logger.warn("Realtime bridge disabled (Redis unavailable).");
-          this.subscriber = null;
+      subscriber.on("message", (_channel, message) => this.handle(message));
+      subscriber.on("ready", () => {
+        subscriber.subscribe(REALTIME_CHANNEL).catch((err) => {
+          this.logger.warn(`Realtime bridge subscribe failed: ${err?.message}`);
         });
-    } catch {
+      });
+      subscriber.connect().catch((err) => {
+        this.logger.warn(`Realtime bridge disabled until Redis returns: ${err?.message}`);
+      });
+    } catch (err: any) {
+      this.logger.warn(`Realtime bridge disabled (${err?.message}).`);
       this.subscriber = null;
     }
   }

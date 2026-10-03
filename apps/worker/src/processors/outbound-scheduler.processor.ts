@@ -72,10 +72,10 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
 
   async onModuleInit(): Promise<void> {
     try {
-      await this.queue.add(
+      await this.queue.upsertJobScheduler(
         "reconcile",
-        {},
-        { repeat: { every: 5 * 60_000 }, jobId: "reconcile", removeOnComplete: true },
+        { every: 5 * 60_000 },
+        { name: "reconcile", data: {}, opts: { removeOnComplete: true } },
       );
     } catch (err: any) {
       this.logger.warn(`Failed to register reconcile job: ${err?.message}`);

@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import Redis from "ioredis";
+import { buildRedisOptions, resolveRedisUrl } from "../redis/redis-options";
 
 export const REALTIME_CHANNEL = "connectme:realtime";
 
@@ -11,43 +12,34 @@ export interface RealtimeEvent {
 
 /**
  * Publishes realtime events onto Redis so the API's websocket gateway can
- * broadcast them to connected clients. No-op (with a warning) if Redis is down.
+ * broadcast them to connected clients. Best-effort: skips (with a warning) if
+ * Redis is down; reconnects automatically when it returns.
  */
 @Injectable()
 export class RealtimePublisher implements OnModuleDestroy {
   private readonly logger = new Logger(RealtimePublisher.name);
-  private client: Redis | null = null;
+  private readonly client: Redis;
 
   constructor() {
-    const url =
-      process.env.REDIS_URL ||
-      `redis://${process.env.REDIS_HOST || "localhost"}:${process.env.REDIS_PORT || "6379"}`;
-    try {
-      this.client = new Redis(url, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        retryStrategy: () => null,
-      });
-      this.client.connect().catch(() => {
-        this.client = null;
-      });
-    } catch {
-      this.client = null;
-    }
+    this.client = new Redis(resolveRedisUrl(), buildRedisOptions());
+    // Required: an unhandled "error" event would crash the process.
+    this.client.on("error", (err) => {
+      this.logger.warn(`Realtime publisher Redis error: ${err.message}`);
+    });
+    this.client.connect().catch((err) => {
+      this.logger.warn(`Realtime publisher offline until Redis returns: ${err?.message}`);
+    });
   }
 
   async publish(event: RealtimeEvent): Promise<void> {
-    if (!this.client) return;
     try {
       await this.client.publish(REALTIME_CHANNEL, JSON.stringify(event));
-    } catch {
-      // best-effort; realtime is non-critical
+    } catch (err: any) {
+      this.logger.warn(`Realtime publish skipped: ${err?.message}`);
     }
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.client) {
-      await this.client.quit().catch(() => undefined);
-    }
+    await this.client.quit().catch(() => undefined);
   }
 }

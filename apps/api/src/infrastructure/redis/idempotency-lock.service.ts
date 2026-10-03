@@ -1,5 +1,8 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { RedisService } from "./redis.service";
+
+/** Webhook providers redeliver for a long time; keep dedup keys well past that. */
+const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
 
 @Injectable()
 export class IdempotencyLockService {
@@ -8,20 +11,26 @@ export class IdempotencyLockService {
   constructor(private readonly redis: RedisService) {}
 
   /**
-   * Acquire a lock for the given identifier (e.g. wamid, mid, or telegram update_id).
+   * Acquire a lock for the given identifier (e.g. wamid, mid, telegram update_id).
    * Returns true if lock was acquired (first time seeing this event), false if duplicate.
+   *
+   * Fails closed: if the shared store is unreachable we throw so the caller
+   * rejects the request (and the provider retries) rather than risk processing
+   * a duplicate on another replica.
    */
-  async acquire(key: string, ttlSeconds = 120): Promise<boolean> {
+  async acquire(key: string, ttlSeconds: number = DEFAULT_TTL_SECONDS): Promise<boolean> {
     const lockKey = `idemp:${key}`;
-    const acquired = await this.redis.setNx(lockKey, "1", ttlSeconds);
-    if (!acquired) {
-      this.logger.debug(`Duplicate webhook or event detected for lock key: ${lockKey}`);
+    try {
+      const acquired = await this.redis.setNx(lockKey, "1", ttlSeconds);
+      if (!acquired) {
+        this.logger.debug(`Duplicate webhook or event detected for lock key: ${lockKey}`);
+      }
+      return acquired;
+    } catch (err: any) {
+      this.logger.error(`Idempotency store unavailable for ${lockKey}: ${err?.message}`);
+      throw new ServiceUnavailableException(
+        "Idempotency store temporarily unavailable; retry later.",
+      );
     }
-    return acquired;
-  }
-
-  async release(key: string): Promise<void> {
-    const lockKey = `idemp:${key}`;
-    await this.redis.del(lockKey);
   }
 }

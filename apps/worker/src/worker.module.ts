@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bullmq";
 import {
@@ -27,6 +27,7 @@ import { WebhookInboundProcessor } from "./processors/webhook-inbound.processor"
 import { OutboundSchedulerProcessor } from "./processors/outbound-scheduler.processor";
 import { OUTBOUND_SCHEDULER_QUEUE } from "./queue.constants";
 import { RealtimePublisher } from "./realtime/realtime-publisher";
+import { buildBullConnection } from "./redis/redis-options";
 import { validateEnv } from "./env.validation";
 
 @Module({
@@ -62,11 +63,15 @@ import { validateEnv } from "./env.validation";
       ScheduledPost,
       ScheduledMessage,
     ]),
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT || "6379", 10),
-      },
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: buildBullConnection(
+          config.get<string>("REDIS_URL"),
+          config.get<string>("REDIS_HOST"),
+          config.get<string>("REDIS_PORT"),
+        ),
+      }),
     }),
     BullModule.registerQueue({ name: "inbound-webhooks" }),
     BullModule.registerQueue({ name: OUTBOUND_SCHEDULER_QUEUE }),

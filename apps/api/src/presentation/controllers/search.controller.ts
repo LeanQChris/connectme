@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Inject, Query } from "@nestjs/common";
 import { IConversationRepository } from "../../domain/repositories/i-conversation.repository";
 import { IMessageRepository } from "../../domain/repositories/i-message.repository";
 import { MessagingWindowVO } from "../../domain/value-objects/messaging-window.vo";
@@ -8,7 +8,9 @@ import { TenantId } from "../auth/tenant-id.decorator";
 @Controller("api/search")
 export class SearchController {
   constructor(
+    @Inject("IConversationRepository")
     private readonly convRepo: IConversationRepository,
+    @Inject("IMessageRepository")
     private readonly messageRepo: IMessageRepository,
   ) {}
 

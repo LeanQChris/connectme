@@ -16,6 +16,7 @@ export interface ScheduledJobData {
 }
 
 const READY_TIMEOUT_MS = 5000;
+const RETRY_READY_TIMEOUT_MS = 2000;
 
 /**
  * BullMQ producer for time-delayed outbound work. Job id is the scheduled
@@ -37,12 +38,7 @@ export class SchedulingQueueService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     try {
-      await Promise.race([
-        this.queue.waitUntilReady(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Redis connection timed out")), READY_TIMEOUT_MS),
-        ),
-      ]);
+      await this.waitUntilReady(READY_TIMEOUT_MS);
       this.ready = true;
       this.logger.log(`Queue "${OUTBOUND_SCHEDULER_QUEUE}" ready.`);
     } catch (err: any) {
@@ -53,20 +49,35 @@ export class SchedulingQueueService implements OnModuleInit {
     }
   }
 
-  isReady(): boolean {
-    return this.ready;
+  private async waitUntilReady(timeoutMs: number): Promise<void> {
+    await Promise.race([
+      this.queue.waitUntilReady(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Redis connection timed out")), timeoutMs),
+      ),
+    ]);
   }
 
-  private assertReady(): void {
+  /**
+   * Re-probe the connection when it was down at boot so the producer recovers
+   * from a Redis restart instead of staying disabled for the process lifetime.
+   */
+  private async assertReady(): Promise<void> {
     if (!this.ready) {
-      throw new ServiceUnavailableException(
-        "Scheduling is temporarily unavailable: the job queue (Redis) is not connected.",
-      );
+      try {
+        await this.waitUntilReady(RETRY_READY_TIMEOUT_MS);
+        this.ready = true;
+        this.logger.log(`Queue "${OUTBOUND_SCHEDULER_QUEUE}" reconnected.`);
+      } catch {
+        throw new ServiceUnavailableException(
+          "Scheduling is temporarily unavailable: the job queue (Redis) is not connected.",
+        );
+      }
     }
   }
 
   async enqueue(data: ScheduledJobData, fireAt: Date): Promise<void> {
-    this.assertReady();
+    await this.assertReady();
     const delay = Math.max(fireAt.getTime() - Date.now(), 1000);
     await this.queue.add(data.kind, data, {
       jobId: data.id,

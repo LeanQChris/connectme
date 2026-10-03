@@ -1,95 +1,86 @@
 import { Injectable, OnModuleDestroy, Logger } from "@nestjs/common";
 import Redis from "ioredis";
+import { buildRedisOptions, resolveRedisUrl } from "./redis-options";
 
+/**
+ * Thin ioredis wrapper. There is deliberately no in-memory fallback: idempotency
+ * locks MUST be shared across API replicas, so a silently-degraded local store
+ * would let duplicate webhooks through. Callers fail closed when Redis is down.
+ */
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private client: Redis | null = null;
-  private memoryFallback = new Map<string, { value: string; expiresAt?: number }>();
+  private readonly client: Redis;
+  private ready = false;
 
   constructor() {
-    const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-    try {
-      this.client = new Redis(redisUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        retryStrategy: () => null, // don't spam reconnect if Redis isn't up locally
-      });
+    this.client = new Redis(resolveRedisUrl(), buildRedisOptions());
 
-      this.client.connect().catch((err) => {
-        this.logger.warn(`Redis server unavailable (${err.message}). Using in-memory fallback.`);
-        this.client = null;
-      });
-    } catch {
-      this.logger.warn("Redis initialization skipped; using in-memory store.");
-    }
-  }
+    // ioredis emits "error" on connection loss; without a listener an
+    // EventEmitter throws and crashes the process.
+    this.client.on("error", (err) => {
+      this.logger.warn(`Redis error: ${err.message}`);
+    });
+    this.client.on("ready", () => {
+      this.ready = true;
+      this.logger.log("Redis connection ready.");
+    });
+    this.client.on("close", () => {
+      this.ready = false;
+    });
+    this.client.on("end", () => {
+      this.ready = false;
+    });
 
-  async get(key: string): Promise<string | null> {
-    if (this.client) {
-      try {
-        return await this.client.get(key);
-      } catch {
-        // Fallback
-      }
-    }
-    const item = this.memoryFallback.get(key);
-    if (!item) return null;
-    if (item.expiresAt && item.expiresAt < Date.now()) {
-      this.memoryFallback.delete(key);
-      return null;
-    }
-    return item.value;
-  }
-
-  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
-    if (this.client) {
-      try {
-        if (ttlSeconds) {
-          await this.client.set(key, value, "EX", ttlSeconds);
-        } else {
-          await this.client.set(key, value);
-        }
-        return;
-      } catch {
-        // Fallback
-      }
-    }
-    this.memoryFallback.set(key, {
-      value,
-      expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
+    this.client.connect().catch((err) => {
+      this.logger.warn(`Redis initial connect failed: ${err.message}`);
     });
   }
 
-  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
-    if (this.client) {
-      try {
-        const res = await this.client.set(key, value, "EX", ttlSeconds, "NX");
-        return res === "OK";
-      } catch {
-        // Fallback
-      }
+  isReady(): boolean {
+    return this.ready && this.client.status === "ready";
+  }
+
+  /** Duplicate the connection (ioredis copies options) e.g. for pub/sub. */
+  duplicate(): Redis {
+    return this.client.duplicate();
+  }
+
+  async get(key: string): Promise<string | null> {
+    return this.client.get(key);
+  }
+
+  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
+    if (ttlSeconds) {
+      await this.client.set(key, value, "EX", ttlSeconds);
+    } else {
+      await this.client.set(key, value);
     }
-    const existing = await this.get(key);
-    if (existing !== null) return false;
-    await this.set(key, value, ttlSeconds);
-    return true;
+  }
+
+  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    const res = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+    return res === "OK";
   }
 
   async del(key: string): Promise<void> {
-    if (this.client) {
-      try {
-        await this.client.del(key);
-      } catch {
-        // Fallback
-      }
-    }
-    this.memoryFallback.delete(key);
+    await this.client.del(key);
   }
 
-  async onModuleDestroy() {
-    if (this.client) {
-      await this.client.quit().catch(() => {});
-    }
+  async eval(
+    script: string,
+    keys: string[],
+    args: (string | number)[] = [],
+  ): Promise<unknown> {
+    return this.client.eval(script, keys.length, ...keys, ...args);
+  }
+
+  async ping(): Promise<boolean> {
+    const res = await this.client.ping();
+    return res === "PONG";
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.client.quit().catch(() => undefined);
   }
 }
