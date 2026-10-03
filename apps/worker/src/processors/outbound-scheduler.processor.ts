@@ -1,4 +1,4 @@
-import { Processor, WorkerHost, InjectQueue } from "@nestjs/bullmq";
+import { Processor, WorkerHost, InjectQueue, OnWorkerEvent } from "@nestjs/bullmq";
 import { Job, Queue, UnrecoverableError } from "bullmq";
 import { Logger, OnModuleInit } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -103,7 +103,14 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       await this.queue.add(
         "message",
         { kind: "message", id: m.id, tenantId: m.tenantId },
-        { jobId: m.id, delay: 0, attempts: 5, backoff: { type: "exponential", delay: 30_000 } },
+        {
+          jobId: m.id,
+          delay: 0,
+          attempts: 8,
+          backoff: { type: "exponential", delay: 60_000 },
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
       );
     }
 
@@ -118,7 +125,14 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       await this.queue.add(
         "post",
         { kind: "post", id: p.id, tenantId: p.tenantId },
-        { jobId: p.id, delay: 0, attempts: 5, backoff: { type: "exponential", delay: 30_000 } },
+        {
+          jobId: p.id,
+          delay: 0,
+          attempts: 8,
+          backoff: { type: "exponential", delay: 60_000 },
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
       );
     }
 
@@ -199,22 +213,35 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
 
     try {
       let externalId: string | null = null;
+      const useMedia = Boolean(row.mediaUrl);
       switch (conv.channel) {
         case ChannelType.WHATSAPP:
-          externalId = (await this.whatsappClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia ? this.whatsappClient.sendMedia(ctx) : this.whatsappClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.MESSENGER:
-          externalId = (await this.messengerClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia ? this.messengerClient.sendMedia(ctx) : this.messengerClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.INSTAGRAM:
-          externalId = (await this.instagramClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia ? this.instagramClient.sendMedia(ctx) : this.instagramClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.TELEGRAM:
-          externalId = (await this.telegramClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia ? this.telegramClient.sendMedia(ctx) : this.telegramClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.DISCORD:
-          externalId = (await this.discordClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia ? this.discordClient.sendMedia(ctx) : this.discordClient.sendText(ctx))
+          ).externalId;
           break;
+        default:
+          throw new UnrecoverableError(`Unsupported channel ${conv.channel}.`);
       }
 
       const msg = this.messageRepo.create({
@@ -224,7 +251,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
         type: (row.mediaType?.toUpperCase() as MediaType) || MediaType.TEXT,
         text: row.text,
         mediaUrl: row.mediaUrl,
-        status: MessageStatus.DELIVERED,
+        status: MessageStatus.SENT,
         authorName: row.createdBy || "Scheduled",
         externalId,
       });
@@ -283,7 +310,10 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       this.logger.warn(`Scheduled post ${data.id} not found; skipping.`);
       return;
     }
-    if (row.status === ScheduledPostStatus.PUBLISHED || row.status === ScheduledPostStatus.CANCELED) {
+    if (
+      row.status !== ScheduledPostStatus.PENDING &&
+      row.status !== ScheduledPostStatus.SCHEDULED
+    ) {
       return;
     }
 
@@ -380,6 +410,14 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       });
       throw err;
     }
+  }
+
+  @OnWorkerEvent("failed")
+  onFailed(job: Job<ScheduledJobData> | undefined, err: Error): void {
+    if (!job) return;
+    this.logger.error(
+      `Dead-letter: job ${job.name}:${job.id} failed permanently: ${err.message}`,
+    );
   }
 
   private async recordFailure(

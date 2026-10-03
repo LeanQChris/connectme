@@ -1,11 +1,17 @@
 import { z } from "zod";
+import { MessageTypeSchema } from "@connectme/contracts";
 
-export const ReplyBodySchema = z.object({
-  text: z.string().min(1).max(4096).optional(),
-  mediaUrl: z.string().min(1).max(2048).optional(),
-  type: z.string().min(1).max(32).optional(),
-  author: z.string().min(1).max(128).optional(),
-});
+export const ReplyBodySchema = z
+  .object({
+    text: z.string().min(1).max(4096).optional(),
+    mediaUrl: z.string().min(1).max(2048).optional(),
+    type: MessageTypeSchema.optional(),
+    author: z.string().min(1).max(128).optional(),
+  })
+  .strict()
+  .refine((d) => Boolean(d.text || d.mediaUrl), {
+    message: "A reply must include text or a media URL.",
+  });
 
 export const NoteBodySchema = z.object({
   text: z.string().min(1).max(4096),

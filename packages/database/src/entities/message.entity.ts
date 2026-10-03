@@ -12,7 +12,7 @@ import { Conversation } from "./conversation.entity";
 
 @Entity("messages")
 @Index(["conversationId", "createdAt"])
-@Index(["externalId"])
+@Index(["conversationId", "externalId"], { unique: true, where: '"externalId" IS NOT NULL' })
 export class Message {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

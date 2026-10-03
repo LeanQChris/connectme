@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Query, Body, Inject } from "@nestjs/common";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
 import { AesVaultService } from "@connectme/channels";
+import { ChannelType } from "@connectme/database";
 import {
   SettingsPayloadDto,
   ProviderSecretsDto,
@@ -91,8 +92,43 @@ export class SettingsController {
     if (s.telegramBotToken) partial.telegramTokenEnc = this.aesVault.encrypt(s.telegramBotToken);
     if (s.discordBotToken) partial.discordBotTokenEnc = this.aesVault.encrypt(s.discordBotToken);
 
-    await this.tenantRepo.updateCredentials(tenantId, partial);
+    const updated = await this.tenantRepo.updateCredentials(tenantId, partial);
+
+    // Register inbound-routing accounts so webhooks can resolve the tenant.
+    if (updated.waPhoneNumberId) {
+      await this.upsertAccount(tenantId, ChannelType.WHATSAPP, "meta", updated.waPhoneNumberId, "WhatsApp");
+    }
+    if (updated.telegramTokenEnc) {
+      const token = decryptStrict(this.aesVault, updated.telegramTokenEnc);
+      const botId = token.split(":")[0];
+      if (botId) await this.upsertAccount(tenantId, ChannelType.TELEGRAM, "telegram", botId, `Telegram bot ${botId}`);
+    }
+
     return { ok: true };
+  }
+
+  private async upsertAccount(
+    tenantId: string,
+    channel: "WHATSAPP" | "TELEGRAM",
+    provider: string,
+    externalId: string,
+    name: string,
+  ): Promise<void> {
+    const existing = await this.tenantRepo.findAccountByExternalId(channel as any, externalId);
+    if (existing) {
+      if (!existing.isActive || existing.name !== name || existing.tenantId !== tenantId) {
+        await this.tenantRepo.saveConnectedAccount({ id: existing.id, isActive: true, name });
+      }
+      return;
+    }
+    await this.tenantRepo.saveConnectedAccount({
+      tenantId,
+      channel: channel as any,
+      provider,
+      externalId,
+      name,
+      isActive: true,
+    });
   }
 
   @Post("verify")

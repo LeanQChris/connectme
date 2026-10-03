@@ -8,9 +8,12 @@ import {
   ConnectedSocket,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { Logger, Inject } from "@nestjs/common";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { Logger, Inject, OnModuleInit } from "@nestjs/common";
 import { ClerkTokenVerifier } from "../auth/clerk-token-verifier.service";
 import { IConversationRepository } from "../../domain/repositories/i-conversation.repository";
+import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
+import { RedisService } from "../../infrastructure/redis/redis.service";
 
 function socketOrigins(): string[] | boolean {
   const configured = (process.env.CORS_ORIGINS || process.env.NEXT_PUBLIC_APP_URL || "")
@@ -28,7 +31,9 @@ function socketOrigins(): string[] | boolean {
     credentials: true,
   },
 })
-export class InboxRealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class InboxRealtimeGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
+{
   @WebSocketServer()
   server!: Server;
 
@@ -38,7 +43,23 @@ export class InboxRealtimeGateway implements OnGatewayConnection, OnGatewayDisco
     private readonly verifier: ClerkTokenVerifier,
     @Inject("IConversationRepository")
     private readonly convRepo: IConversationRepository,
+    @Inject("ITenantRepository")
+    private readonly tenantRepo: ITenantRepository,
+    private readonly redis: RedisService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Attach the Redis adapter so rooms/fan-out span every API replica. If
+    // Redis is unavailable the gateway still works single-instance.
+    try {
+      const pubClient = this.redis.duplicate();
+      const subClient = pubClient.duplicate();
+      this.server.adapter(createAdapter(pubClient, subClient));
+      this.logger.log("Realtime gateway using Redis socket.io adapter.");
+    } catch (err: any) {
+      this.logger.warn(`Socket.io Redis adapter disabled (${err?.message}).`);
+    }
+  }
 
   async handleConnection(client: Socket) {
     const token = client.handshake.auth?.token;
@@ -49,9 +70,10 @@ export class InboxRealtimeGateway implements OnGatewayConnection, OnGatewayDisco
 
     try {
       const session = await this.verifier.verify(token);
-      client.data.tenantId = session.sub;
-      client.join(`tenant:${session.sub}`);
-      this.logger.debug(`Client ${client.id} authenticated for tenant ${session.sub}`);
+      const tenant = await this.tenantRepo.getOrCreateDefaultTenant(session.sub);
+      client.data.tenantId = tenant.id;
+      client.join(`tenant:${tenant.id}`);
+      this.logger.debug(`Client ${client.id} authenticated for tenant ${tenant.id}`);
     } catch {
       this.disconnect(client, "Invalid session token");
     }

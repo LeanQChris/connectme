@@ -2,6 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ChannelType } from "@connectme/database";
 import { IChannelClient, ChannelSendContext, ChannelSendResult } from "../channel-adapter.interface";
 import { AesVaultService } from "../aes-vault.service";
+import { graphUrl, toMetaMediaType } from "./graph";
+import { fetchWithTimeout } from "../http";
 
 @Injectable()
 export class MessengerClient implements IChannelClient {
@@ -10,19 +12,34 @@ export class MessengerClient implements IChannelClient {
 
   constructor(private readonly aesVault: AesVaultService) {}
 
-  async sendText(ctx: ChannelSendContext): Promise<ChannelSendResult> {
+  private token(ctx: ChannelSendContext): string {
     const tokenEnc = ctx.pageAccessToken || ctx.credentials?.pageAccessTokenEnc;
-    if (!tokenEnc) {
-      throw new Error("Facebook Page access token not configured.");
-    }
+    if (!tokenEnc) throw new Error("Facebook Page access token not configured.");
+    return this.aesVault.decryptStrict<string>(tokenEnc);
+  }
 
-    const token = this.aesVault.decrypt<string>(tokenEnc) || tokenEnc;
-    const graphVersion = process.env.NEXT_PUBLIC_META_GRAPH_VERSION || "v22.0";
-    const url = `https://graph.facebook.com/${graphVersion}/me/messages`;
+  async sendText(ctx: ChannelSendContext): Promise<ChannelSendResult> {
+    return this.post(ctx, { text: ctx.text || "" });
+  }
 
+  async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
+    if (!ctx.mediaUrl) throw new Error("Messenger media send requires a mediaUrl.");
+    return this.post(ctx, {
+      attachment: {
+        type: toMetaMediaType(ctx.mimeType, ctx.type === "image" ? "image" : "file"),
+        payload: { url: ctx.mediaUrl, is_reusable: true },
+      },
+    });
+  }
+
+  private async post(
+    ctx: ChannelSendContext,
+    message: Record<string, unknown>,
+  ): Promise<ChannelSendResult> {
+    const token = this.token(ctx);
     const payload: Record<string, unknown> = {
       recipient: { id: ctx.contactExternalId },
-      message: { text: ctx.text || "" },
+      message,
     };
     if (ctx.tag) {
       payload.messaging_type = "MESSAGE_TAG";
@@ -31,7 +48,7 @@ export class MessengerClient implements IChannelClient {
       payload.messaging_type = "RESPONSE";
     }
 
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(graphUrl("me/messages"), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -47,9 +64,5 @@ export class MessengerClient implements IChannelClient {
     }
 
     return { externalId: json?.message_id ?? null };
-  }
-
-  async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
-    return this.sendText(ctx);
   }
 }

@@ -21,7 +21,7 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
           if (installingWorker) {
             installingWorker.addEventListener("statechange", () => {
               if (installingWorker.state === "installed" && navigator.serviceWorker.controller) {
-                console.log("[PWA] New version available.");
+                installingWorker.postMessage({ type: "SKIP_WAITING" });
               }
             });
           }

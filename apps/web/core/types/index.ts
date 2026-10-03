@@ -121,13 +121,14 @@ export interface UploadedMedia {
 
 export interface ConnectedAccount {
   id: string;
+  tenantId: string;
   provider: "meta" | "telegram" | "discord";
   channel: Channel;
   name: string;
   externalId: string;
-  token?: string;
   avatarUrl?: string | null;
-  connectedAt: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram" | "discord";

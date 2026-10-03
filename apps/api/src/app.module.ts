@@ -33,6 +33,7 @@ import {
   SchedulingQueueService,
   OUTBOUND_SCHEDULER_QUEUE,
 } from "./infrastructure/queue/scheduling-queue.service";
+import { INBOUND_WEBHOOKS_QUEUE } from "./infrastructure/queue/queue.constants";
 import { S3PresignService } from "./infrastructure/storage/s3-presign.service";
 
 // Channel Clients + Vault (shared package)
@@ -57,9 +58,6 @@ import { AddInternalNoteUseCase } from "./application/use-cases/messages/add-int
 import { ListConversationsUseCase } from "./application/use-cases/conversations/list-conversations.use-case";
 import { GetConversationDetailUseCase } from "./application/use-cases/conversations/get-conversation-detail.use-case";
 import { UpdateConversationUseCase } from "./application/use-cases/conversations/update-conversation.use-case";
-import { ProcessInboundMetaUseCase } from "./application/use-cases/webhooks/process-inbound-meta.use-case";
-import { ProcessInboundTelegramUseCase } from "./application/use-cases/webhooks/process-inbound-telegram.use-case";
-import { ProcessInboundDiscordUseCase } from "./application/use-cases/webhooks/process-inbound-discord.use-case";
 import { CreateScheduledPostUseCase } from "./application/use-cases/scheduling/create-scheduled-post.use-case";
 import { CreateScheduledMessageUseCase } from "./application/use-cases/scheduling/create-scheduled-message.use-case";
 import { ListScheduledPostsUseCase } from "./application/use-cases/scheduling/list-scheduled-posts.use-case";
@@ -84,7 +82,7 @@ import { SetupController } from "./presentation/controllers/setup.controller";
 // Auth
 import { ClerkAuthGuard } from "./presentation/auth/clerk-auth.guard";
 import { ClerkTokenVerifier } from "./presentation/auth/clerk-token-verifier.service";
-import { validateEnv } from "./infrastructure/config/env.validation";
+import { validateEnv, shouldSynchronize } from "./infrastructure/config/env.validation";
 import { HealthController } from "./presentation/controllers/health.controller";
 
 @Module({
@@ -116,7 +114,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
         ScheduledPost,
         ScheduledMessage,
       ],
-      synchronize: process.env.NODE_ENV !== "production",
+      synchronize: shouldSynchronize(),
       logging: false,
     }),
     TypeOrmModule.forFeature([
@@ -141,6 +139,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
       }),
     }),
     BullModule.registerQueue({ name: OUTBOUND_SCHEDULER_QUEUE }),
+    BullModule.registerQueue({ name: INBOUND_WEBHOOKS_QUEUE }),
   ],
   controllers: [
     WebhookController,
@@ -193,9 +192,6 @@ import { HealthController } from "./presentation/controllers/health.controller";
     ListConversationsUseCase,
     GetConversationDetailUseCase,
     UpdateConversationUseCase,
-    ProcessInboundMetaUseCase,
-    ProcessInboundTelegramUseCase,
-    ProcessInboundDiscordUseCase,
     CreateScheduledPostUseCase,
     CreateScheduledMessageUseCase,
     ListScheduledPostsUseCase,

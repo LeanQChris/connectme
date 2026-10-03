@@ -77,8 +77,10 @@ export interface UpdateConversationDto {
   tags?: string[];
 }
 
-export const UpdateConversationDtoSchema = z.object({
-  status: ConversationStatusSchema.optional(),
-  assignee: z.string().nullable().optional(),
-  tags: z.array(z.string()).optional(),
-});
+export const UpdateConversationDtoSchema = z
+  .object({
+    status: ConversationStatusSchema.optional(),
+    assignee: z.string().max(128).nullable().optional(),
+    tags: z.array(z.string().max(64)).max(20).optional(),
+  })
+  .strict();

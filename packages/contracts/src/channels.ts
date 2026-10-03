@@ -45,6 +45,22 @@ export interface ProviderSecretsDto {
   graphVersion?: string;
 }
 
+export const ProviderSecretsSchema = z
+  .object({
+    waPhoneNumberId: z.string().max(64).optional(),
+    waAccessToken: z.string().max(4096).optional(),
+    waAppId: z.string().max(64).optional(),
+    waAppSecret: z.string().max(512).optional(),
+    metaAppSecret: z.string().max(512).optional(),
+    webhookVerifyToken: z.string().max(256).optional(),
+    pageAccessToken: z.string().max(4096).optional(),
+    telegramBotToken: z.string().max(512).optional(),
+    discordBotToken: z.string().max(512).optional(),
+    discordPublicKey: z.string().max(128).optional(),
+    graphVersion: z.string().max(16).optional(),
+  })
+  .strict();
+
 export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram" | "discord";
 
 export interface SettingsPayloadDto {

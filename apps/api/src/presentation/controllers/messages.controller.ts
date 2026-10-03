@@ -5,15 +5,22 @@ import { AddInternalNoteUseCase } from "../../application/use-cases/messages/add
 import {
   SendMessageDto,
   AddInternalNoteDto,
-  SendMessageDtoSchema,
   AddInternalNoteDtoSchema,
+  MessageTypeSchema,
 } from "@connectme/contracts";
 import { TenantId } from "../auth/tenant-id.decorator";
 import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 
-const SendMessageWithNoteSchema = SendMessageDtoSchema.extend({
-  isNote: z.boolean().optional(),
-});
+const SendMessageWithNoteSchema = z
+  .object({
+    conversationId: z.string().min(1),
+    text: z.string().max(4096).optional(),
+    mediaUrl: z.string().max(2048).optional(),
+    mediaType: MessageTypeSchema.optional(),
+    author: z.string().max(128).optional(),
+    isNote: z.boolean().optional(),
+  })
+  .strict();
 
 @Controller("api/messages")
 export class MessagesController {

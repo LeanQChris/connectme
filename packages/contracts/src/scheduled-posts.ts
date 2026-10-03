@@ -76,16 +76,18 @@ export interface CreateScheduledPostDto {
   createdBy?: string;
 }
 
-export const CreateScheduledPostDtoSchema = z.object({
-  accountId: z.string().min(1),
-  channel: ChannelSchema.optional(),
-  kind: ScheduledPostKindSchema.optional(),
-  caption: z.string().optional(),
-  mediaUrls: z.array(z.string()).optional(),
-  scheduledFor: z.string().min(1),
-  timezone: z.string().optional(),
-  createdBy: z.string().optional(),
-});
+export const CreateScheduledPostDtoSchema = z
+  .object({
+    accountId: z.string().min(1),
+    channel: ChannelSchema.optional(),
+    kind: ScheduledPostKindSchema.optional(),
+    caption: z.string().max(2200).optional(),
+    mediaUrls: z.array(z.string().max(2048)).max(10).optional(),
+    scheduledFor: z.string().datetime({ offset: true }),
+    timezone: z.string().max(64).optional(),
+    createdBy: z.string().max(128).optional(),
+  })
+  .strict();
 
 export interface UpdateScheduledPostDto {
   caption?: string;
@@ -94,9 +96,11 @@ export interface UpdateScheduledPostDto {
   timezone?: string;
 }
 
-export const UpdateScheduledPostDtoSchema = z.object({
-  caption: z.string().optional(),
-  mediaUrls: z.array(z.string()).optional(),
-  scheduledFor: z.string().optional(),
-  timezone: z.string().optional(),
-});
+export const UpdateScheduledPostDtoSchema = z
+  .object({
+    caption: z.string().max(2200).optional(),
+    mediaUrls: z.array(z.string().max(2048)).max(10).optional(),
+    scheduledFor: z.string().datetime({ offset: true }).optional(),
+    timezone: z.string().max(64).optional(),
+  })
+  .strict();

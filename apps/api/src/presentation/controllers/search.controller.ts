@@ -20,8 +20,9 @@ export class SearchController {
     @Query("q") query: string,
   ): Promise<SearchHitDto[]> {
     if (!query || !query.trim()) return [];
+    const trimmed = query.trim().slice(0, 200);
 
-    const conversations = await this.convRepo.searchConversations(tenantId, query.trim());
+    const conversations = await this.convRepo.searchConversations(tenantId, trimmed);
 
     return conversations.map((conv) => {
       const windowVo = new MessagingWindowVO(conv.channel, conv.lastInboundAt);

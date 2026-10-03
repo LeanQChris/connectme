@@ -1,5 +1,3 @@
-import { envConfig } from "../config/env.config";
-
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -21,7 +19,9 @@ export interface RequestOptions extends RequestInit {
 export async function httpClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, headers, ...restOptions } = options;
 
-  let url = endpoint.startsWith("http") ? endpoint : `${envConfig.apiUrl}${endpoint}`;
+  // Relative /api/* requests are routed through the Next proxy, which injects
+  // the Clerk bearer token. Absolute URLs bypass the proxy and are unauthenticated.
+  let url = endpoint;
   if (params) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, val]) => {
@@ -55,6 +55,10 @@ export async function httpClient<T>(endpoint: string, options: RequestOptions = 
       errorJson.message || `API request failed with HTTP ${response.status}`,
       errorJson,
     );
+  }
+
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return undefined as T;
   }
 
   return response.json();

@@ -93,6 +93,23 @@ export class S3PresignService {
     return { uploadUrl, publicUrl, key, expiresIn: expiresSeconds };
   }
 
+  async uploadBuffer(
+    key: string,
+    body: Buffer,
+    contentType = "application/octet-stream",
+  ): Promise<string> {
+    const { uploadUrl, publicUrl } = this.presignPut(key);
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: new Uint8Array(body),
+    });
+    if (!res.ok) {
+      throw new ServiceUnavailableException(`Failed to store media (HTTP ${res.status}).`);
+    }
+    return publicUrl;
+  }
+
   private sha256Hex(data: string): string {
     return createHash("sha256").update(data, "utf8").digest("hex");
   }

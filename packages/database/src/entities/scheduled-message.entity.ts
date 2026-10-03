@@ -4,9 +4,13 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
   Index,
 } from "typeorm";
 import { ChannelType, ScheduledMessageStatus } from "../enums";
+import { Tenant } from "./tenant.entity";
+import { Conversation } from "./conversation.entity";
 
 @Entity("scheduled_messages")
 @Index(["status", "scheduledFor"])
@@ -64,4 +68,12 @@ export class ScheduledMessage {
 
   @UpdateDateColumn({ type: "timestamp with time zone" })
   updatedAt!: Date;
+
+  @ManyToOne(() => Tenant, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "tenantId" })
+  tenant!: Tenant;
+
+  @ManyToOne(() => Conversation, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "conversationId" })
+  conversation!: Conversation;
 }

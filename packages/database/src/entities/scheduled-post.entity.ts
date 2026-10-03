@@ -4,6 +4,8 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
   Index,
 } from "typeorm";
 import {
@@ -11,6 +13,8 @@ import {
   ScheduleMode,
   ScheduledPostStatus,
 } from "../enums";
+import { Tenant } from "./tenant.entity";
+import { ConnectedAccount } from "./connected-account.entity";
 
 @Entity("scheduled_posts")
 @Index(["status", "scheduledFor"])
@@ -81,4 +85,12 @@ export class ScheduledPost {
 
   @UpdateDateColumn({ type: "timestamp with time zone" })
   updatedAt!: Date;
+
+  @ManyToOne(() => Tenant, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "tenantId" })
+  tenant!: Tenant;
+
+  @ManyToOne(() => ConnectedAccount, { nullable: true, onDelete: "SET NULL" })
+  @JoinColumn({ name: "accountId" })
+  account?: ConnectedAccount | null;
 }

@@ -51,6 +51,10 @@ export const schedulingApi = {
     }),
 
   uploadToStorage: async (file: File): Promise<PresignedUpload> => {
+    const MAX_BYTES = 8 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      throw new Error(`File is too large (max ${Math.round(MAX_BYTES / 1024 / 1024)}MB).`);
+    }
     const presigned = await schedulingApi.presignUpload(file.name, file.type);
     const res = await fetch(presigned.uploadUrl, {
       method: "PUT",

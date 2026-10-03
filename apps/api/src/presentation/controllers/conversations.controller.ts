@@ -17,6 +17,7 @@ import { UpdateConversationDto, UpdateConversationDtoSchema } from "@connectme/c
 import { TenantId } from "../auth/tenant-id.decorator";
 import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import { ReplyBodySchema, NoteBodySchema } from "../validation/schemas";
+import { clampLimit } from "../validation/parse";
 
 @Controller("api/conversations")
 export class ConversationsController {
@@ -42,14 +43,22 @@ export class ConversationsController {
       status: status ? (status.toUpperCase() as ConversationStatus) : undefined,
       assigneeId,
       tag,
-      limit: limit ? parseInt(limit, 10) : 50,
+      limit: clampLimit(limit, 50),
     });
     return { conversations };
   }
 
   @Get(":id")
-  async getDetail(@TenantId() tenantId: string, @Param("id") id: string) {
-    return this.detailUseCase.execute(tenantId, id);
+  async getDetail(
+    @TenantId() tenantId: string,
+    @Param("id") id: string,
+    @Query("limit") limit?: string,
+    @Query("before") before?: string,
+  ) {
+    return this.detailUseCase.execute(tenantId, id, {
+      limit: clampLimit(limit, 50, 200),
+      before,
+    });
   }
 
   @Patch(":id")

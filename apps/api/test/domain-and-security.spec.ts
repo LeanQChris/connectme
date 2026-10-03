@@ -45,7 +45,7 @@ describe("Domain Layer: MessagingWindowVO", () => {
 
 describe("Security & Crypto Layer", () => {
   test("AES-256-GCM encrypt and decrypt roundtrip", () => {
-    const secretKey = "test-secret-key-32-chars-long!!";
+    const secretKey = "test-secret-key-32-chars-long!!!!";
     const payload = { accessToken: "EAAB...", tenantId: "tenant-123" };
 
     const encrypted = encryptPayload(payload, secretKey);
@@ -56,7 +56,7 @@ describe("Security & Crypto Layer", () => {
   });
 
   test("AES-256-GCM uses a random salt per message", () => {
-    const secretKey = "test-secret-key-32-chars-long!!";
+    const secretKey = "test-secret-key-32-chars-long!!!!";
     const a = encryptPayload("same", secretKey);
     const b = encryptPayload("same", secretKey);
     assert.notStrictEqual(a, b);
@@ -65,7 +65,7 @@ describe("Security & Crypto Layer", () => {
   });
 
   test("decrypts legacy v1 ciphertext (static salt)", () => {
-    const secretKey = "test-secret-key-32-chars-long!!";
+    const secretKey = "test-secret-key-32-chars-long!!!!";
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", scryptSync(secretKey, "connectme-secrets", 32), iv);
     const body = Buffer.concat([cipher.update("legacy", "utf8"), cipher.final()]);

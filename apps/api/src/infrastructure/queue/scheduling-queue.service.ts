@@ -79,21 +79,34 @@ export class SchedulingQueueService implements OnModuleInit {
   async enqueue(data: ScheduledJobData, fireAt: Date): Promise<void> {
     await this.assertReady();
     const delay = Math.max(fireAt.getTime() - Date.now(), 1000);
-    await this.queue.add(data.kind, data, {
-      jobId: data.id,
-      delay,
-      attempts: 5,
-      backoff: { type: "exponential", delay: 30_000 },
-      removeOnComplete: 500,
-      removeOnFail: 1000,
-    });
+    try {
+      await this.queue.add(data.kind, data, {
+        jobId: data.id,
+        delay,
+        attempts: 8,
+        backoff: { type: "exponential", delay: 60_000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      });
+    } catch (err: any) {
+      // A stale ready flag after a Redis restart must not surface as a 500.
+      this.ready = false;
+      this.logger.error(`Failed to enqueue job ${data.id}: ${err?.message}`);
+      throw new ServiceUnavailableException(
+        "Scheduling is temporarily unavailable: the job queue (Redis) is not connected.",
+      );
+    }
   }
 
   async remove(jobId: string): Promise<void> {
     if (!this.ready) return;
     const job = await this.queue.getJob(jobId);
     if (job) {
-      await job.remove().catch(() => undefined);
+      try {
+        await job.remove();
+      } catch (err: any) {
+        this.logger.warn(`Could not remove job ${jobId} (may be active): ${err?.message}`);
+      }
     }
   }
 }

@@ -13,7 +13,7 @@ import { Tenant } from "./tenant.entity";
 import type { Conversation } from "./conversation.entity";
 
 @Entity("connected_accounts")
-@Unique(["tenantId", "externalId"])
+@Unique(["tenantId", "channel", "externalId"])
 export class ConnectedAccount {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

@@ -6,9 +6,17 @@ import { channelMeta } from "@/components/ui/channel-badge";
 
 export function useThread(conversation: ConversationSummary, messages: Message[]) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [copied, setCopied] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timer) => clearTimeout(timer));
+      timersRef.current = [];
+    };
+  }, []);
 
   const windowOpen = conversation.window.open;
   const archived = conversation.status === "closed";
@@ -25,13 +33,13 @@ export function useThread(conversation: ConversationSummary, messages: Message[]
   const copyId = useCallback(() => {
     void navigator.clipboard.writeText(conversation.contactExternalId);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    timersRef.current.push(setTimeout(() => setCopied(false), 2000));
   }, [conversation.contactExternalId]);
 
   const copyMessage = useCallback((messageId: string, text: string) => {
     void navigator.clipboard.writeText(text);
     setCopiedMessageId(messageId);
-    setTimeout(() => setCopiedMessageId(null), 1500);
+    timersRef.current.push(setTimeout(() => setCopiedMessageId(null), 1500));
   }, []);
 
   const openImage = useCallback((url: string) => {

@@ -31,12 +31,12 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
   const selectedId = useInboxStore((s) => s.selectedId);
   const setSelectedId = useInboxStore((s) => s.setSelectedId);
 
-  // Initialize selectedId from prop on mount if not set
+  // Keep the store selection in sync with the route param (URL wins on change).
   useEffect(() => {
-    if (initialSelectedId && !selectedId) {
+    if (initialSelectedId) {
       setSelectedId(initialSelectedId);
     }
-  }, [initialSelectedId, selectedId, setSelectedId]);
+  }, [initialSelectedId, setSelectedId]);
 
   // Connect to NestJS WebSocket gateway for 0ms live events
   useRealtimeInbox(selectedId);

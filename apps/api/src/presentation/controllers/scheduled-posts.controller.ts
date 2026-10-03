@@ -22,6 +22,23 @@ import { CancelScheduledPostUseCase } from "../../application/use-cases/scheduli
 import { UpdateScheduledPostUseCase } from "../../application/use-cases/scheduling/update-scheduled-post.use-case";
 import { toScheduledPostDto } from "../serializers/scheduling.serializer";
 import { TenantId } from "../auth/tenant-id.decorator";
+import { optionalDate } from "../validation/parse";
+
+function parseStatus(value?: string): ScheduledPostStatus | undefined {
+  if (!value) return undefined;
+  const upper = value.toUpperCase();
+  return (Object.values(ScheduledPostStatus) as string[]).includes(upper)
+    ? (upper as ScheduledPostStatus)
+    : undefined;
+}
+
+function parseChannel(value?: string): ChannelType | undefined {
+  if (!value) return undefined;
+  const upper = value.toUpperCase();
+  return (Object.values(ChannelType) as string[]).includes(upper)
+    ? (upper as ChannelType)
+    : undefined;
+}
 
 @Controller("api/scheduled-posts")
 export class ScheduledPostsController {
@@ -51,11 +68,11 @@ export class ScheduledPostsController {
     @Query("to") to?: string,
   ) {
     const rows = await this.listUseCase.execute(tenantId, {
-      status: status ? (status.toUpperCase() as ScheduledPostStatus) : undefined,
+      status: parseStatus(status),
       accountId,
-      channel: channel ? (channel.toUpperCase() as ChannelType) : undefined,
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      channel: parseChannel(channel),
+      from: optionalDate(from, "from"),
+      to: optionalDate(to, "to"),
     });
     return rows.map(toScheduledPostDto);
   }

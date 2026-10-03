@@ -11,16 +11,10 @@ type Any = Record<string, unknown>;
 
 function makeController(overrides: {
   tenantRepo?: Any;
-  processMeta?: Any;
-  processTelegram?: Any;
-  processDiscord?: Any;
+  queue?: Any;
 } = {}) {
-  return new WebhookController(
-    (overrides.tenantRepo ?? {}) as any,
-    (overrides.processMeta ?? { execute: async () => {} }) as any,
-    (overrides.processTelegram ?? { execute: async () => {} }) as any,
-    (overrides.processDiscord ?? { execute: async () => {} }) as any,
-  );
+  const queue = overrides.queue ?? { add: async () => ({ id: "job-1" }) };
+  return new WebhookController((overrides.tenantRepo ?? {}) as any, queue as any);
 }
 
 function rawReq(body: string): Request {
@@ -56,14 +50,22 @@ describe("WebhookController", () => {
   });
 
   test("Meta POST accepts a valid raw-body signature and enqueues processing", async () => {
-    let processed = false;
-    const controller = makeController({ processMeta: { execute: async () => { processed = true; } } });
+    const enqueued: Array<{ name: string; data: unknown }> = [];
+    const controller = makeController({
+      queue: {
+        add: async (name: string, data: unknown) => {
+          enqueued.push({ name, data });
+          return { id: "job-1" };
+        },
+      },
+    });
     const body = JSON.stringify({ object: "page", entry: [] });
     const signature = `sha256=${calculateHmacSha256(body, "meta-secret")}`;
 
     const result = await controller.handleMetaWebhook(rawReq(body), { object: "page", entry: [] } as any, signature);
     assert.deepEqual(result, { status: "EVENT_RECEIVED" });
-    assert.equal(processed, true);
+    assert.equal(enqueued.length, 1);
+    assert.equal(enqueued[0].name, "meta");
   });
 
   test("Meta POST rejects a tampered signature", async () => {

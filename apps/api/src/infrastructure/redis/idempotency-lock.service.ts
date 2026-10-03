@@ -33,4 +33,16 @@ export class IdempotencyLockService {
       );
     }
   }
+
+  /**
+   * Release a previously acquired lock so a failed event can be retried by the
+   * provider instead of being permanently deduplicated.
+   */
+  async release(key: string): Promise<void> {
+    try {
+      await this.redis.del(`idemp:${key}`);
+    } catch (err: any) {
+      this.logger.warn(`Failed to release idempotency lock ${key}: ${err?.message}`);
+    }
+  }
 }

@@ -33,6 +33,14 @@ export interface SendReplyInput {
   author?: string;
 }
 
+function resolveMediaType(mediaType?: string): MediaType {
+  if (!mediaType) return MediaType.TEXT;
+  const upper = mediaType.toUpperCase();
+  return (Object.values(MediaType) as string[]).includes(upper)
+    ? (upper as MediaType)
+    : MediaType.TEXT;
+}
+
 @Injectable()
 export class SendReplyUseCase {
   constructor(
@@ -72,7 +80,7 @@ export class SendReplyUseCase {
       conversationId: conv.id,
       direction: MessageDirection.OUTBOUND,
       channel: conv.channel,
-      type: (input.mediaType?.toUpperCase() as MediaType) || MediaType.TEXT,
+      type: resolveMediaType(input.mediaType),
       text: input.text || null,
       mediaUrl: input.mediaUrl || null,
       status: MessageStatus.SENT,
@@ -88,25 +96,49 @@ export class SendReplyUseCase {
         contactExternalId: conv.contact.externalId,
         text: input.text,
         mediaUrl: input.mediaUrl,
+        mimeType: undefined,
         type: input.mediaType,
       };
 
+      const useMedia = Boolean(input.mediaUrl);
       switch (conv.channel) {
         case ChannelType.WHATSAPP:
-          externalId = (await this.whatsappClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia
+              ? this.whatsappClient.sendMedia(ctx)
+              : this.whatsappClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.MESSENGER:
-          externalId = (await this.messengerClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia
+              ? this.messengerClient.sendMedia(ctx)
+              : this.messengerClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.INSTAGRAM:
-          externalId = (await this.instagramClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia
+              ? this.instagramClient.sendMedia(ctx)
+              : this.instagramClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.TELEGRAM:
-          externalId = (await this.telegramClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia
+              ? this.telegramClient.sendMedia(ctx)
+              : this.telegramClient.sendText(ctx))
+          ).externalId;
           break;
         case ChannelType.DISCORD:
-          externalId = (await this.discordClient.sendText(ctx)).externalId;
+          externalId = (
+            await (useMedia
+              ? this.discordClient.sendMedia(ctx)
+              : this.discordClient.sendText(ctx))
+          ).externalId;
           break;
+        default:
+          throw new Error(`Unsupported channel: ${conv.channel}`);
       }
 
       msg.externalId = externalId;

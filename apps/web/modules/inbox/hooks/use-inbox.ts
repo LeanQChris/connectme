@@ -28,8 +28,7 @@ export function useConversations() {
   return useQuery({
     queryKey: QUERY_KEYS.conversations,
     queryFn: () => inboxApi.getConversations(),
-    refetchInterval: 15000,
-    staleTime: 10000,
+    staleTime: 30_000,
   });
 }
 
@@ -38,8 +37,7 @@ export function useConversation(id: string | null) {
     queryKey: QUERY_KEYS.conversation(id ?? ""),
     queryFn: () => inboxApi.getConversationDetail(id!),
     enabled: Boolean(id),
-    refetchInterval: 15000,
-    staleTime: 10000,
+    staleTime: 30_000,
   });
 }
 
@@ -255,8 +253,14 @@ export function useSendReply(conversationId: string | null) {
           ],
         });
       }
+      if (context?.previousList) {
+        queryClient.setQueryData<ConversationSummary[]>(
+          QUERY_KEYS.conversations,
+          context.previousList,
+        );
+      }
     },
-    onSettled: () => {
+    onSuccess: () => {
       if (conversationId) {
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversation(conversationId) });
       }

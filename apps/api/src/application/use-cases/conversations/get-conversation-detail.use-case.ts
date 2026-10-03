@@ -21,7 +21,11 @@ export class GetConversationDetailUseCase {
     private readonly messageRepo: IMessageRepository,
   ) {}
 
-  async execute(tenantId: string, conversationId: string): Promise<ConversationDetailDto> {
+  async execute(
+    tenantId: string,
+    conversationId: string,
+    options: { limit?: number; before?: string } = {},
+  ): Promise<ConversationDetailDto> {
     const conv = await this.convRepo.findById(tenantId, conversationId);
     if (!conv) {
       throw new NotFoundException("Conversation not found");
@@ -30,7 +34,11 @@ export class GetConversationDetailUseCase {
     // Automatically mark as read
     await this.convRepo.markAsRead(tenantId, conversationId);
 
-    const messages = await this.messageRepo.findByConversationId(conversationId, 200);
+    const messages = await this.messageRepo.findMessagesPage(
+      conversationId,
+      options.limit ?? 50,
+      options.before,
+    );
     const windowVo = new MessagingWindowVO(conv.channel, conv.lastInboundAt);
     const window = windowVo.calculate();
 

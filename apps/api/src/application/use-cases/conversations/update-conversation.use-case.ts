@@ -1,6 +1,7 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
 import { ConversationStatus } from "@connectme/database";
 import { IConversationRepository } from "../../../domain/repositories/i-conversation.repository";
+import { ITenantRepository } from "../../../domain/repositories/i-tenant.repository";
 import { UpdateConversationDto } from "@connectme/contracts";
 import { InboxRealtimeGateway } from "../../../presentation/gateways/inbox-realtime.gateway";
 
@@ -9,6 +10,8 @@ export class UpdateConversationUseCase {
   constructor(
     @Inject("IConversationRepository")
     private readonly convRepo: IConversationRepository,
+    @Inject("ITenantRepository")
+    private readonly tenantRepo: ITenantRepository,
     private readonly realtimeGateway: InboxRealtimeGateway,
   ) {}
 
@@ -24,6 +27,12 @@ export class UpdateConversationUseCase {
     }
 
     if (dto.assignee !== undefined) {
+      if (dto.assignee !== null) {
+        const user = await this.tenantRepo.findUserById(dto.assignee);
+        if (!user || user.tenantId !== tenantId) {
+          throw new BadRequestException("Assignee does not belong to this workspace.");
+        }
+      }
       await this.convRepo.setAssignee(tenantId, conversationId, dto.assignee);
     }
 

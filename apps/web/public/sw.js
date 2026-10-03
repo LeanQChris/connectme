@@ -1,11 +1,11 @@
 // ConnectMe Service Worker (PWA & Web Push / Notifications)
-const CACHE_NAME = "connectme-v1";
-const OFFLINE_URL = "/inbox";
+const CACHE_NAME = "connectme-v2";
+// Public, unauthenticated page used as the offline fallback. Authenticated
+// shells (/, /inbox) must never be cached on a shared device.
+const OFFLINE_URL = "/about";
 
-// Assets to cache immediately on install
+// Static assets to cache immediately on install
 const PRECACHE_ASSETS = [
-  "/",
-  "/inbox",
   "/favicon.svg",
   "/icon.svg",
   "/icons/icon-192.png",

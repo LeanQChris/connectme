@@ -21,6 +21,7 @@ import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import { PresignBodySchema } from "../validation/schemas";
 
 const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
+const MAX_REDIRECTS = 3;
 
 @Controller("api/media")
 export class MediaController {
@@ -89,15 +90,7 @@ export class MediaController {
         throw new BadRequestException("Resolved media host is not allowed.");
       }
 
-      const mediaRes = await fetch(downloadUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-        redirect: "follow",
-      });
-
-      // A redirect could point somewhere unexpected; re-check the final URL.
-      if (!isAllowedMediaHost(mediaRes.url)) {
-        throw new BadRequestException("Media redirect target is not allowed.");
-      }
+      const mediaRes = await this.fetchFollowingSafeRedirects(downloadUrl, token);
 
       const declaredLength = Number(mediaRes.headers.get("content-length") || "0");
       if (declaredLength > MAX_MEDIA_BYTES) {
@@ -117,5 +110,27 @@ export class MediaController {
       this.logger.error(`Media proxy error: ${err.message}`, err.stack);
       return res.status(502).json({ error: "Media download failed" });
     }
+  }
+
+  private async fetchFollowingSafeRedirects(
+    url: string,
+    token: string,
+  ): Promise<Awaited<ReturnType<typeof fetch>>> {
+    let current = url;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (!isAllowedMediaHost(current)) {
+        throw new BadRequestException("Media host is not allowed.");
+      }
+      const response = await fetch(current, {
+        headers: { Authorization: `Bearer ${token}` },
+        redirect: "manual",
+      });
+      if (response.status < 300 || response.status >= 400) return response;
+
+      const location = response.headers.get("location");
+      if (!location) return response;
+      current = new URL(location, current).toString();
+    }
+    throw new BadRequestException("Too many redirects while fetching media.");
   }
 }

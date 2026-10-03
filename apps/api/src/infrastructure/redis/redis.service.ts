@@ -67,6 +67,12 @@ export class RedisService implements OnModuleDestroy {
     await this.client.del(key);
   }
 
+  /** Set a value only if the key is absent; returns true when written. */
+  async setNxValue(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    const res = await this.client.set(key, value, "EX", ttlSeconds, "NX");
+    return res === "OK";
+  }
+
   async eval(
     script: string,
     keys: string[],

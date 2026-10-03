@@ -21,7 +21,16 @@ async function bootstrap() {
   const logger = new Logger("Bootstrap");
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
+  // Trust the configured number of proxy hops so IP-keyed rate limiting sees
+  // the real client address behind a load balancer.
+  const trustProxy = process.env.TRUST_PROXY;
+  if (trustProxy) {
+    const adapter = app.getHttpAdapter().getInstance();
+    adapter.set("trust proxy", /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+  }
+
   app.use(helmet());
+  app.enableShutdownHooks();
 
   const origins = allowedOrigins();
   app.enableCors({

@@ -7,6 +7,15 @@ import { ListScheduledMessagesUseCase } from "../../application/use-cases/schedu
 import { CancelScheduledMessageUseCase } from "../../application/use-cases/scheduling/cancel-scheduled-message.use-case";
 import { toScheduledMessageDto } from "../serializers/scheduling.serializer";
 import { TenantId } from "../auth/tenant-id.decorator";
+import { optionalDate } from "../validation/parse";
+
+function parseStatus(value?: string): ScheduledMessageStatus | undefined {
+  if (!value) return undefined;
+  const upper = value.toUpperCase();
+  return (Object.values(ScheduledMessageStatus) as string[]).includes(upper)
+    ? (upper as ScheduledMessageStatus)
+    : undefined;
+}
 
 @Controller("api/scheduled-messages")
 export class ScheduledMessagesController {
@@ -34,10 +43,10 @@ export class ScheduledMessagesController {
     @Query("to") to?: string,
   ) {
     const rows = await this.listUseCase.execute(tenantId, {
-      status: status ? (status.toUpperCase() as ScheduledMessageStatus) : undefined,
+      status: parseStatus(status),
       conversationId,
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      from: optionalDate(from, "from"),
+      to: optionalDate(to, "to"),
     });
     return rows.map(toScheduledMessageDto);
   }

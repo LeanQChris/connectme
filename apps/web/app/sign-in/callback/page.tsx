@@ -17,7 +17,7 @@ export default function SignInCallbackPage() {
   const ran = useRef(false);
 
   useEffect(() => {
-    if (!isLoaded || ran.current) return;
+    if (!isLoaded || !signIn || ran.current) return;
     ran.current = true;
 
     const go = (url: string) => {

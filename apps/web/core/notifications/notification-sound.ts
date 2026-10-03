@@ -2,14 +2,25 @@
  * Synthetic Notification Chime using Web Audio API.
  * Produces a soft, modern two-tone chime without external audio assets.
  */
+let sharedContext: AudioContext | null = null;
+
+function getAudioContext(): AudioContext | null {
+  const AudioContextClass =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!sharedContext || sharedContext.state === "closed") {
+    sharedContext = new AudioContextClass();
+  }
+  return sharedContext;
+}
+
 export function playNotificationSound() {
   if (typeof window === "undefined") return;
 
   try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-
-    const ctx = new AudioContextClass();
+    const ctx = getAudioContext();
+    if (!ctx) return;
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => {});
     }

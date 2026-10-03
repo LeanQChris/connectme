@@ -70,13 +70,18 @@ export interface SendMessageDto {
   author?: string;
 }
 
-export const SendMessageDtoSchema = z.object({
-  conversationId: z.string().min(1),
-  text: z.string().optional(),
-  mediaUrl: z.string().optional(),
-  mediaType: MessageTypeSchema.optional(),
-  author: z.string().optional(),
-});
+export const SendMessageDtoSchema = z
+  .object({
+    conversationId: z.string().min(1),
+    text: z.string().max(4096).optional(),
+    mediaUrl: z.string().max(2048).optional(),
+    mediaType: MessageTypeSchema.optional(),
+    author: z.string().max(128).optional(),
+  })
+  .strict()
+  .refine((d) => Boolean(d.text || d.mediaUrl), {
+    message: "A message must include text or a media URL.",
+  });
 
 export interface AddInternalNoteDto {
   conversationId: string;
@@ -84,8 +89,10 @@ export interface AddInternalNoteDto {
   author?: string;
 }
 
-export const AddInternalNoteDtoSchema = z.object({
-  conversationId: z.string().min(1),
-  text: z.string().min(1),
-  author: z.string().optional(),
-});
+export const AddInternalNoteDtoSchema = z
+  .object({
+    conversationId: z.string().min(1),
+    text: z.string().min(1).max(4096),
+    author: z.string().max(128).optional(),
+  })
+  .strict();

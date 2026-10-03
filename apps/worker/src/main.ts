@@ -5,9 +5,29 @@ import { WorkerModule } from "./worker.module";
 
 async function bootstrap() {
   const logger = new Logger("WorkerBootstrap");
-  const app = await NestFactory.createApplicationContext(WorkerModule);
+  const app = await NestFactory.createApplicationContext(WorkerModule, {
+    logger: ["log", "warn", "error"],
+  });
+  app.enableShutdownHooks();
   await app.init();
+
+  const shutdown = async (signal: string) => {
+    logger.log(`Received ${signal}, shutting down gracefully...`);
+    try {
+      await app.close();
+    } finally {
+      process.exit(0);
+    }
+  };
+
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+
   logger.log("⚙️  ConnectMe BullMQ Background Worker is running...");
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error("Worker bootstrap failed:", err);
+  process.exit(1);
+});

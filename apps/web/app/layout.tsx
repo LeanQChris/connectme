@@ -18,6 +18,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   title: "ConnectMe - Unified Omnichannel Inbox",
   description: "Unified Inbox for WhatsApp, Messenger, Instagram, Telegram & Discord",
   applicationName: "ConnectMe",

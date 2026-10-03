@@ -57,12 +57,17 @@ export interface CreateScheduledMessageDto {
   createdBy?: string;
 }
 
-export const CreateScheduledMessageDtoSchema = z.object({
-  conversationId: z.string().min(1),
-  text: z.string().optional(),
-  mediaUrl: z.string().optional(),
-  mediaType: MessageTypeSchema.optional(),
-  scheduledFor: z.string().min(1),
-  timezone: z.string().optional(),
-  createdBy: z.string().optional(),
-});
+export const CreateScheduledMessageDtoSchema = z
+  .object({
+    conversationId: z.string().min(1),
+    text: z.string().max(4096).optional(),
+    mediaUrl: z.string().max(2048).optional(),
+    mediaType: MessageTypeSchema.optional(),
+    scheduledFor: z.string().datetime({ offset: true }),
+    timezone: z.string().max(64).optional(),
+    createdBy: z.string().max(128).optional(),
+  })
+  .strict()
+  .refine((d) => Boolean(d.text || d.mediaUrl), {
+    message: "A scheduled message must include text or a media URL.",
+  });

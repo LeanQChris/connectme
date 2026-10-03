@@ -33,12 +33,12 @@ export const NotificationService = {
   async showNotification(options: SendNotificationOptions) {
     if (!this.isSupported()) return;
 
-    if (options.playSound !== false) {
-      playNotificationSound();
-    }
-
     if (Notification.permission !== "granted") {
       return;
+    }
+
+    if (options.playSound !== false) {
+      playNotificationSound();
     }
 
     const title = options.title;

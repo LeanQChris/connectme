@@ -57,7 +57,7 @@ export class Conversation {
   @Column({ type: "text", nullable: true })
   lastMessageText?: string | null;
 
-  @CreateDateColumn({ type: "timestamp with time zone" })
+  @Column({ type: "timestamp with time zone", default: () => "now()" })
   lastMessageAt!: Date;
 
   @Column({ type: "timestamp with time zone", nullable: true })

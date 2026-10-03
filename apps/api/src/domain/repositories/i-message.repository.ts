@@ -4,8 +4,14 @@ export interface IMessageRepository {
   findById(id: string): Promise<Message | null>;
   findByExternalId(externalId: string): Promise<Message | null>;
   findByConversationId(conversationId: string, limit?: number): Promise<Message[]>;
+  /** Keyset pagination: messages strictly older than `before` (ISO), newest first. */
+  findMessagesPage(
+    conversationId: string,
+    limit: number,
+    before?: string,
+  ): Promise<Message[]>;
   createMessage(message: Partial<Message>): Promise<Message>;
   updateStatus(id: string, status: MessageStatus, errorDetail?: string): Promise<Message>;
-  updateStatusByExternalId(externalId: string, status: MessageStatus, errorDetail?: string): Promise<Message | null>;
+  updateStatusByExternalId(tenantId: string, externalId: string, status: MessageStatus, errorDetail?: string): Promise<Message | null>;
   searchMessages(tenantId: string, query: string): Promise<Message[]>;
 }

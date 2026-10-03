@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { join } from "node:path";
 import { DataSource } from "typeorm";
 import {
   Tenant,
@@ -15,7 +16,7 @@ import {
 export const AppDataSource = new DataSource({
   type: "postgres",
   url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/connectme",
-  synchronize: process.env.NODE_ENV === "development" || process.env.TYPEORM_SYNC === "true",
+  synchronize: String(process.env.DB_SYNCHRONIZE ?? "false") === "true",
   logging: process.env.NODE_ENV === "development",
   entities: [
     Tenant,
@@ -28,6 +29,6 @@ export const AppDataSource = new DataSource({
     ScheduledPost,
     ScheduledMessage,
   ],
-  migrations: ["src/migrations/**/*.ts"],
+  migrations: [join(__dirname, "migrations", "*{.ts,.js}")],
   subscribers: [],
 });

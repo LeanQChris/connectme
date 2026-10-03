@@ -2,6 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ChannelType } from "@connectme/database";
 import { IChannelClient, ChannelSendContext, ChannelSendResult } from "../channel-adapter.interface";
 import { AesVaultService } from "../aes-vault.service";
+import { graphUrl } from "./graph";
+import { fetchWithTimeout } from "../http";
 
 @Injectable()
 export class WhatsAppClient implements IChannelClient {
@@ -16,22 +18,55 @@ export class WhatsAppClient implements IChannelClient {
       throw new Error("WhatsApp Cloud API credentials not configured.");
     }
 
-    const token = this.aesVault.decrypt<string>(creds.waAccessTokenEnc) || creds.waAccessTokenEnc;
-    const graphVersion = process.env.NEXT_PUBLIC_META_GRAPH_VERSION || "v22.0";
-    const url = `https://graph.facebook.com/${graphVersion}/${creds.waPhoneNumberId}/messages`;
+    const token = this.aesVault.decryptStrict<string>(creds.waAccessTokenEnc);
+    return this.post(creds.waPhoneNumberId, token, {
+      messaging_product: "whatsapp",
+      to: ctx.contactExternalId,
+      type: "text",
+      text: { body: ctx.text || "" },
+    });
+  }
 
-    const res = await fetch(url, {
+  async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
+    const creds = ctx.credentials;
+    if (!creds?.waPhoneNumberId || !creds?.waAccessTokenEnc) {
+      throw new Error("WhatsApp Cloud API credentials not configured.");
+    }
+    if (!ctx.mediaUrl) throw new Error("WhatsApp media send requires a mediaUrl.");
+
+    const token = this.aesVault.decryptStrict<string>(creds.waAccessTokenEnc);
+    const type = (ctx.type || this.detectType(ctx.mimeType)).toLowerCase();
+    const mediaObject: Record<string, unknown> = { link: ctx.mediaUrl };
+    if (type !== "audio") mediaObject.caption = ctx.text || "";
+    if (type === "document") mediaObject.filename = ctx.text || "document";
+
+    return this.post(creds.waPhoneNumberId, token, {
+      messaging_product: "whatsapp",
+      to: ctx.contactExternalId,
+      type,
+      [type]: mediaObject,
+    });
+  }
+
+  private detectType(mimeType?: string): string {
+    if (mimeType?.startsWith("image/")) return "image";
+    if (mimeType?.startsWith("video/")) return "video";
+    if (mimeType?.startsWith("audio/")) return "audio";
+    return "document";
+  }
+
+  private async post(
+    phoneNumberId: string,
+    token: string,
+    body: Record<string, unknown>,
+  ): Promise<ChannelSendResult> {
+    const res = await fetchWithTimeout(graphUrl(`${phoneNumberId}/messages`), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: ctx.contactExternalId,
-        type: "text",
-        text: { body: ctx.text || "" },
-      }),
+      body: JSON.stringify(body),
     });
 
     const json: any = await res.json().catch(() => ({}));
@@ -41,9 +76,5 @@ export class WhatsAppClient implements IChannelClient {
     }
 
     return { externalId: json?.messages?.[0]?.id ?? null };
-  }
-
-  async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
-    return this.sendText(ctx);
   }
 }

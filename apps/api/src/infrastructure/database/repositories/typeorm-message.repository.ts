@@ -27,6 +27,23 @@ export class TypeOrmMessageRepository implements IMessageRepository {
     });
   }
 
+  async findMessagesPage(
+    conversationId: string,
+    limit: number,
+    before?: string,
+  ): Promise<Message[]> {
+    const qb = this.messageRepo
+      .createQueryBuilder("m")
+      .where("m.conversationId = :conversationId", { conversationId })
+      .orderBy("m.createdAt", "DESC")
+      .take(limit);
+    if (before) {
+      qb.andWhere("m.createdAt < :before", { before: new Date(before) });
+    }
+    const rows = await qb.getMany();
+    return rows.reverse();
+  }
+
   async createMessage(message: Partial<Message>): Promise<Message> {
     const entity = this.messageRepo.create(message);
     return this.messageRepo.save(entity);
@@ -38,17 +55,23 @@ export class TypeOrmMessageRepository implements IMessageRepository {
   }
 
   async updateStatusByExternalId(
+    tenantId: string,
     externalId: string,
     status: MessageStatus,
     errorDetail?: string,
   ): Promise<Message | null> {
-    const existing = await this.findByExternalId(externalId);
+    const existing = await this.messageRepo
+      .createQueryBuilder("m")
+      .innerJoin("m.conversation", "c")
+      .where("c.tenantId = :tenantId", { tenantId })
+      .andWhere("m.externalId = :externalId", { externalId })
+      .getOne();
     if (!existing) return null;
     await this.messageRepo.update(
-      { externalId },
+      { id: existing.id },
       { status, errorDetail: errorDetail || null },
     );
-    return this.findByExternalId(externalId);
+    return this.findById(existing.id);
   }
 
   async searchMessages(tenantId: string, query: string): Promise<Message[]> {
