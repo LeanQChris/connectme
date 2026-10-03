@@ -1,8 +1,11 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { Logger, ValidationPipe } from "@nestjs/common";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
+import { randomUUID } from "node:crypto";
 import { AppModule } from "./app.module";
+import { GlobalExceptionFilter } from "./presentation/filters/global-exception.filter";
 
 function allowedOrigins(): string[] {
   const configured = (process.env.CORS_ORIGINS || process.env.NEXT_PUBLIC_APP_URL || "")
@@ -19,17 +22,34 @@ function allowedOrigins(): string[] {
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+
+  process.on("unhandledRejection", (reason) => {
+    logger.error(`Unhandled promise rejection: ${(reason as Error)?.stack || reason}`);
+  });
+  process.on("uncaughtException", (err) => {
+    logger.error(`Uncaught exception: ${err?.stack || err}`);
+    process.exit(1);
+  });
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+
+  // Correlation id: honor an inbound x-request-id or mint one, and echo it back.
+  app.use((req: any, res: any, next: () => void) => {
+    const requestId = (req.headers["x-request-id"] as string) || randomUUID();
+    req.requestId = requestId;
+    res.setHeader("x-request-id", requestId);
+    next();
+  });
 
   // Trust the configured number of proxy hops so IP-keyed rate limiting sees
   // the real client address behind a load balancer.
   const trustProxy = process.env.TRUST_PROXY;
   if (trustProxy) {
-    const adapter = app.getHttpAdapter().getInstance();
-    adapter.set("trust proxy", /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+    app.set("trust proxy", /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
   }
 
   app.use(helmet());
+  app.useGlobalFilters(new GlobalExceptionFilter());
   app.enableShutdownHooks();
 
   const origins = allowedOrigins();

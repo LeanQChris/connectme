@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Inject } from "@nestjs/common";
+import { Injectable, BadRequestException, NotFoundException, Inject, Logger } from "@nestjs/common";
 import { ChannelType, ScheduleMode, ScheduledPostStatus } from "@connectme/database";
 import { UpdateScheduledPostDto } from "@connectme/contracts";
 import { FacebookPostClient, InstagramPostClient, PostPublishContext } from "@connectme/channels";
@@ -21,6 +21,8 @@ export interface UpdateScheduledPostInput {
 
 @Injectable()
 export class UpdateScheduledPostUseCase {
+  private readonly logger = new Logger(UpdateScheduledPostUseCase.name);
+
   constructor(
     @Inject("ITenantRepository")
     private readonly tenantRepo: ITenantRepository,
@@ -92,7 +94,13 @@ export class UpdateScheduledPostUseCase {
           },
           row.platformPostId,
         )
-        .catch(() => undefined);
+        .catch((err) => {
+          // Best-effort: the old native post may already be gone. Log so the
+          // reason is visible, but do not block rescheduling.
+          this.logger.warn(
+            `Could not cancel previous native post ${row.platformPostId}: ${(err as Error)?.message}`,
+          );
+        });
     }
 
     const ctx: PostPublishContext = {

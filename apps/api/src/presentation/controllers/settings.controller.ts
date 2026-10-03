@@ -148,9 +148,9 @@ export class SettingsController {
         }
         const token = decryptStrict(this.aesVault, creds.waAccessTokenEnc);
         const url = `https://graph.facebook.com/${graphVersion}/${creds.waPhoneNumberId}?fields=display_phone_number,verified_name&access_token=${encodeURIComponent(token)}`;
-        const res = await fetch(url).catch(() => null);
-        const data = await res?.json().catch(() => ({}));
-        if (!res?.ok) return { ok: false, detail: data?.error?.message || "WhatsApp verification failed" };
+        const result = await this.probe(url);
+        if (!result.ok) return { ok: false, detail: result.detail };
+        const data = result.data;
         const label = data.verified_name || data.display_phone_number || creds.waPhoneNumberId;
         return { ok: true, detail: `Connected to ${label}` };
       }
@@ -160,36 +160,71 @@ export class SettingsController {
         }
         const token = decryptStrict(this.aesVault, creds.pageAccessTokenEnc);
         const url = `https://graph.facebook.com/${graphVersion}/me?fields=id,name&access_token=${encodeURIComponent(token)}`;
-        const res = await fetch(url).catch(() => null);
-        const data = await res?.json().catch(() => ({}));
-        if (!res?.ok) return { ok: false, detail: data?.error?.message || "Facebook Page verification failed" };
-        return { ok: true, detail: `Connected to ${data.name || "Facebook Page"}` };
+        const result = await this.probe(url);
+        if (!result.ok) return { ok: false, detail: result.detail };
+        return { ok: true, detail: `Connected to ${result.data.name || "Facebook Page"}` };
       }
       case "telegram": {
         if (!creds.telegramTokenEnc) {
           return { ok: false, detail: "Telegram bot token is required." };
         }
         const token = decryptStrict(this.aesVault, creds.telegramTokenEnc);
-        const res = await fetch(`https://api.telegram.org/bot${token}/getMe`).catch(() => null);
-        const data = await res?.json().catch(() => ({}));
-        if (!res?.ok || !data.ok) return { ok: false, detail: data?.description || "Telegram bot verification failed" };
-        return { ok: true, detail: `Connected to @${data.result?.username}` };
+        const result = await this.probe(`https://api.telegram.org/bot${token}/getMe`);
+        if (!result.ok) {
+          return { ok: false, detail: result.detail };
+        }
+        if (!result.data.ok) {
+          return { ok: false, detail: result.data.description || "Telegram bot verification failed" };
+        }
+        return { ok: true, detail: `Connected to @${result.data.result?.username}` };
       }
       case "discord": {
         if (!creds.discordBotTokenEnc) {
           return { ok: false, detail: "Discord bot token is required." };
         }
         const token = decryptStrict(this.aesVault, creds.discordBotTokenEnc);
-        const res = await fetch("https://discord.com/api/v10/users/@me", {
+        const result = await this.probe("https://discord.com/api/v10/users/@me", {
           headers: { Authorization: `Bot ${token}` },
-        }).catch(() => null);
-        const data = await res?.json().catch(() => ({}));
-        if (!res?.ok) return { ok: false, detail: data?.message || "Discord bot verification failed" };
-        return { ok: true, detail: `Connected to ${data.username}#${data.discriminator || "0"}` };
+        });
+        if (!result.ok) {
+          return { ok: false, detail: result.detail || result.data?.message || "Discord bot verification failed" };
+        }
+        return { ok: true, detail: `Connected to ${result.data.username}#${result.data.discriminator || "0"}` };
       }
       default:
         return { ok: false, detail: "Unknown channel" };
     }
+  }
+
+  /**
+   * Probe a provider endpoint and surface the real failure reason, whether it
+   * is a network/timeout error or a provider error body, instead of collapsing
+   * every failure to a generic message.
+   */
+  private async probe(
+    url: string,
+    init?: RequestInit,
+  ): Promise<
+    | { ok: true; status: number; data: any }
+    | { ok: false; status: number; detail: string; data: any }
+  > {
+    let res: Response;
+    try {
+      res = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
+    } catch (err) {
+      const reason = (err as Error)?.name === "TimeoutError" ? "request timed out" : (err as Error)?.message;
+      return { ok: false, status: 0, detail: `Could not reach provider: ${reason}`, data: {} };
+    }
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        detail: data?.error?.message || data?.description || data?.message || `Provider returned HTTP ${res.status}`,
+        data,
+      };
+    }
+    return { ok: true, status: res.status, data };
   }
 
   @Get("telegram/setup")
