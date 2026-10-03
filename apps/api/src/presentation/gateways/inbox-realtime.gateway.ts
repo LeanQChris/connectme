@@ -52,8 +52,8 @@ export class InboxRealtimeGateway
     // Attach the Redis adapter so rooms/fan-out span every API replica. If
     // Redis is unavailable the gateway still works single-instance.
     try {
-      const pubClient = this.redis.duplicate();
-      const subClient = pubClient.duplicate();
+      const pubClient = this.redis.duplicateForAdapter();
+      const subClient = this.redis.duplicateForAdapter();
       this.server.adapter(createAdapter(pubClient, subClient));
       this.logger.log("Realtime gateway using Redis socket.io adapter.");
     } catch (err: any) {

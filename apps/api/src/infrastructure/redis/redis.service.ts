@@ -46,6 +46,22 @@ export class RedisService implements OnModuleDestroy {
     return this.client.duplicate();
   }
 
+  /**
+   * Duplicate for socket.io's Redis adapter. Unlike application clients this
+   * must connect eagerly and queue commands issued before the socket is ready
+   * (the adapter issues SUBSCRIBE immediately), otherwise fail-fast options
+   * throw "Stream isn't writeable".
+   */
+  duplicateForAdapter(): Redis {
+    const client = this.client.duplicate({
+      lazyConnect: true,
+      enableOfflineQueue: true,
+    });
+    client.on("error", (err) => this.logger.warn(`Redis adapter client error: ${err.message}`));
+    client.connect().catch((err) => this.logger.warn(`Redis adapter connect failed: ${err.message}`));
+    return client;
+  }
+
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
   }
