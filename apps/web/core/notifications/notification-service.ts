@@ -76,7 +76,10 @@ export const NotificationService = {
       notif.onclick = () => {
         window.focus();
         if (options.conversationId) {
-          window.location.href = `/inbox?id=${options.conversationId}`;
+          // The click fires outside React's render tree, so next/navigation's
+          // router is unavailable; a document-level navigation is the only option.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+          window.location.assign(`/inbox?id=${options.conversationId}`);
         }
         notif.close();
       };

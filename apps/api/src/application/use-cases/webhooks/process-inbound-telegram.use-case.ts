@@ -1,4 +1,4 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import {
   ChannelType,
   MessageDirection,
@@ -15,6 +15,8 @@ import { TelegramWebhookUpdate } from "@connectme/contracts";
 
 @Injectable()
 export class ProcessInboundTelegramUseCase {
+  private readonly logger = new Logger(ProcessInboundTelegramUseCase.name);
+
   constructor(
     @Inject("ITenantRepository")
     private readonly tenantRepo: ITenantRepository,
@@ -36,12 +38,11 @@ export class ProcessInboundTelegramUseCase {
     if (!acquired) return; // Deduplicated
 
     const account = await this.tenantRepo.findAccountByExternalId(ChannelType.TELEGRAM, botId);
-    let tenantId = account?.tenantId;
-
-    if (!tenantId) {
-      const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-      tenantId = defaultTenant.id;
+    if (!account?.tenantId) {
+      this.logger.warn(`Dropping Telegram webhook for unregistered bot ${botId}.`);
+      return;
     }
+    const tenantId = account.tenantId;
 
     const chatId = String(update.message.chat.id);
     const senderName =

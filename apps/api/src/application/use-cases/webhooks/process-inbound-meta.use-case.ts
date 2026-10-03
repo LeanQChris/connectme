@@ -56,14 +56,15 @@ export class ProcessInboundMetaUseCase {
     const phoneNumberId = value.metadata?.phone_number_id;
     if (!phoneNumberId) return;
 
-    // Route to connected account or default tenant
+    // Route to the connected account that owns this phone number id.
     const account = await this.tenantRepo.findAccountByExternalId(ChannelType.WHATSAPP, phoneNumberId);
-    let tenantId = account?.tenantId;
-
-    if (!tenantId) {
-      const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-      tenantId = defaultTenant.id;
+    if (!account?.tenantId) {
+      this.logger.warn(
+        `Dropping WhatsApp webhook for unregistered phone_number_id ${phoneNumberId}.`,
+      );
+      return;
     }
+    const tenantId = account.tenantId;
 
     // 1. Handle delivery/read statuses
     if (value.statuses) {
@@ -145,12 +146,13 @@ export class ProcessInboundMetaUseCase {
   private async handleMessengerEvent(pageId: string, event: any, isInstagram: boolean) {
     const channel = isInstagram ? ChannelType.INSTAGRAM : ChannelType.MESSENGER;
     const account = await this.tenantRepo.findAccountByExternalId(channel, pageId);
-    let tenantId = account?.tenantId;
-
-    if (!tenantId) {
-      const defaultTenant = await this.tenantRepo.getOrCreateDefaultTenant("system", "admin@connectme.local");
-      tenantId = defaultTenant.id;
+    if (!account?.tenantId) {
+      this.logger.warn(
+        `Dropping ${channel} webhook for unregistered page ${pageId}.`,
+      );
+      return;
     }
+    const tenantId = account.tenantId;
 
     // Read receipts
     if (event.read) {
