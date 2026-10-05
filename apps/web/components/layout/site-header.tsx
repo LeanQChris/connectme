@@ -7,6 +7,7 @@ import React from "react";
 
 import UserMenu from "@/modules/auth/components/user-menu";
 import ThemeToggle from "@/components/ui/theme-toggle";
+import SoundToggle from "@/components/ui/sound-toggle";
 import Logo from "@/components/ui/logo";
 import { PwaInstallButton } from "@/components/pwa/pwa-install-button";
 import { cn } from "@/core/utils/cn";
@@ -22,6 +23,7 @@ const PUBLIC_NAV_LINKS = [
   { label: "How it works", href: "/#setup" },
   { label: "About", href: "/about" },
   { label: "Privacy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
 ];
 
 interface AppNavItem {
@@ -203,6 +205,7 @@ export default function SiteHeader({
             </>
           )}
 
+          <SoundToggle />
           <ThemeToggle />
 
           {resolvedVariant === "auth" ? (

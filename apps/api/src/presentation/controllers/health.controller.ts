@@ -37,10 +37,10 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error("probe timed out")), PROBE_TIMEOUT_MS);
-    // Never hold the event loop open for a timer nobody is awaiting.
-    timer.unref?.();
   });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 @Public()

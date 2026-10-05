@@ -13,13 +13,16 @@ const QUICK_REPLIES = [
 
 export function QuickRepliesTray({ onSelect }: QuickRepliesTrayProps) {
   return (
-    <div className="mb-2 flex flex-wrap gap-1.5">
+    <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 select-none">
+      <span className="shrink-0 font-mono text-[10px] uppercase font-semibold text-mute tracking-wider pl-0.5">
+        ⚡ Quick
+      </span>
       {QUICK_REPLIES.map((preset) => (
         <button
           key={preset}
           type="button"
           onClick={() => onSelect(preset)}
-          className="max-w-[22ch] truncate rounded-full border border-hairline bg-canvas-elevated px-2.5 py-1 text-[11.5px] text-body transition-colors hover:border-hairline-strong hover:text-ink active:bg-surface-well cursor-pointer"
+          className="shrink-0 max-w-[28ch] truncate rounded-full border border-hairline bg-canvas-elevated px-3 py-1 text-[11.5px] text-body transition-all hover:border-hairline-strong hover:bg-surface-well hover:text-ink active:scale-95 shadow-2xs cursor-pointer"
           title={preset}
         >
           {preset}

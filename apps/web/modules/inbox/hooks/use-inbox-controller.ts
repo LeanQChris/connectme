@@ -16,6 +16,7 @@ import { useRealtimeInbox } from "./use-realtime";
 import type { ConversationMetaPatch } from "../api/inbox.api";
 import type { ConversationStatus } from "@/core/types";
 import type { ReplyPayload } from "./use-reply-box";
+import { soundNotifier } from "@/core/utils/audio-chime";
 
 const ARCHIVED = "archived";
 
@@ -102,6 +103,20 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
     }
     return unread;
   }, [all]);
+
+  // Dynamic Browser Tab Title & Audio Notification Chime
+  const prevUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    const currentUnread = counts.total ?? 0;
+    if (typeof document !== "undefined") {
+      document.title = currentUnread > 0 ? `(${currentUnread}) ConnectMe · Inbox` : "ConnectMe · Inbox";
+    }
+
+    if (prevUnreadRef.current !== null && currentUnread > prevUnreadRef.current) {
+      soundNotifier.playChime();
+    }
+    prevUnreadRef.current = currentUnread;
+  }, [counts.total]);
 
   // Keyboard navigation
   const visibleRef = useRef(visible);

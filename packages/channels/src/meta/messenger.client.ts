@@ -65,4 +65,32 @@ export class MessengerClient implements IChannelClient {
 
     return { externalId: json?.message_id ?? null };
   }
+
+  /**
+   * Fetches Facebook user profile (name, profile_pic) using Page access token.
+   */
+  async getUserProfile(
+    psid: string,
+    accessToken: string,
+  ): Promise<{ name?: string; avatarUrl?: string } | null> {
+    try {
+      const res = await fetchWithTimeout(
+        graphUrl(`${psid}?fields=first_name,last_name,name,profile_pic`),
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+      if (!res.ok) return null;
+      const json: any = await res.json().catch(() => ({}));
+      const name = json?.name || (json?.first_name ? `${json.first_name} ${json.last_name || ""}`.trim() : undefined);
+      return {
+        name: name || undefined,
+        avatarUrl: json?.profile_pic || undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
 }

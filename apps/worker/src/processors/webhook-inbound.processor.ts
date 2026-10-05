@@ -233,7 +233,6 @@ export class WebhookInboundProcessor extends WorkerHost {
     const senderId = event.sender?.id;
     if (!senderId) return;
 
-    const text = message.text || (message.attachments?.length ? "Attachment" : "Message");
     const profile = await this.fetchProfile(tenantId, channel, senderId, account);
     const contact = await upsertContact(this.contactRepo, tenantId, channel, senderId, {
       name: profile?.name || profile?.username || senderId,
@@ -241,19 +240,62 @@ export class WebhookInboundProcessor extends WorkerHost {
     });
     const conv = await findOrCreateConversation(this.convRepo, tenantId, contact.id, channel, account.id);
 
-    const saved = await createMessage(this.messageRepo, {
-      conversationId: conv.id,
-      externalId: message.mid ?? null,
-      channel,
-      type: message.attachments?.length ? MediaType.IMAGE : MediaType.TEXT,
-      text,
-    });
-    await touchConversation(this.convRepo, conv, text, true);
-    await this.realtime.publish({
-      type: "message:new",
-      tenantId,
-      payload: { conversationId: conv.id, message: saved },
-    });
+    const attachments: any[] = Array.isArray(message.attachments) ? message.attachments : [];
+
+    if (attachments.length > 0) {
+      for (let idx = 0; idx < attachments.length; idx++) {
+        const att = attachments[idx];
+        const attType = att?.type;
+        const mediaUrl = att?.payload?.url ?? null;
+
+        let mediaType: Message["type"] = MediaType.IMAGE;
+        let defaultText = "Photo";
+        if (attType === "video") {
+          mediaType = MediaType.VIDEO;
+          defaultText = "Video";
+        } else if (attType === "audio") {
+          mediaType = MediaType.AUDIO;
+          defaultText = "Voice message";
+        } else if (attType === "file") {
+          mediaType = MediaType.DOCUMENT;
+          defaultText = "Document";
+        }
+
+        const bodyText = idx === 0 && message.text ? message.text : defaultText;
+        const externalId = idx === 0 ? (message.mid ?? null) : `${message.mid || "att"}_${idx}`;
+
+        const saved = await createMessage(this.messageRepo, {
+          conversationId: conv.id,
+          externalId,
+          channel,
+          type: mediaType,
+          text: bodyText,
+          mediaUrl,
+        });
+
+        await touchConversation(this.convRepo, conv, bodyText, true);
+        await this.realtime.publish({
+          type: "message:new",
+          tenantId,
+          payload: { conversationId: conv.id, message: saved },
+        });
+      }
+    } else {
+      const text = message.text || "Message";
+      const saved = await createMessage(this.messageRepo, {
+        conversationId: conv.id,
+        externalId: message.mid ?? null,
+        channel,
+        type: MediaType.TEXT,
+        text,
+      });
+      await touchConversation(this.convRepo, conv, text, true);
+      await this.realtime.publish({
+        type: "message:new",
+        tenantId,
+        payload: { conversationId: conv.id, message: saved },
+      });
+    }
   }
 
   /** Best-effort profile enrichment; never blocks ingestion on failure. */

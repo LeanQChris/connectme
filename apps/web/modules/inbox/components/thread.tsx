@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment, useMemo, useState } from "react";
 import type {
   ConversationStatus,
   ConversationSummary,
@@ -9,9 +10,11 @@ import type { ConversationMetaPatch } from "../api/inbox.api";
 import { useThread } from "../hooks/use-thread";
 import { ThreadHeader } from "./thread-header";
 import { MessageItem } from "./message-item";
-import { LightboxModal } from "./lightbox-modal";
+import ImageGallery, { Lightbox } from "./image-gallery";
 import ReplyBox, { type ReplyPayload } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
+import Avatar from "@/components/ui/avatar";
+import { formatTime } from "@/core/utils/format";
 
 interface ThreadProps {
   conversation: ConversationSummary;
@@ -22,6 +25,103 @@ interface ThreadProps {
   onNote: (text: string) => Promise<void>;
   onArchive: (status: ConversationStatus) => void;
   onMeta: (patch: ConversationMetaPatch) => void;
+}
+
+export interface SingleItem {
+  type: "single";
+  message: Message;
+  id: string;
+  createdAt: string;
+  direction: "in" | "out" | "note";
+}
+
+export interface ImageGroupItem {
+  type: "image_group";
+  messages: Message[];
+  id: string;
+  createdAt: string;
+  direction: "in" | "out";
+}
+
+export type ClusterItem = SingleItem | ImageGroupItem;
+
+export function clusterMessages(messages: Message[]): ClusterItem[] {
+  const result: ClusterItem[] = [];
+  let i = 0;
+
+  while (i < messages.length) {
+    const msg = messages[i];
+
+    if (msg.type === "image" && msg.mediaUrl && msg.direction !== "note") {
+      const group: Message[] = [msg];
+      let j = i + 1;
+
+      while (j < messages.length) {
+        const next = messages[j];
+        if (
+          next.type === "image" &&
+          next.mediaUrl &&
+          next.direction === msg.direction &&
+          (!next.text || next.text.startsWith("[")) &&
+          Math.abs(new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime()) < 180000
+        ) {
+          group.push(next);
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      if (group.length > 1) {
+        result.push({
+          type: "image_group",
+          messages: group,
+          id: group.map((m) => m.id).join("_"),
+          createdAt: group[group.length - 1].createdAt,
+          direction: msg.direction as "in" | "out",
+        });
+        i = j;
+        continue;
+      }
+    }
+
+    result.push({
+      type: "single",
+      message: msg,
+      id: msg.id,
+      createdAt: msg.createdAt,
+      direction: msg.direction,
+    });
+    i++;
+  }
+
+  return result;
+}
+
+function formatDateDivider(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+
+  if (isToday) return "Today";
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterday) return "Yesterday";
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  });
 }
 
 export default function Thread({
@@ -40,9 +140,6 @@ export default function Thread({
     copyId,
     copiedMessageId,
     copyMessage,
-    lightboxImage,
-    openImage,
-    closeLightbox,
     windowOpen,
     archived,
     channelInfo,
@@ -51,10 +148,24 @@ export default function Thread({
     unreadCount,
   } = useThread(conversation, messages);
 
+  const [lightboxImages, setLightboxImages] = useState<
+    { id: string; url: string; text?: string | null; createdAt: string }[] | null
+  >(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0);
+
+  const clusteredItems = useMemo(() => clusterMessages(messages), [messages]);
+
   return (
     <section className="relative flex min-h-0 flex-1 flex-col bg-canvas">
       {/* Lightbox Modal for Images */}
-      <LightboxModal imageUrl={lightboxImage} onClose={closeLightbox} />
+      {lightboxImages && (
+        <Lightbox
+          images={lightboxImages}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxImages(null)}
+          onNavigate={(idx) => setLightboxIndex(idx)}
+        />
+      )}
 
       {/* Thread Header */}
       <ThreadHeader
@@ -90,7 +201,7 @@ export default function Thread({
 
       {/* Messages Stream */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-        {messages.length === 0 ? (
+        {clusteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] border border-hairline bg-canvas-elevated text-body shadow-2xs">
               <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
@@ -108,22 +219,93 @@ export default function Thread({
             </p>
           </div>
         ) : (
-          messages.map((message, i) => {
-            const prev = messages[i - 1];
-            const next = messages[i + 1];
+          clusteredItems.map((item, i) => {
+            const isGroup = item.type === "image_group";
+            const prev = clusteredItems[i - 1];
+            const next = clusteredItems[i + 1];
+            const day = formatDateDivider(item.createdAt);
+            const prevCreatedAt = prev?.createdAt;
+            const showDivider = !prevCreatedAt || formatDateDivider(prevCreatedAt) !== day;
+            const runStart = showDivider || !prev || prev.direction !== item.direction;
+            const outgoing = item.direction === "out";
+            const showAvatar = !outgoing && item.direction !== "note" && (!next || next.direction !== item.direction);
 
+            if (isGroup) {
+              const galleryImages = item.messages.map((m) => ({
+                id: m.id,
+                url: m.mediaUrl!,
+                text: m.text,
+                createdAt: m.createdAt,
+              }));
+
+              return (
+                <Fragment key={item.id}>
+                  {showDivider && (
+                    <div className="my-5 flex items-center justify-center first:mt-0">
+                      <span className="rounded-full border border-hairline bg-canvas-elevated px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mute shadow-2xs">
+                        {day}
+                      </span>
+                    </div>
+                  )}
+
+                  <div
+                    className={`flex items-end gap-2 ${outgoing ? "justify-end" : "justify-start"} ${
+                      runStart ? "mt-4" : "mt-1.5"
+                    }`}
+                  >
+                    {!outgoing && (
+                      <div className="w-8 shrink-0 self-end">
+                        {showAvatar && (
+                          <Avatar
+                            name={conversation.contactName}
+                            avatarUrl={conversation.avatarUrl}
+                            channel={conversation.channel}
+                            size="sm"
+                            showChannelBadge={false}
+                            className="shadow-2xs"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    <div className="group relative max-w-[85%] sm:max-w-[420px] select-none">
+                      <ImageGallery
+                        images={galleryImages}
+                        outgoing={outgoing}
+                        onOpenLightbox={(idx) => {
+                          setLightboxImages(galleryImages);
+                          setLightboxIndex(idx);
+                        }}
+                      />
+
+                      {/* Floating translucent timestamp badge */}
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
+                        <span className="font-sans font-medium text-[9.5px]">📷 {galleryImages.length}</span>
+                        <span>·</span>
+                        <span>{formatTime(item.createdAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </Fragment>
+              );
+            }
+
+            const message = item.message;
             return (
               <MessageItem
                 key={message.id}
                 message={message}
-                prevMessage={prev}
-                nextMessage={next}
+                prevMessage={prev?.type === "single" ? prev.message : undefined}
+                nextMessage={next?.type === "single" ? next.message : undefined}
                 conversation={conversation}
                 unreadBoundary={unreadBoundary}
                 unreadCount={message.id === unreadBoundary ? unreadCount : 0}
                 copiedMessageId={copiedMessageId}
                 onCopyMessage={copyMessage}
-                onOpenImage={openImage}
+                onOpenImage={(url) => {
+                  setLightboxImages([{ id: message.id, url, text: message.text, createdAt: message.createdAt }]);
+                  setLightboxIndex(0);
+                }}
               />
             );
           })

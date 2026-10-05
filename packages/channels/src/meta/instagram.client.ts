@@ -65,4 +65,31 @@ export class InstagramClient implements IChannelClient {
 
     return { externalId: json?.message_id ?? null };
   }
+
+  /**
+   * Fetches Instagram user profile (username, profile_pic) using Page token.
+   */
+  async getUserProfile(
+    igUserId: string,
+    accessToken: string,
+  ): Promise<{ name?: string; avatarUrl?: string } | null> {
+    try {
+      const res = await fetchWithTimeout(
+        graphUrl(`${igUserId}?fields=name,username,profile_pic`),
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+      if (!res.ok) return null;
+      const json: any = await res.json().catch(() => ({}));
+      return {
+        name: json?.name || json?.username || undefined,
+        avatarUrl: json?.profile_pic || undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
 }
