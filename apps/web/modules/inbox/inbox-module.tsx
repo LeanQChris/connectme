@@ -9,6 +9,7 @@ import { NotificationPromptBanner } from "@/components/pwa/notification-prompt-b
 import ChannelRail from "./components/channel-rail";
 import ConversationList from "./components/conversation-list";
 import Thread from "./components/thread";
+import { SoundToggle } from "./components/sound-toggle";
 
 const ARCHIVED = "archived";
 
@@ -38,6 +39,7 @@ export default function InboxModule({ initialSelectedId }: InboxModuleProps) {
     handleNote,
     handleMeta,
     handleArchive,
+    handleDelete,
   } = useInboxController({ initialSelectedId });
 
   return (
@@ -89,6 +91,9 @@ export default function InboxModule({ initialSelectedId }: InboxModuleProps) {
                   ))}
                 </select>
               )}
+              <div className="ml-auto flex items-center gap-1.5">
+                <SoundToggle />
+              </div>
             </div>
 
             <ConversationList
@@ -111,6 +116,7 @@ export default function InboxModule({ initialSelectedId }: InboxModuleProps) {
               onSchedule={handleSchedule}
               onNote={handleNote}
               onArchive={handleArchive}
+              onDelete={handleDelete}
               onMeta={handleMeta}
             />
           </main>

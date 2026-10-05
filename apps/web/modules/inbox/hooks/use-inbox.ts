@@ -66,6 +66,23 @@ export function useSetConversationStatus() {
   });
 }
 
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return inboxApi.deleteConversation(id);
+    },
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.conversation(id) });
+      queryClient.setQueryData<ConversationSummary[]>(QUERY_KEYS.conversations, (list) =>
+        list?.filter((c) => c.id !== id) ?? [],
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
+    },
+  });
+}
+
 /** Assigns an owner and/or replaces the tag list. */
 export function useSetConversationMeta(id: string | null) {
   const queryClient = useQueryClient();

@@ -23,10 +23,10 @@ const ChannelRail = memo(function ChannelRail({
   value: string;
   onChange: (value: string) => void;
   counts: Record<string, number>;
-  connected?: Record<Channel, boolean>;
+  connected?: Partial<Record<Channel, boolean>> | Record<string, boolean>;
 }) {
   const activeChannels = CHANNELS.filter(
-    (channel) => (connected ? connected[channel] : true)
+    (channel) => (connected ? Boolean(connected[channel]) : true)
   );
 
   const items: Item[] = [

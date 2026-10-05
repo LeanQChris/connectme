@@ -1,7 +1,2 @@
-export enum ChannelType {
-  WHATSAPP = "WHATSAPP",
-  MESSENGER = "MESSENGER",
-  INSTAGRAM = "INSTAGRAM",
-  TELEGRAM = "TELEGRAM",
-  DISCORD = "DISCORD",
-}
+export { ChannelType } from "@connectme/database";
+

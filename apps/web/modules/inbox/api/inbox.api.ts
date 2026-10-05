@@ -81,5 +81,11 @@ export const inboxApi = {
       body: form,
     });
   },
+
+  deleteConversation: (id: string) => {
+    return httpClient<{ success: boolean; id: string }>(`/api/conversations/${id}`, {
+      method: "DELETE",
+    });
+  },
 };
 

@@ -21,19 +21,39 @@ import {
   InstagramClient,
   TelegramClient,
   DiscordClient,
+  SlackClient,
 } from "@connectme/channels";
 import { InboxRealtimeGateway } from "../../../presentation/gateways/inbox-realtime.gateway";
+
+export interface SendReplyMediaItem {
+  url: string;
+  type?: string;
+  name?: string | null;
+  size?: number | null;
+  mimeType?: string | null;
+}
 
 export interface SendReplyInput {
   tenantId: string;
   conversationId: string;
   text?: string;
+  media?: SendReplyMediaItem[];
   mediaUrl?: string;
   mediaType?: string;
   author?: string;
 }
 
-function resolveMediaType(mediaType?: string): MediaType {
+function resolveMediaType(mediaType?: string, media?: SendReplyMediaItem[]): MediaType {
+  if (media && media.length > 0) {
+    const first = media[0];
+    if (first.type) {
+      const upper = first.type.toUpperCase();
+      if ((Object.values(MediaType) as string[]).includes(upper)) {
+        return upper as MediaType;
+      }
+    }
+    return MediaType.IMAGE;
+  }
   if (!mediaType) return MediaType.TEXT;
   const upper = mediaType.toUpperCase();
   return (Object.values(MediaType) as string[]).includes(upper)
@@ -55,6 +75,7 @@ export class SendReplyUseCase {
     private readonly instagramClient: InstagramClient,
     private readonly telegramClient: TelegramClient,
     private readonly discordClient: DiscordClient,
+    private readonly slackClient: SlackClient,
     private readonly realtimeGateway: InboxRealtimeGateway,
   ) {}
 
@@ -75,19 +96,37 @@ export class SendReplyUseCase {
 
     const credentials = await this.tenantRepo.getCredentials(input.tenantId);
 
+    // Normalize media list
+    const mediaList = input.media && input.media.length > 0
+      ? input.media
+      : input.mediaUrl
+      ? [{ url: input.mediaUrl, type: input.mediaType || "file" }]
+      : [];
+
+    const primaryMediaUrl = mediaList[0]?.url || input.mediaUrl || null;
+
     // Save preliminary outbound message
     const msg = await this.messageRepo.createMessage(input.tenantId, {
       conversationId: conv.id,
       direction: MessageDirection.OUTBOUND,
       channel: conv.channel,
-      type: resolveMediaType(input.mediaType),
+      type: resolveMediaType(input.mediaType, input.media),
       text: input.text || null,
-      mediaUrl: input.mediaUrl || null,
+      mediaUrl: primaryMediaUrl,
+      media: mediaList.length > 0 ? mediaList.map((m) => ({
+        url: m.url,
+        type: m.type || "file",
+        name: m.name ?? undefined,
+        size: m.size ?? undefined,
+        mimeType: m.mimeType ?? undefined,
+      })) : null,
       status: MessageStatus.SENT,
       authorName: input.author || "Agent",
     });
 
     let delivered = true;
+    let skipped: string[] | undefined;
+
     try {
       let externalId: string | null = null;
       const ctx = {
@@ -95,48 +134,54 @@ export class SendReplyUseCase {
         pageAccessToken: conv.account?.accessTokenEnc,
         contactExternalId: conv.contact.externalId,
         text: input.text,
-        mediaUrl: input.mediaUrl,
+        mediaUrl: primaryMediaUrl ?? undefined,
+        media: mediaList,
         mimeType: undefined,
         type: input.mediaType,
       };
 
-      const useMedia = Boolean(input.mediaUrl);
+      const useMedia = mediaList.length > 0;
       switch (conv.channel) {
-        case ChannelType.WHATSAPP:
-          externalId = (
-            await (useMedia
-              ? this.whatsappClient.sendMedia(ctx)
-              : this.whatsappClient.sendText(ctx))
-          ).externalId;
+        case ChannelType.WHATSAPP: {
+          const res = await (useMedia ? this.whatsappClient.sendMedia(ctx) : this.whatsappClient.sendText(ctx));
+          externalId = res.externalId;
+          skipped = res.skipped;
           break;
-        case ChannelType.MESSENGER:
-          externalId = (
-            await (useMedia
-              ? this.messengerClient.sendMedia(ctx)
-              : this.messengerClient.sendText(ctx))
-          ).externalId;
+        }
+        case ChannelType.MESSENGER: {
+          const res = await (useMedia ? this.messengerClient.sendMedia(ctx) : this.messengerClient.sendText(ctx));
+          externalId = res.externalId;
+          skipped = res.skipped;
           break;
-        case ChannelType.INSTAGRAM:
-          externalId = (
-            await (useMedia
-              ? this.instagramClient.sendMedia(ctx)
-              : this.instagramClient.sendText(ctx))
-          ).externalId;
+        }
+        case ChannelType.INSTAGRAM: {
+          const res = await (useMedia ? this.instagramClient.sendMedia(ctx) : this.instagramClient.sendText(ctx));
+          externalId = res.externalId;
+          skipped = res.skipped;
           break;
-        case ChannelType.TELEGRAM:
-          externalId = (
-            await (useMedia
-              ? this.telegramClient.sendMedia(ctx)
-              : this.telegramClient.sendText(ctx))
-          ).externalId;
+        }
+        case ChannelType.TELEGRAM: {
+          const res = await (useMedia ? this.telegramClient.sendMedia(ctx) : this.telegramClient.sendText(ctx));
+          externalId = res.externalId;
+          skipped = res.skipped;
           break;
-        case ChannelType.DISCORD:
-          externalId = (
-            await (useMedia
-              ? this.discordClient.sendMedia(ctx)
-              : this.discordClient.sendText(ctx))
-          ).externalId;
+        }
+        case ChannelType.DISCORD: {
+          const res = await (useMedia ? this.discordClient.sendMedia(ctx) : this.discordClient.sendText(ctx));
+          externalId = res.externalId;
+          skipped = res.skipped;
           break;
+        }
+        case ChannelType.SLACK: {
+          const res = await (useMedia ? this.slackClient.sendMedia(ctx) : this.slackClient.sendText(ctx));
+          externalId = res.externalId;
+          skipped = res.skipped;
+          break;
+        }
+        case ChannelType.WIDGET: {
+          externalId = `widget_${Date.now()}`;
+          break;
+        }
         default:
           throw new Error(`Unsupported channel: ${conv.channel}`);
       }
@@ -153,7 +198,8 @@ export class SendReplyUseCase {
 
     if (delivered) {
       // Update conversation last message timestamp & snippet
-      await this.convRepo.updateLastMessage(input.tenantId, conv.id, input.text || "Attachment", false);
+      const previewText = input.text || (mediaList.length > 0 ? `📎 ${mediaList.length} attachment(s)` : "Attachment");
+      await this.convRepo.updateLastMessage(input.tenantId, conv.id, previewText, false);
     }
 
     // Real-time broadcast (including failed messages, so the UI reflects reality)
@@ -165,6 +211,6 @@ export class SendReplyUseCase {
       );
     }
 
-    return msg;
+    return { ...msg, skipped };
   }
 }

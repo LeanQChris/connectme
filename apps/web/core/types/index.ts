@@ -2,7 +2,15 @@
  * Core domain types and contracts for the web application.
  */
 
-export const CHANNELS = ["whatsapp", "messenger", "instagram", "telegram", "discord"] as const;
+export const CHANNELS = [
+  "whatsapp",
+  "messenger",
+  "instagram",
+  "telegram",
+  "discord",
+  "slack",
+  "widget",
+] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const DIRECTIONS = ["in", "out", "note"] as const;
@@ -14,6 +22,9 @@ export const MESSAGE_TYPES = [
   "audio",
   "video",
   "document",
+  "sticker",
+  "location",
+  "file",
   "other",
 ] as const;
 export type MessageType = (typeof MESSAGE_TYPES)[number];
@@ -59,12 +70,21 @@ export interface Conversation {
   createdAt: string;
 }
 
+export interface MessageMedia {
+  url: string;
+  type: MessageType;
+  name?: string | null;
+  size?: number | null;
+  mimeType?: string | null;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
   direction: Direction;
   type: MessageType;
   text: string | null;
+  media?: MessageMedia[] | null;
   mediaUrl?: string | null;
   externalId: string | null;
   channel: Channel;

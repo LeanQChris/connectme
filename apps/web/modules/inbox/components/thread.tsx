@@ -15,6 +15,7 @@ import ReplyBox, { type ReplyPayload } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
 import Avatar from "@/components/ui/avatar";
 import { formatTime } from "@/core/utils/format";
+import { DeleteConversationModal } from "./delete-conversation-modal";
 
 interface ThreadProps {
   conversation: ConversationSummary;
@@ -24,6 +25,7 @@ interface ThreadProps {
   onSchedule: (payload: ReplyPayload, scheduledForIso: string) => Promise<void>;
   onNote: (text: string) => Promise<void>;
   onArchive: (status: ConversationStatus) => void;
+  onDelete?: (id: string) => Promise<void>;
   onMeta: (patch: ConversationMetaPatch) => void;
 }
 
@@ -132,6 +134,7 @@ export default function Thread({
   onSchedule,
   onNote,
   onArchive,
+  onDelete,
   onMeta,
 }: ThreadProps) {
   const {
@@ -152,8 +155,15 @@ export default function Thread({
     { id: string; url: string; text?: string | null; createdAt: string }[] | null
   >(null);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
 
   const clusteredItems = useMemo(() => clusterMessages(messages), [messages]);
+
+  const handleConfirmDelete = async () => {
+    if (!onDelete) return;
+    await onDelete(conversation.id);
+    setShowDeleteModal(false);
+  };
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col bg-canvas">
@@ -167,6 +177,14 @@ export default function Thread({
         />
       )}
 
+      {/* Delete Confirmation Modal */}
+      <DeleteConversationModal
+        isOpen={showDeleteModal}
+        contactName={conversation.contactName}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+      />
+
       {/* Thread Header */}
       <ThreadHeader
         conversation={conversation}
@@ -177,6 +195,7 @@ export default function Thread({
         onCopyId={copyId}
         onBack={onBack}
         onArchive={() => onArchive(archived ? "open" : "closed")}
+        onDelete={onDelete ? () => setShowDeleteModal(true) : undefined}
         onMeta={onMeta}
       />
 

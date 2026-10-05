@@ -14,8 +14,13 @@ export class MessagingWindowVO {
   ) {}
 
   public calculate(now: Date = new Date()): MessagingWindowState {
-    // Telegram and Discord have no customer service window ceiling
-    if (this.channel === ChannelType.TELEGRAM || this.channel === ChannelType.DISCORD) {
+    // Telegram, Discord, Slack, and Widget have no customer service window ceiling
+    if (
+      this.channel === ChannelType.TELEGRAM ||
+      this.channel === ChannelType.DISCORD ||
+      this.channel === ChannelType.SLACK ||
+      this.channel === ChannelType.WIDGET
+    ) {
       return { open: true, msRemaining: null };
     }
 

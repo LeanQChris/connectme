@@ -5,6 +5,7 @@ import Avatar from "@/components/ui/avatar";
 import { formatTime } from "@/core/utils/format";
 import type { ConversationSummary, Message, MessageStatus } from "@/core/types";
 import { MessageAttachment } from "./message-attachment";
+import { extractUrls, LinkPreviewCard } from "./link-preview-card";
 
 interface MessageItemProps {
   message: Message;
@@ -262,6 +263,13 @@ export const MessageItem = memo(function MessageItem({
 
             {message.text && (
               <p className="whitespace-pre-wrap break-words select-text">{message.text}</p>
+            )}
+
+            {/* Link Preview Card */}
+            {message.type === "text" && message.text && (
+              extractUrls(message.text).slice(0, 1).map((url) => (
+                <LinkPreviewCard key={url} url={url} />
+              ))
             )}
 
             {message.error ? (

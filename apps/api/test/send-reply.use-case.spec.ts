@@ -66,6 +66,7 @@ function build(options: {
     {} as any,
     telegramClient as any,
     {} as any,
+    {} as any, // slackClient
     gateway as any,
   );
 

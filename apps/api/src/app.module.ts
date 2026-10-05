@@ -45,6 +45,7 @@ import {
   InstagramClient,
   TelegramClient,
   DiscordClient,
+  SlackClient,
   FacebookPostClient,
   InstagramPostClient,
   TelegramPostClient,
@@ -55,12 +56,17 @@ import {
 import { InboxRealtimeGateway } from "./presentation/gateways/inbox-realtime.gateway";
 import { RealtimeBridgeService } from "./infrastructure/realtime/realtime-bridge.service";
 
+// Link preview
+import { LinkPreviewService } from "./infrastructure/services/link-preview.service";
+
 // Use cases
 import { SendReplyUseCase } from "./application/use-cases/messages/send-reply.use-case";
 import { AddInternalNoteUseCase } from "./application/use-cases/messages/add-internal-note.use-case";
 import { ListConversationsUseCase } from "./application/use-cases/conversations/list-conversations.use-case";
 import { GetConversationDetailUseCase } from "./application/use-cases/conversations/get-conversation-detail.use-case";
 import { UpdateConversationUseCase } from "./application/use-cases/conversations/update-conversation.use-case";
+import { DeleteConversationUseCase } from "./application/use-cases/conversations/delete-conversation.use-case";
+import { ProcessInboundSlackUseCase } from "./application/use-cases/webhooks/process-inbound-slack.use-case";
 import { CreateScheduledPostUseCase } from "./application/use-cases/scheduling/create-scheduled-post.use-case";
 import { CreateScheduledMessageUseCase } from "./application/use-cases/scheduling/create-scheduled-message.use-case";
 import { ListScheduledPostsUseCase } from "./application/use-cases/scheduling/list-scheduled-posts.use-case";
@@ -81,6 +87,8 @@ import { MediaController } from "./presentation/controllers/media.controller";
 import { ScheduledPostsController } from "./presentation/controllers/scheduled-posts.controller";
 import { ScheduledMessagesController } from "./presentation/controllers/scheduled-messages.controller";
 import { StatsController } from "./presentation/controllers/stats.controller";
+import { LinkPreviewController } from "./presentation/controllers/link-preview.controller";
+import { WidgetController } from "./presentation/controllers/widget.controller";
 
 import { SetupController } from "./presentation/controllers/setup.controller";
 
@@ -159,6 +167,8 @@ import { HealthController } from "./presentation/controllers/health.controller";
     ScheduledMessagesController,
     StatsController,
     HealthController,
+    LinkPreviewController,
+    WidgetController,
   ],
   providers: [
     // Global guards: rate limiting first, then authentication.
@@ -179,6 +189,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     AesVaultService,
     SchedulingQueueService,
     S3PresignService,
+    LinkPreviewService,
 
     // Channel Drivers
     WhatsAppClient,
@@ -186,6 +197,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     InstagramClient,
     TelegramClient,
     DiscordClient,
+    SlackClient,
     FacebookPostClient,
     InstagramPostClient,
     TelegramPostClient,
@@ -201,6 +213,8 @@ import { HealthController } from "./presentation/controllers/health.controller";
     ListConversationsUseCase,
     GetConversationDetailUseCase,
     UpdateConversationUseCase,
+    DeleteConversationUseCase,
+    ProcessInboundSlackUseCase,
     CreateScheduledPostUseCase,
     CreateScheduledMessageUseCase,
     ListScheduledPostsUseCase,

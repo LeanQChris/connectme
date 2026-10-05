@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Query,
   Body,
@@ -11,7 +12,8 @@ import { ChannelType, ConversationStatus } from "@connectme/database";
 import { ListConversationsUseCase } from "../../application/use-cases/conversations/list-conversations.use-case";
 import { GetConversationDetailUseCase } from "../../application/use-cases/conversations/get-conversation-detail.use-case";
 import { UpdateConversationUseCase } from "../../application/use-cases/conversations/update-conversation.use-case";
-import { SendReplyUseCase } from "../../application/use-cases/messages/send-reply.use-case";
+import { DeleteConversationUseCase } from "../../application/use-cases/conversations/delete-conversation.use-case";
+import { SendReplyUseCase, SendReplyMediaItem } from "../../application/use-cases/messages/send-reply.use-case";
 import { AddInternalNoteUseCase } from "../../application/use-cases/messages/add-internal-note.use-case";
 import { UpdateConversationDto, UpdateConversationDtoSchema } from "@connectme/contracts";
 import { TenantId } from "../auth/tenant-id.decorator";
@@ -25,6 +27,7 @@ export class ConversationsController {
     private readonly listUseCase: ListConversationsUseCase,
     private readonly detailUseCase: GetConversationDetailUseCase,
     private readonly updateUseCase: UpdateConversationUseCase,
+    private readonly deleteUseCase: DeleteConversationUseCase,
     private readonly sendReplyUseCase: SendReplyUseCase,
     private readonly addNoteUseCase: AddInternalNoteUseCase,
   ) {}
@@ -71,22 +74,31 @@ export class ConversationsController {
     return { conversation };
   }
 
+  @Delete(":id")
+  async delete(
+    @TenantId() tenantId: string,
+    @Param("id") id: string,
+  ) {
+    return this.deleteUseCase.execute(tenantId, id);
+  }
+
   @Post(":id/reply")
   async reply(
     @TenantId() tenantId: string,
     @Param("id") id: string,
     @Body(new ZodValidationPipe(ReplyBodySchema))
-    body: { text?: string; mediaUrl?: string; type?: string; author?: string },
+    body: { text?: string; media?: SendReplyMediaItem[]; mediaUrl?: string; type?: string; author?: string },
   ) {
-    const message = await this.sendReplyUseCase.execute({
+    const result = await this.sendReplyUseCase.execute({
       tenantId,
       conversationId: id,
       text: body.text,
+      media: body.media,
       mediaUrl: body.mediaUrl,
       mediaType: body.type,
       author: body.author,
     });
-    return { message };
+    return { message: result, skipped: (result as any).skipped };
   }
 
   @Post(":id/note")

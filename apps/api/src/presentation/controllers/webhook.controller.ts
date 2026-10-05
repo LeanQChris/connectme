@@ -166,6 +166,40 @@ export class WebhookController {
     return { type: 4, data: { content: "Received" } };
   }
 
+  /**
+   * Slack Events API webhook
+   */
+  @Post("slack")
+  @HttpCode(HttpStatus.OK)
+  async handleSlackWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers("x-slack-signature") signature: string,
+    @Headers("x-slack-request-timestamp") timestamp: string,
+    @Body() body: any,
+  ) {
+    // Slack URL Verification Challenge
+    if (body?.type === "url_verification") {
+      return { challenge: body.challenge };
+    }
+
+    // Verify Slack signature if secret is present
+    const signingSecret = process.env.SLACK_SIGNING_SECRET;
+    if (signingSecret && signature && timestamp) {
+      const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 60 * 5;
+      if (parseInt(timestamp, 10) >= fiveMinutesAgo) {
+        const sigBasestring = `v0:${timestamp}:${req.rawBody?.toString("utf8") || ""}`;
+        const isValid = verifyHmacSha256(sigBasestring, signingSecret, signature);
+        if (!isValid) {
+          this.logger.warn("Rejected Slack webhook with invalid signature.");
+          throw new ForbiddenException("Invalid Slack webhook signature");
+        }
+      }
+    }
+
+    await this.dispatch("slack", { payload: body, receivedAt: Date.now() });
+    return { ok: true };
+  }
+
   private async verifyWithTenantSecret(
     rawBody: Buffer,
     signature: string,

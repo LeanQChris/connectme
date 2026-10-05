@@ -6,6 +6,7 @@ import {
   useAddNote,
   useConversation,
   useConversations,
+  useDeleteConversation,
   useScheduleMessage,
   useSendReply,
   useSetConversationMeta,
@@ -52,6 +53,7 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
   const sendMutation = useSendReply(selectedId);
   const scheduleMutation = useScheduleMessage(selectedId);
   const statusMutation = useSetConversationStatus();
+  const deleteMutation = useDeleteConversation();
   const metaMutation = useSetConversationMeta(selectedId);
   const noteMutation = useAddNote(selectedId);
 
@@ -227,6 +229,15 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
     [selectedId, statusMutation],
   );
 
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await deleteMutation.mutateAsync(id);
+      setSelectedId(null);
+      window.history.pushState(null, "", "/inbox");
+    },
+    [deleteMutation, setSelectedId],
+  );
+
   return {
     filter,
     setFilter,
@@ -249,5 +260,6 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
     handleNote,
     handleMeta,
     handleArchive,
+    handleDelete,
   };
 }

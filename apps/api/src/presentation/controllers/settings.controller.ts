@@ -32,6 +32,8 @@ export class SettingsController {
       instagram: Boolean(accounts.some((a) => a.channel === "INSTAGRAM")),
       telegram: Boolean(creds?.telegramTokenEnc || accounts.some((a) => a.channel === "TELEGRAM")),
       discord: Boolean(creds?.discordBotTokenEnc || accounts.some((a) => a.channel === "DISCORD")),
+      slack: Boolean(creds?.slackBotTokenEnc || accounts.some((a) => a.channel === "SLACK")),
+      widget: true,
     };
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
@@ -61,6 +63,9 @@ export class SettingsController {
         discordBotId:
           accounts.find((a) => a.channel === "DISCORD" && a.provider === "discord")?.externalId ??
           null,
+        slackBotId:
+          accounts.find((a) => a.channel === "SLACK" && a.provider === "slack")?.externalId ??
+          null,
         updatedAt: creds?.updatedAt ? creds.updatedAt.toISOString() : null,
         webhookVerifyToken: creds?.webhookVerifyToken || "connectme_verify_token",
         waPhoneNumberId: creds?.waPhoneNumberId ?? null,
@@ -73,6 +78,7 @@ export class SettingsController {
         meta: `${baseUrl}/api/webhook/meta`,
         telegram: `${baseUrl}/api/webhook/telegram`,
         discord: `${baseUrl}/api/webhook/discord`,
+        slack: `${baseUrl}/api/webhook/slack`,
       },
     };
   }
@@ -92,9 +98,12 @@ export class SettingsController {
 
     if (s.waAccessToken) partial.waAccessTokenEnc = this.aesVault.encrypt(s.waAccessToken);
     if (s.metaAppSecret) partial.metaAppSecretEnc = this.aesVault.encrypt(s.metaAppSecret);
+    if (s.instagramAppSecret) partial.instagramAppSecretEnc = this.aesVault.encrypt(s.instagramAppSecret);
     if (s.pageAccessToken) partial.pageAccessTokenEnc = this.aesVault.encrypt(s.pageAccessToken);
     if (s.telegramBotToken) partial.telegramTokenEnc = this.aesVault.encrypt(s.telegramBotToken);
     if (s.discordBotToken) partial.discordBotTokenEnc = this.aesVault.encrypt(s.discordBotToken);
+    if (s.slackBotToken) partial.slackBotTokenEnc = this.aesVault.encrypt(s.slackBotToken);
+    if (s.slackSigningSecret) partial.slackSigningSecretEnc = this.aesVault.encrypt(s.slackSigningSecret);
 
     const updated = await this.tenantRepo.updateCredentials(tenantId, partial);
 
