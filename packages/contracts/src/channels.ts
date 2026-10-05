@@ -70,6 +70,15 @@ export interface ProviderSecretsDto {
   discordPublicKey?: string;
   slackBotToken?: string;
   slackSigningSecret?: string;
+  aiApiKey?: string;
+  aiProvider?: string;
+  aiModel?: string;
+  aiCustomBaseUrl?: string;
+  aiCustomSystemPrompt?: string;
+  aiFallbackApiKey?: string;
+  aiFallbackProvider?: string;
+  aiFallbackModel?: string;
+  aiRoutingStrategy?: string;
   graphVersion?: string;
 }
 
@@ -90,6 +99,15 @@ export const ProviderSecretsSchema = z
     discordPublicKey: z.string().max(128).optional(),
     slackBotToken: z.string().max(512).optional(),
     slackSigningSecret: z.string().max(512).optional(),
+    aiApiKey: z.string().max(4096).optional(),
+    aiProvider: z.string().max(64).optional(),
+    aiModel: z.string().max(128).optional(),
+    aiCustomBaseUrl: z.string().max(512).optional(),
+    aiCustomSystemPrompt: z.string().max(4096).optional(),
+    aiFallbackApiKey: z.string().max(4096).optional(),
+    aiFallbackProvider: z.string().max(64).optional(),
+    aiFallbackModel: z.string().max(128).optional(),
+    aiRoutingStrategy: z.string().max(64).optional(),
     graphVersion: z.string().max(16).optional(),
   })
   .strict();
@@ -101,7 +119,8 @@ export type ConnectionFlag =
   | "telegram"
   | "discord"
   | "slack"
-  | "widget";
+  | "widget"
+  | "ai";
 
 export interface SettingsPayloadDto {
   settings: {
@@ -113,6 +132,20 @@ export interface SettingsPayloadDto {
     telegramBotId: string | null;
     discordBotId: string | null;
     slackBotId?: string | null;
+    whatsappPhoneId?: string | null;
+    metaAppId?: string | null;
+    discordPublicKeyConfigured?: boolean;
+    ai?: {
+      configured: boolean;
+      provider: string | null;
+      model: string | null;
+      customBaseUrl: string | null;
+      customSystemPrompt: string | null;
+      fallbackConfigured?: boolean;
+      fallbackProvider?: string | null;
+      fallbackModel?: string | null;
+      routingStrategy?: string | null;
+    };
     updatedAt: string | null;
     webhookVerifyToken: string;
     waPhoneNumberId?: string | null;

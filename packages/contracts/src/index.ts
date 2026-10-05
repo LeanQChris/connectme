@@ -7,3 +7,4 @@ export * from "./contacts";
 export * from "./tenants";
 export * from "./webhooks";
 export * from "./stats";
+export * from "./ai";

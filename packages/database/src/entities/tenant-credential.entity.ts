@@ -52,6 +52,33 @@ export class TenantCredential {
   @Column({ type: "text", nullable: true })
   slackSigningSecretEnc?: string | null;
 
+  @Column({ type: "text", nullable: true })
+  aiApiKeyEnc?: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: "openai" })
+  aiProvider?: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: "gpt-4o-mini" })
+  aiModel?: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  aiCustomBaseUrl?: string | null;
+
+  @Column({ type: "text", nullable: true })
+  aiCustomSystemPrompt?: string | null;
+
+  @Column({ type: "text", nullable: true })
+  aiFallbackApiKeyEnc?: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  aiFallbackProvider?: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  aiFallbackModel?: string | null;
+
+  @Column({ type: "varchar", nullable: true, default: "priority" })
+  aiRoutingStrategy?: string | null;
+
   @UpdateDateColumn({ type: "timestamp with time zone" })
   updatedAt!: Date;
 
