@@ -22,7 +22,7 @@ export interface SlackFile {
 }
 
 export interface SlackMessageEvent {
-  type: "message";
+  type: "message" | "app_mention";
   subtype?: string;
   user?: string;
   bot_id?: string;

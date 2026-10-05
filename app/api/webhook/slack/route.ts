@@ -39,10 +39,15 @@ export async function POST(request: Request): Promise<Response> {
       // Find tenant whose Slack signing secret matches the signature
       for (const cred of credentials) {
         const sec = await tenantSecrets(cred.userId);
-        if (
-          sec.slackSigningSecret &&
-          verifySlackSignature(raw, signature, timestamp, sec.slackSigningSecret)
-        ) {
+        if (sec.slackSigningSecret) {
+          const valid = verifySlackSignature(raw, signature, timestamp, sec.slackSigningSecret);
+          console.log(`[slack webhook] sig check userId=${cred.userId} valid=${valid}`);
+          if (valid) {
+            targetUserId = cred.userId;
+            break;
+          }
+        } else {
+          console.log(`[slack webhook] userId=${cred.userId} has no slackSigningSecret — skipping sig check, falling back`);
           targetUserId = cred.userId;
           break;
         }
@@ -83,13 +88,19 @@ export async function POST(request: Request): Promise<Response> {
 
     // 4. Handle Event Callback
     if (payload.type === "event_callback" && payload.event) {
-      if (payload.event.type === "message") {
+      const evtType = payload.event.type;
+      const evtSubtype = (payload.event as unknown as Record<string, unknown>).subtype as string | undefined;
+      console.log(`[slack webhook] event type=${evtType} subtype=${evtSubtype ?? "none"} channel=${payload.event.channel}`);
+
+      if (evtType === "message" || evtType === "app_mention") {
         await handleSlackMessage(
           secrets.slackBotToken,
           targetUserId,
           payload.event,
           payload.team_id,
         );
+      } else {
+        console.log(`[slack webhook] ignoring unhandled event type: ${evtType}`);
       }
     }
 
