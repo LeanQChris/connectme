@@ -16,8 +16,10 @@ import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
 import FileCard from "./file-card";
 import FormattedText from "./formatted-text";
 import ImageGallery, { Lightbox } from "./image-gallery";
+import LinkPreviewCard from "./link-preview-card";
 import ReplyBox, { type ReplyPayload } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
+import { extractUrlsFromMessage } from "@/lib/link-extractor";
 import { getProxiedMediaUrl } from "@/lib/media";
 
 interface Props {
@@ -747,6 +749,9 @@ export default function Thread({
                               }`}
                             >
                               <FormattedText text={message.text} outgoing={false} />
+                              {extractUrlsFromMessage(message.text).slice(0, 1).map((url) => (
+                                <LinkPreviewCard key={url} url={url} outgoing={outgoing} />
+                              ))}
                             </div>
                           )}
                         </div>
@@ -811,6 +816,9 @@ export default function Thread({
                               }`}
                             >
                               <FormattedText text={message.text} outgoing={false} />
+                              {extractUrlsFromMessage(message.text).slice(0, 1).map((url) => (
+                                <LinkPreviewCard key={url} url={url} outgoing={outgoing} />
+                              ))}
                             </div>
                           )}
                         </div>
@@ -832,22 +840,36 @@ export default function Thread({
                     </div>
                   ) : (
                     /* 6. Text Only Message - CHAT BUBBLE */
-                    <div
-                      className={`group relative max-w-[78%] leading-[1.55] sm:max-w-[68%] px-3.5 py-2 text-[13px] shadow-2xs ${
-                        outgoing
-                          ? "rounded-[16px] rounded-br-[4px] bg-primary text-on-primary"
-                          : "rounded-[16px] rounded-bl-[4px] bg-canvas-elevated text-ink ring-1 ring-hairline ring-inset"
-                      }`}
-                    >
-                      {message.text && (
-                        <FormattedText text={message.text} outgoing={outgoing} />
-                      )}
+                    (() => {
+                      const previewUrls = extractUrlsFromMessage(message.text);
+                      const hasPreviews = previewUrls.length > 0;
 
-                      {message.error ? (
-                        <div className="mt-1.5 rounded-[6px] border border-error/30 bg-error/10 px-2 py-1.5 font-mono text-[11px] leading-snug text-error">
-                          <span className="block font-bold">{message.error}</span>
-                        </div>
-                      ) : null}
+                      return (
+                        <div
+                          className={`group relative leading-[1.55] px-3.5 py-2 text-[13px] shadow-2xs ${
+                            hasPreviews
+                              ? "w-full max-w-[88%] sm:max-w-[440px]"
+                              : "max-w-[78%] sm:max-w-[68%]"
+                          } ${
+                            outgoing
+                              ? "rounded-[16px] rounded-br-[4px] bg-primary text-on-primary"
+                              : "rounded-[16px] rounded-bl-[4px] bg-canvas-elevated text-ink ring-1 ring-hairline ring-inset"
+                          }`}
+                        >
+                          {message.text && (
+                            <FormattedText text={message.text} outgoing={outgoing} />
+                          )}
+
+                          {/* Rich Link & Video Previews (YouTube, Loom, Web) */}
+                          {previewUrls.slice(0, 2).map((url) => (
+                            <LinkPreviewCard key={url} url={url} outgoing={outgoing} />
+                          ))}
+
+                          {message.error ? (
+                            <div className="mt-1.5 rounded-[6px] border border-error/30 bg-error/10 px-2 py-1.5 font-mono text-[11px] leading-snug text-error">
+                              <span className="block font-bold">{message.error}</span>
+                            </div>
+                          ) : null}
 
                       {/* Metadata footer */}
                       <div
@@ -910,9 +932,11 @@ export default function Thread({
                         ) : null}
                       </div>
                     </div>
-                  )}
-                </div>
-              </Fragment>
+                  );
+                })()
+              )}
+            </div>
+          </Fragment>
             );
           })
         )}

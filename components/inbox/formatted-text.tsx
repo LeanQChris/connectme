@@ -33,9 +33,9 @@ interface TextSegment {
 function parseFormattedText(raw: string): TextSegment[] {
   if (!raw) return [];
 
-  // Match Slack markup tokens and raw URLs
+  // Match Slack markup tokens and raw URLs (including protocol-less loom/youtube links)
   const tokenRegex =
-    /(<https?:\/\/[^|>]+(?:\|[^>]+)?>|<mailto:[^|>]+(?:\|[^>]+)?>|<tel:[^|>]+(?:\|[^>]+)?>|<@[A-Z0-9]+(?:\|[^>]+)?>|<#[A-Z0-9]+(?:\|[^>]+)?>|<![a-zA-Z0-9_^-]+(?:\|[^>]+)?>|`[^`\n]+`|https?:\/\/[^\s<>]+)/g;
+    /(<https?:\/\/[^|>]+(?:\|[^>]+)?>|<mailto:[^|>]+(?:\|[^>]+)?>|<tel:[^|>]+(?:\|[^>]+)?>|<@[A-Z0-9]+(?:\|[^>]+)?>|<#[A-Z0-9]+(?:\|[^>]+)?>|<![a-zA-Z0-9_^-]+(?:\|[^>]+)?>|`[^`\n]+`|https?:\/\/[^\s<>]+|\b(?:www\.)?(?:loom\.com\/(?:share|embed)\/[a-zA-Z0-9_-]+|youtube\.com\/watch\?[^\s<>]+|youtu\.be\/[a-zA-Z0-9_-]+))/g;
 
   const segments: TextSegment[] = [];
   let lastIndex = 0;
@@ -50,7 +50,8 @@ function parseFormattedText(raw: string): TextSegment[] {
       });
     }
 
-    const token = match[0];
+    let token = match[0];
+    let trailingPunctuation = "";
 
     // 1. Slack Link: <url|label> or <url>
     if (token.startsWith("<http://") || token.startsWith("<https://") || token.startsWith("<mailto:") || token.startsWith("<tel:")) {
@@ -117,14 +118,27 @@ function parseFormattedText(raw: string): TextSegment[] {
         content: token.slice(1, -1),
       });
     }
-    // 6. Raw URL
-    else if (token.startsWith("http://") || token.startsWith("https://")) {
+    // 6. Raw URL or known video domain
+    else if (token.startsWith("http://") || token.startsWith("https://") || token.includes("loom.com/") || token.includes("youtube.com/") || token.includes("youtu.be/")) {
+      // Clean trailing punctuation
+      const puncMatch = token.match(/[),.;:!?]+$/);
+      if (puncMatch) {
+        trailingPunctuation = puncMatch[0];
+        token = token.slice(0, -trailingPunctuation.length);
+      }
+      const fullUrl = token.startsWith("http") ? token : `https://${token}`;
       segments.push({
         type: "link",
         content: token,
-        href: token,
+        href: fullUrl,
         label: token,
       });
+      if (trailingPunctuation) {
+        segments.push({
+          type: "text",
+          content: trailingPunctuation,
+        });
+      }
     } else {
       segments.push({
         type: "text",
