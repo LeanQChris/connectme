@@ -3,6 +3,18 @@
  * Produces a soft, modern two-tone chime without external audio assets.
  */
 let sharedContext: AudioContext | null = null;
+const SOUND_STORAGE_KEY = "connectme_notification_sound";
+
+export function isNotificationSoundEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  const stored = localStorage.getItem(SOUND_STORAGE_KEY);
+  return stored !== "false";
+}
+
+export function setNotificationSoundEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SOUND_STORAGE_KEY, enabled ? "true" : "false");
+}
 
 function getAudioContext(): AudioContext | null {
   const AudioContextClass =
