@@ -168,8 +168,10 @@ export interface ProviderSecrets {
   waAppId: string;
   /** WhatsApp-specific App Secret (if using a dedicated WhatsApp Meta App). */
   waAppSecret?: string;
-  /** Used to verify X-Hub-Signature-256 on Meta webhooks. */
+  /** Used to verify X-Hub-Signature-256 on Meta / Facebook webhooks. */
   metaAppSecret: string;
+  /** Dedicated Instagram App Secret (if using Instagram API with Instagram Login). */
+  instagramAppSecret?: string;
   /** Must match the verify token configured on the Meta webhook. */
   webhookVerifyToken: string;
   /** Facebook Page token, used by both Messenger and Instagram. */
@@ -188,6 +190,7 @@ export const EMPTY_SECRETS: ProviderSecrets = {
   waAppId: "",
   waAppSecret: "",
   metaAppSecret: "",
+  instagramAppSecret: "",
   webhookVerifyToken: "",
   pageAccessToken: "",
   telegramBotToken: "",

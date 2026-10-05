@@ -82,6 +82,14 @@ export const config = {
     );
   },
 
+  /** Central Instagram App Secret for Instagram API use-case webhooks. */
+  get instagramAppSecret(): string | undefined {
+    return (
+      readOptional("INSTAGRAM_APP_SECRET") ??
+      readOptional("IG_APP_SECRET")
+    );
+  },
+
   /** Central webhook verify token configured in the Meta App Developer Dashboard. */
   get metaWebhookVerifyToken(): string | undefined {
     return (

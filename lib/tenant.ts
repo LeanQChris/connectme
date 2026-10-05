@@ -59,6 +59,7 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
       waAppId: "",
       waAppSecret: "",
       metaAppSecret: "",
+      instagramAppSecret: "",
       webhookVerifyToken: "",
       pageAccessToken: "",
       telegramBotToken: "",
@@ -481,7 +482,13 @@ export async function authenticateMetaWebhook(
   for (const candidate of candidates) {
     const secrets = await tenantSecrets(candidate.userId);
     // Check candidate's tenant-specific secret (WhatsApp app secret, Meta app secret, or .env META_APP_SECRET)
-    const secretsToCheck = [secrets.waAppSecret, secrets.metaAppSecret, config.metaAppSecret].filter(Boolean) as string[];
+    const secretsToCheck = [
+      secrets.waAppSecret,
+      secrets.metaAppSecret,
+      secrets.instagramAppSecret,
+      config.metaAppSecret,
+      config.instagramAppSecret,
+    ].filter(Boolean) as string[];
 
     if (secretsToCheck.length === 0) {
       console.warn(

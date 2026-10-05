@@ -52,6 +52,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   const [metaForm, setMetaForm] = useState({
     pageAccessToken: "",
     metaAppSecret: "",
+    instagramAppSecret: "",
     webhookVerifyToken: "",
   });
 
@@ -806,7 +807,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
 
                     {/* Meta App Secret (Dedicated to Meta / Pages) */}
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-medium text-ink">Meta App Secret</label>
+                      <label className="text-[12px] font-medium text-ink">Facebook App Secret</label>
                       <div className="relative">
                         <input
                           type={visibleSecrets.metaAppSecret ? "text" : "password"}
@@ -825,7 +826,31 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                           {visibleSecrets.metaAppSecret ? "Hide" : "Show"}
                         </button>
                       </div>
-                      <span className="text-[11px] text-mute">Verifies X-Hub-Signature-256 for Page webhooks</span>
+                      <span className="text-[11px] text-mute">Verifies signatures for Facebook Page webhooks</span>
+                    </div>
+
+                    {/* Instagram App Secret (Dedicated to Instagram API Use Case) */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[12px] font-medium text-ink">Instagram App Secret (Optional)</label>
+                      <div className="relative">
+                        <input
+                          type={visibleSecrets.instagramAppSecret ? "text" : "password"}
+                          value={metaForm.instagramAppSecret}
+                          onChange={(e) =>
+                            setMetaForm((prev) => ({ ...prev, instagramAppSecret: e.target.value }))
+                          }
+                          placeholder="Instagram App Secret from Instagram API card"
+                          className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 pr-10 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleSecret("instagramAppSecret")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1"
+                        >
+                          {visibleSecrets.instagramAppSecret ? "Hide" : "Show"}
+                        </button>
+                      </div>
+                      <span className="text-[11px] text-mute">From Meta Developer Dashboard &gt; Instagram API</span>
                     </div>
 
                     {/* Webhook Verify Token */}
@@ -852,6 +877,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                           {
                             pageAccessToken: metaForm.pageAccessToken,
                             metaAppSecret: metaForm.metaAppSecret,
+                            instagramAppSecret: metaForm.instagramAppSecret,
                             webhookVerifyToken: metaForm.webhookVerifyToken,
                           },
                           "meta",
@@ -860,6 +886,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                             setMetaForm({
                               pageAccessToken: "",
                               metaAppSecret: "",
+                              instagramAppSecret: "",
                               webhookVerifyToken: "",
                             }),
                         )

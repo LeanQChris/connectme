@@ -10,6 +10,7 @@ const KEYS = [
   "waAppId",
   "waAppSecret",
   "metaAppSecret",
+  "instagramAppSecret",
   "webhookVerifyToken",
   "pageAccessToken",
   "telegramBotToken",
