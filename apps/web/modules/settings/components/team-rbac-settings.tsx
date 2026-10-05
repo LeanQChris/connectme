@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { teamApi } from "../api/team.api";
 import type { TeamMemberDto, UserRole } from "@connectme/contracts";
 import { ROLE_PERMISSIONS } from "@connectme/contracts";
@@ -30,20 +30,26 @@ export function TeamRbacSettings() {
   // Active role editing
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
 
-  const fetchMembers = useCallback(async () => {
-    try {
-      const list = await teamApi.listMembers();
-      setMembers(list);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load team members");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void fetchMembers();
-  }, [fetchMembers]);
+    let ignore = false;
+    teamApi
+      .listMembers()
+      .then((list) => {
+        if (!ignore) {
+          setMembers(list);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : "Failed to load team members");
+          setLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleRoleChange = async (memberId: string, newRole: UserRole) => {
     setUpdatingMemberId(memberId);
