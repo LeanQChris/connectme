@@ -213,6 +213,27 @@ function normalize(data: Partial<StoreData>): StoreData {
     }
   }
 
+  // 5. Deduplicate messages in the same conversation
+  const uniqueMessages: Message[] = [];
+  const seenExtIds = new Set<string>();
+  for (const msg of merged.messages) {
+    if (msg.externalId) {
+      const extKey = `${msg.conversationId}:${msg.externalId}`;
+      if (seenExtIds.has(extKey)) continue;
+      seenExtIds.add(extKey);
+    }
+    const isDup = uniqueMessages.some((prev) => {
+      if (prev.conversationId !== msg.conversationId || prev.direction !== msg.direction) return false;
+      if (prev.text !== msg.text) return false;
+      const t1 = new Date(prev.createdAt).getTime();
+      const t2 = new Date(msg.createdAt).getTime();
+      return Math.abs(t1 - t2) < 15_000;
+    });
+    if (isDup) continue;
+    uniqueMessages.push(msg);
+  }
+  merged.messages = uniqueMessages;
+
   return merged;
 }
 
@@ -582,6 +603,39 @@ export async function recordOutbound(input: OutboundInput): Promise<Message | nu
       (c) => c.userId === input.userId && c.contactId === contact.id,
     );
     if (!conversation) return null;
+
+    // 1. Check if a message with the exact same externalId already exists
+    if (input.externalId) {
+      const existingByExt = data.messages.find(
+        (m) =>
+          m.conversationId === conversation.id &&
+          m.direction === "out" &&
+          m.externalId === input.externalId,
+      );
+      if (existingByExt) {
+        if (input.status) existingByExt.status = input.status;
+        return existingByExt;
+      }
+    }
+
+    // 2. Check if this is an echo of a recent outbound message sent in the last 30s
+    const inputTime = input.createdAt.getTime();
+    const recentSent = data.messages.find((m) => {
+      if (m.conversationId !== conversation.id || m.direction !== "out") return false;
+      if (m.text !== input.text) return false;
+      const mTime = new Date(m.createdAt).getTime();
+      return Math.abs(inputTime - mTime) < 30_000;
+    });
+
+    if (recentSent) {
+      if (input.externalId && !recentSent.externalId) {
+        recentSent.externalId = input.externalId;
+      }
+      if (input.status === "delivered" || input.status === "sent") {
+        recentSent.status = input.status;
+      }
+      return recentSent;
+    }
 
     const message: Message = {
       id: randomUUID(),
