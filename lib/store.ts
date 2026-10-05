@@ -172,7 +172,7 @@ function contactLabel(contact: Contact): string {
   return contact.name?.trim() || contact.externalId;
 }
 
-import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./meta/client";
+import { fetchInstagramUserProfile, fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./meta/client";
 
 /**
  * Page/handle name for a conversation.
@@ -429,21 +429,46 @@ export async function listConversations(
   let updatedAny = false;
 
   // Resolve profiles for any contact missing a real name or avatar
+  const userCreds = data.credentials.find((c) => c.userId === userId);
   for (const contact of data.contacts.filter((c) => c.userId === userId)) {
     const isMissingOrNumericName =
       !contact.name ||
       contact.name === contact.externalId ||
       /^\d+$/.test(contact.name.trim());
 
-    if (
-      contact.channel === "messenger" &&
-      (isMissingOrNumericName || !contact.avatarUrl) &&
-      tenant.pageAccessToken
-    ) {
+    if (!isMissingOrNumericName && contact.avatarUrl) continue;
+
+    const conv = data.conversations.find((c) => c.contactId === contact.id && c.userId === userId);
+    const matchedAcc = conv?.accountId
+      ? userCreds?.accounts?.find((a) => a.id === conv.accountId || a.externalId === conv.accountId)
+      : undefined;
+    const token = matchedAcc?.token || tenant.pageAccessToken;
+
+    if (!token) continue;
+
+    if (contact.channel === "messenger") {
       try {
         const profile = await fetchMessengerUserProfile(
           contact.externalId,
-          tenant.pageAccessToken,
+          token,
+          tenant.graphVersion,
+        );
+        if (profile.name && contact.name !== profile.name) {
+          contact.name = profile.name;
+          updatedAny = true;
+        }
+        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
+          contact.avatarUrl = profile.avatarUrl;
+          updatedAny = true;
+        }
+      } catch {
+        // ignore
+      }
+    } else if (contact.channel === "instagram") {
+      try {
+        const profile = await fetchInstagramUserProfile(
+          contact.externalId,
+          token,
           tenant.graphVersion,
         );
         if (profile.name && contact.name !== profile.name) {

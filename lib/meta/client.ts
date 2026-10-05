@@ -131,6 +131,62 @@ export async function fetchMessengerUserProfile(
   }
 }
 
+/**
+ * Fetches the user profile (name, username, profile_pic) for an Instagram Scoped User ID (IGSID).
+ */
+export async function fetchInstagramUserProfile(
+  igsid: string,
+  accessToken: string,
+  graphVersion: string,
+): Promise<{ name: string | null; avatarUrl: string | null; username: string | null }> {
+  const cached = profileCache.get(igsid);
+  if (cached && (cached.name || cached.avatarUrl)) {
+    return { name: cached.name, avatarUrl: cached.avatarUrl, username: null };
+  }
+
+  const token = accessToken;
+  if (!token) return { name: null, avatarUrl: null, username: null };
+
+  const version = graphVersion || "v21.0";
+
+  try {
+    const url = `https://graph.facebook.com/${version}/${igsid}?fields=name,username,profile_pic&access_token=${token}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.warn(`[meta] instagram profile fetch HTTP ${response.status} for IGSID ${igsid}: ${errText}`);
+      return { name: null, avatarUrl: null, username: null };
+    }
+
+    const data = (await response.json()) as {
+      name?: string;
+      username?: string;
+      profile_pic?: string;
+    };
+
+    const displayName = data.name?.trim() || (data.username ? `@${data.username}` : null);
+    const result = {
+      name: displayName,
+      avatarUrl: data.profile_pic ?? null,
+      username: data.username ?? null,
+    };
+
+    if (result.name || result.avatarUrl) {
+      profileCache.set(igsid, { name: result.name, avatarUrl: result.avatarUrl });
+    }
+
+    return result;
+  } catch (error) {
+    console.warn(`[meta] failed to fetch profile for Instagram ID ${igsid}:`, error);
+    return { name: null, avatarUrl: null, username: null };
+  }
+}
+
 interface GraphAttachment {
   id?: string;
   mime_type?: string;

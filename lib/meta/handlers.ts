@@ -190,13 +190,17 @@ export async function handleWhatsApp(
   }
 }
 
-import { fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./client";
+import { fetchInstagramUserProfile, fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./client";
+import { getAccountAccessToken } from "../tenant";
 
 export async function handleMessenger(
   tenant: TenantContext,
   body: PageWebhookBody,
 ): Promise<void> {
   for (const entry of body.entry ?? []) {
+    // Resolve the exact Page Access Token for this specific page
+    const pageToken = (await getAccountAccessToken(tenant.userId, entry?.id)) || tenant.pageAccessToken;
+
     for (const event of entry?.messaging ?? []) {
       const message = event?.message;
       if (!message) continue;
@@ -240,7 +244,7 @@ export async function handleMessenger(
         try {
           const attachData = await fetchMessengerMessageAttachment(
             mid,
-            tenant.pageAccessToken,
+            pageToken,
             tenant.graphVersion,
           );
           if (attachData.mediaUrl) {
@@ -256,16 +260,18 @@ export async function handleMessenger(
       // Fetch user profile name and profile picture from Graph API
       let senderName: string | null = null;
       let senderAvatarUrl: string | null = null;
-      try {
-        const profile = await fetchMessengerUserProfile(
-          senderId,
-          tenant.pageAccessToken,
-          tenant.graphVersion,
-        );
-        senderName = profile.name;
-        senderAvatarUrl = profile.avatarUrl;
-      } catch (err) {
-        console.warn("[webhook] could not fetch messenger profile:", err);
+      if (pageToken) {
+        try {
+          const profile = await fetchMessengerUserProfile(
+            senderId,
+            pageToken,
+            tenant.graphVersion,
+          );
+          senderName = profile.name;
+          senderAvatarUrl = profile.avatarUrl;
+        } catch (err) {
+          console.warn("[webhook] could not fetch messenger profile:", err);
+        }
       }
 
       try {
@@ -303,6 +309,9 @@ export async function handleInstagram(
   body: InstagramWebhookBody,
 ): Promise<void> {
   for (const entry of body.entry ?? []) {
+    // Resolve the exact access token for this specific Instagram account / Page
+    const pageToken = (await getAccountAccessToken(tenant.userId, entry?.id)) || tenant.pageAccessToken;
+
     for (const event of entry?.messaging ?? []) {
       const message = event?.message;
       if (!message) continue;
@@ -330,6 +339,23 @@ export async function handleInstagram(
         type = "other";
       }
 
+      // Fetch user profile name and profile picture from Instagram Graph API
+      let senderName: string | null = null;
+      let senderAvatarUrl: string | null = null;
+      if (pageToken) {
+        try {
+          const profile = await fetchInstagramUserProfile(
+            senderId,
+            pageToken,
+            tenant.graphVersion,
+          );
+          senderName = profile.name;
+          senderAvatarUrl = profile.avatarUrl;
+        } catch (err) {
+          console.warn("[webhook] could not fetch instagram profile:", err);
+        }
+      }
+
       try {
         const inserted = await recordInbound({
           userId: tenant.userId,
@@ -337,14 +363,14 @@ export async function handleInstagram(
           accountId: entry?.id,
           externalId: mid,
           senderExternalId: senderId,
-          senderName: null,
-          senderAvatarUrl: null,
+          senderName,
+          senderAvatarUrl,
           text: text || placeholder(type),
           mediaUrl,
           type,
           createdAt: new Date(timestamp),
         });
-        if (inserted) console.log(`[webhook] instagram inbound ${mid} (${type})`);
+        if (inserted) console.log(`[webhook] instagram inbound ${mid} (${type}) from ${senderName ?? senderId}`);
         else console.log(`[webhook] instagram duplicate ${mid}, ignored`);
       } catch (error) {
         console.error("[webhook] failed to store instagram message:", error);
