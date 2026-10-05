@@ -5,6 +5,8 @@
  * encrypted record. Server-only: everything here touches the store or Clerk.
  */
 
+import { randomUUID } from "node:crypto";
+
 import { auth, currentUser } from "@clerk/nextjs/server";
 
 import { decryptSecrets, encryptSecrets, telegramBotId } from "./secrets";
@@ -72,6 +74,7 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
 function connectedFlags(
   secrets: ProviderSecrets,
   accounts: ConnectedAccount[] = [],
+  record?: CredentialRecord | null,
 ): Record<ConnectionFlag, boolean> {
   return {
     whatsapp:
@@ -92,6 +95,7 @@ function connectedFlags(
     slack:
       Boolean(secrets.slackBotToken) ||
       accounts.some((a) => a.channel === "slack"),
+    widget: Boolean(record?.widgetId),
   };
 }
 
@@ -113,7 +117,7 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
   return {
     secrets,
     accounts: safeAccounts,
-    connected: connectedFlags(secrets, rawAccounts),
+    connected: connectedFlags(secrets, rawAccounts, record),
     pageId: record?.pageId ?? null,
     pageName: record?.pageName ?? null,
     instagramUsername: record?.instagramUsername ?? null,
@@ -121,6 +125,7 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
     discordBotId: record?.discordBotId ?? null,
     slackTeamId: record?.slackTeamId ?? null,
     slackBotId: record?.slackBotId ?? null,
+    widgetId: record?.widgetId ?? null,
     updatedAt: record?.updatedAt ?? null,
   };
 }
@@ -150,6 +155,10 @@ export async function settingsPayload(
       discordBotId: settings.discordBotId,
       slackTeamId: settings.slackTeamId,
       slackBotId: settings.slackBotId,
+      widgetId: settings.widgetId,
+      widgetScriptUrl: settings.widgetId
+        ? `${origin}/widget.js?wid=${encodeURIComponent(settings.widgetId)}`
+        : null,
       updatedAt: settings.updatedAt,
       webhookVerifyToken: settings.secrets.webhookVerifyToken,
       waPhoneNumberId: settings.secrets.waPhoneNumberId || null,
@@ -518,6 +527,44 @@ export async function tenantByTelegramBotId(botId: string): Promise<CredentialRe
   const { credentialsByRoutingId } = await import("./store");
   const [record] = await credentialsByRoutingId({ telegramBotId: botId });
   return record ?? null;
+}
+
+/** The tenant behind a website widget embed id. */
+export async function tenantByWidgetId(widgetId: string): Promise<CredentialRecord | null> {
+  if (!widgetId) return null;
+  const { credentialsByRoutingId } = await import("./store");
+  const [record] = await credentialsByRoutingId({ widgetId });
+  return record ?? null;
+}
+
+/**
+ * Creates this tenant's widget embed id, or hands back the existing one.
+ * `rotate` retires the current id so previously pasted script tags stop working.
+ *
+ * The id is public by design — it is in the script tag on the customer's website
+ * — so it only routes traffic, it grants nothing on its own.
+ */
+export async function ensureWidgetId(userId: string, rotate = false): Promise<string> {
+  const record = await getCredentials(userId);
+  if (record?.widgetId && !rotate) return record.widgetId;
+
+  const widgetId = `wgt_${randomUUID().replace(/-/g, "")}`;
+  await saveCredentials({
+    userId,
+    encrypted: record?.encrypted ?? encryptSecrets(await tenantSecrets(userId)),
+    accounts: record?.accounts,
+    pageId: record?.pageId,
+    pageName: record?.pageName,
+    instagramUsername: record?.instagramUsername,
+    waPhoneNumberId: record?.waPhoneNumberId,
+    telegramBotId: record?.telegramBotId,
+    discordBotId: record?.discordBotId,
+    slackTeamId: record?.slackTeamId,
+    slackBotId: record?.slackBotId,
+    widgetId,
+    updatedAt: new Date().toISOString(),
+  });
+  return widgetId;
 }
 
 /** Mirrors the Clerk profile locally on first authenticated request. */

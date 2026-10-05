@@ -10,6 +10,7 @@ export const CHANNELS = [
   "telegram",
   "discord",
   "slack",
+  "widget",
 ] as const;
 export type Channel = (typeof CHANNELS)[number];
 
@@ -147,7 +148,7 @@ export interface TenantUser {
 /** A connected social messaging account (Facebook Page, Instagram handle, etc.) */
 export interface ConnectedAccount {
   id: string;
-  provider: "meta" | "telegram" | "discord" | "whatsapp" | "slack";
+  provider: "meta" | "telegram" | "discord" | "whatsapp" | "slack" | "widget";
   channel: Channel;
   name: string;
   externalId: string;
@@ -198,7 +199,28 @@ export const EMPTY_SECRETS: ProviderSecrets = {
 };
 
 /** What the settings UI may read back: presence flags, never the secrets. */
-export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram" | "discord" | "slack";
+export type ConnectionFlag =
+  | "whatsapp"
+  | "messenger"
+  | "instagram"
+  | "telegram"
+  | "discord"
+  | "slack"
+  | "widget";
+
+/** A reply queued in a website visitor's browser until they poll for it. */
+export interface WidgetOutboxItem {
+  id: string;
+  userId: string;
+  /** Widget session id; also the contact's externalId. */
+  sid: string;
+  text: string | null;
+  mediaUrl: string | null;
+  type: MessageType;
+  createdAt: string;
+  /** Set once the visitor's browser has picked the item up. */
+  deliveredAt: string | null;
+}
 
 /** Stored shape: encrypted blob plus the plaintext ids webhooks route on. */
 export interface CredentialRecord {
@@ -221,6 +243,8 @@ export interface CredentialRecord {
   /** Slack workspace / bot id. */
   slackTeamId?: string;
   slackBotId?: string;
+  /** Public id of this tenant's website widget; routes widget API calls. */
+  widgetId?: string;
   updatedAt: string;
 }
 
@@ -235,6 +259,7 @@ export interface TenantSettings {
   discordBotId: string | null;
   slackTeamId: string | null;
   slackBotId: string | null;
+  widgetId: string | null;
   updatedAt: string | null;
 }
 
@@ -250,6 +275,9 @@ export interface SettingsPayload {
     discordBotId: string | null;
     slackTeamId: string | null;
     slackBotId: string | null;
+    widgetId: string | null;
+    /** Copyable <script> tag for the tenant's website. */
+    widgetScriptUrl: string | null;
     updatedAt: string | null;
     /** Copyable only — the tokens themselves are never sent back. */
     webhookVerifyToken: string;

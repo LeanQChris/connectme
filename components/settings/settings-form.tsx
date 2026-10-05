@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ChannelIcon } from "@/components/inbox/channel-badge";
 import type { ConnectedAccount, SettingsPayload } from "@/lib/types";
 
-type TabId = "whatsapp" | "meta" | "telegram" | "discord" | "slack" | "webhooks";
+type TabId = "whatsapp" | "meta" | "telegram" | "discord" | "slack" | "widget" | "webhooks";
 
 export default function SettingsForm({ initial }: { initial: SettingsPayload }) {
   const searchParams = useSearchParams();
@@ -250,6 +250,46 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
     }
   }
 
+  // Register / rotate this tenant's website widget embed id
+  async function setupWidget(rotate: boolean) {
+    setBusy("widget-setup");
+    setChannelStatus((prev) => ({
+      ...prev,
+      widget: { ok: true, detail: rotate ? "Rotating embed id…" : "Creating embed code…" },
+    }));
+
+    try {
+      const res = await fetch("/api/widget/setup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ rotate }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to set up the widget.");
+
+      await load();
+      setChannelStatus((prev) => ({
+        ...prev,
+        widget: {
+          ok: true,
+          detail: rotate
+            ? "New embed id issued — re-paste the script on your site."
+            : "Embed code ready below.",
+        },
+      }));
+    } catch (err) {
+      setChannelStatus((prev) => ({
+        ...prev,
+        widget: {
+          ok: false,
+          detail: err instanceof Error ? err.message : "Failed to set up the widget.",
+        },
+      }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const isWhatsAppConnected = data.settings.connected.whatsapp;
   const isMetaConnected =
     data.settings.connected.messenger ||
@@ -258,6 +298,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   const isTelegramConnected = data.settings.connected.telegram;
   const isDiscordConnected = data.settings.connected.discord;
   const isSlackConnected = data.settings.connected.slack;
+  const isWidgetEnabled = Boolean(data.settings.widgetId);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const metaUrl = data.webhookUrls.meta.startsWith("http")
@@ -401,6 +442,24 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
           <span
             className={`h-2 w-2 rounded-full ${
               isSlackConnected ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+            }`}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("widget")}
+          className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "widget"
+              ? "border-ink text-ink font-semibold"
+              : "border-transparent text-mute hover:text-body"
+          }`}
+        >
+          <ChannelIcon channel="widget" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <span>Website</span>
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isWidgetEnabled ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
             }`}
           />
         </button>
@@ -1228,7 +1287,125 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
       )}
 
       {/* =======================================================================
-          TAB 6: WEBHOOKS & ENDPOINTS
+          TAB 6: WEBSITE WIDGET
+         ======================================================================= */}
+      {activeTab === "widget" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-hairline">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <ChannelIcon channel="widget" className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-[16px] font-semibold text-ink">Website Chat Widget</h2>
+                  <p className="text-[12.5px] text-body">
+                    A chat box on your own website. No app to install, no API keys — visitor
+                    messages land right here in the inbox.
+                  </p>
+                </div>
+              </div>
+
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium self-start sm:self-auto ${
+                  isWidgetEnabled
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                    : "bg-surface-well text-mute border border-hairline"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${isWidgetEnabled ? "bg-emerald-500" : "bg-neutral-400"}`}
+                />
+                {isWidgetEnabled ? "Enabled" : "Not enabled"}
+              </span>
+            </div>
+
+            {data.settings.widgetScriptUrl ? (
+              <>
+                <div className="mt-5 space-y-3.5">
+                  <CopyCard
+                    label="Embed code — paste before </body> on your site"
+                    value={`<script src="${data.settings.widgetScriptUrl}" async></script>`}
+                    hint="Works on any site or page builder — Webflow, Shopify, WordPress, plain HTML."
+                  />
+
+                  <CopyCard
+                    label="Live preview"
+                    value={`${origin}/widget.js?wid=${data.settings.widgetId ?? ""}`}
+                    hint="Open this URL directly to see the widget on a blank page."
+                  />
+                </div>
+
+                <div className="mt-5 rounded-lg border border-hairline bg-surface-well/50 p-3.5 text-[12.5px] text-body space-y-2">
+                  <span className="font-semibold text-ink">How it behaves</span>
+                  <ul className="list-disc space-y-1 pl-4 text-[12px] text-mute">
+                    <li>Replies arrive in the visitor&apos;s browser while their page is open.</li>
+                    <li>Each browser session is its own conversation, so replies always reach the right visitor.</li>
+                    <li>No read receipts and no push when the tab is closed — the reply waits for their next visit.</li>
+                    <li>Rotating the embed id immediately stops every script tag you have pasted.</li>
+                  </ul>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-hairline">
+                  <button
+                    type="button"
+                    onClick={() => void setupWidget(true)}
+                    disabled={busy !== null}
+                    className="h-9 rounded-lg border border-hairline bg-canvas-elevated px-3 text-[13px] font-medium text-ink transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer"
+                  >
+                    {busy === "widget-setup" ? "Rotating…" : "Rotate Embed ID"}
+                  </button>
+
+                  {channelStatus.widget && (
+                    <span
+                      className={`text-[12.5px] font-medium ${
+                        channelStatus.widget.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"
+                      }`}
+                    >
+                      {channelStatus.widget.detail}
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mt-5 rounded-lg border border-hairline bg-surface-well/50 p-3.5 text-[12.5px] text-body space-y-2">
+                  <span className="font-semibold text-ink">Setup Checklist</span>
+                  <ul className="list-disc space-y-1 pl-4 text-[12px] text-mute">
+                    <li>Click Enable to mint this workspace&apos;s embed code.</li>
+                    <li>Paste the script tag before the closing <code className="text-ink font-mono text-[11px]">&lt;/body&gt;</code> tag on your site.</li>
+                    <li>Visitors who message you appear in the inbox under the Live Chat channel.</li>
+                  </ul>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-hairline">
+                  <button
+                    type="button"
+                    onClick={() => void setupWidget(false)}
+                    disabled={busy !== null}
+                    className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                  >
+                    {busy === "widget-setup" ? "Setting up…" : "Enable Website Widget"}
+                  </button>
+
+                  {channelStatus.widget && (
+                    <span
+                      className={`text-[12.5px] font-medium ${
+                        channelStatus.widget.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"
+                      }`}
+                    >
+                      {channelStatus.widget.detail}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =======================================================================
+          TAB 7: WEBHOOKS & ENDPOINTS
          ======================================================================= */}
       {activeTab === "webhooks" && (
         <div className="space-y-6">

@@ -19,7 +19,9 @@ function isPublic(pathname: string): boolean {
     pathname === "/privacy" ||
     pathname === "/terms" ||
     pathname.startsWith("/api/webhook") ||
-    pathname.startsWith("/api/media")
+    pathname.startsWith("/api/media") ||
+    // The widget runs on the customer's own website: no Clerk session exists.
+    pathname.startsWith("/api/widget")
   );
 }
 

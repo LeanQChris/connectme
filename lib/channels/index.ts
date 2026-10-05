@@ -6,6 +6,7 @@ import { slackAdapter } from "./slack";
 import { telegramAdapter } from "./telegram";
 import type { ChannelAdapter, Tenant } from "./types";
 import { whatsappAdapter } from "./whatsapp";
+import { widgetAdapter } from "./widget";
 
 export type { ChannelAdapter, SendResult, Tenant } from "./types";
 export { ChannelNotConfiguredError, MetaSendError } from "../meta/client";
@@ -20,6 +21,7 @@ const adapters: Partial<Record<Channel, ChannelAdapter>> = {
   telegram: telegramAdapter,
   discord: discordAdapter,
   slack: slackAdapter,
+  widget: widgetAdapter,
 };
 
 export function getChannel(channel: Channel): ChannelAdapter | undefined {

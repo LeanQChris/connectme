@@ -77,6 +77,7 @@ export async function PUT(request: Request): Promise<Response> {
     waPhoneNumberId: secrets.waPhoneNumberId || undefined,
     pageId: pageId || undefined,
     telegramBotId: botId ?? undefined,
+    widgetId: record?.widgetId,
     updatedAt: new Date().toISOString(),
   });
 

@@ -1020,7 +1020,7 @@ export async function takeWidgetMessages(
 
     const now = new Date().toISOString();
     for (const item of pending) item.deliveredAt = now;
-    return pending.map(({ deliveredAt: _deliveredAt, ...item }) => ({ ...item, deliveredAt: null }));
+    return pending.map((item) => ({ ...item, deliveredAt: null }));
   });
 }
 
