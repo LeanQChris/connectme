@@ -34,6 +34,7 @@ export class SettingsController {
       discord: Boolean(creds?.discordBotTokenEnc || accounts.some((a) => a.channel === "DISCORD")),
       slack: Boolean(creds?.slackBotTokenEnc || accounts.some((a) => a.channel === "SLACK")),
       widget: true,
+      ai: Boolean(creds?.aiApiKeyEnc),
     };
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
@@ -70,6 +71,17 @@ export class SettingsController {
         webhookVerifyToken: creds?.webhookVerifyToken || "connectme_verify_token",
         waPhoneNumberId: creds?.waPhoneNumberId ?? null,
         waAppId: creds?.waAppId ?? null,
+        ai: {
+          configured: Boolean(creds?.aiApiKeyEnc),
+          provider: creds?.aiProvider ?? "openai",
+          model: creds?.aiModel ?? "gpt-4o-mini",
+          customBaseUrl: creds?.aiCustomBaseUrl ?? null,
+          customSystemPrompt: creds?.aiCustomSystemPrompt ?? null,
+          fallbackConfigured: Boolean(creds?.aiFallbackApiKeyEnc),
+          fallbackProvider: creds?.aiFallbackProvider ?? null,
+          fallbackModel: creds?.aiFallbackModel ?? null,
+          routingStrategy: creds?.aiRoutingStrategy ?? "priority",
+        },
       },
       oauth: {
         metaConfigured: Boolean(process.env.META_CLIENT_ID && process.env.META_CLIENT_SECRET),
@@ -95,6 +107,13 @@ export class SettingsController {
     if (s.waAppId !== undefined) partial.waAppId = s.waAppId;
     if (s.webhookVerifyToken !== undefined) partial.webhookVerifyToken = s.webhookVerifyToken;
     if (s.discordPublicKey !== undefined) partial.discordPublicKey = s.discordPublicKey;
+    if (s.aiProvider !== undefined) partial.aiProvider = s.aiProvider;
+    if (s.aiModel !== undefined) partial.aiModel = s.aiModel;
+    if (s.aiCustomBaseUrl !== undefined) partial.aiCustomBaseUrl = s.aiCustomBaseUrl;
+    if (s.aiCustomSystemPrompt !== undefined) partial.aiCustomSystemPrompt = s.aiCustomSystemPrompt;
+    if (s.aiFallbackProvider !== undefined) partial.aiFallbackProvider = s.aiFallbackProvider;
+    if (s.aiFallbackModel !== undefined) partial.aiFallbackModel = s.aiFallbackModel;
+    if (s.aiRoutingStrategy !== undefined) partial.aiRoutingStrategy = s.aiRoutingStrategy;
 
     if (s.waAccessToken) partial.waAccessTokenEnc = this.aesVault.encrypt(s.waAccessToken);
     if (s.metaAppSecret) partial.metaAppSecretEnc = this.aesVault.encrypt(s.metaAppSecret);
@@ -104,6 +123,8 @@ export class SettingsController {
     if (s.discordBotToken) partial.discordBotTokenEnc = this.aesVault.encrypt(s.discordBotToken);
     if (s.slackBotToken) partial.slackBotTokenEnc = this.aesVault.encrypt(s.slackBotToken);
     if (s.slackSigningSecret) partial.slackSigningSecretEnc = this.aesVault.encrypt(s.slackSigningSecret);
+    if (s.aiApiKey) partial.aiApiKeyEnc = this.aesVault.encrypt(s.aiApiKey);
+    if (s.aiFallbackApiKey) partial.aiFallbackApiKeyEnc = this.aesVault.encrypt(s.aiFallbackApiKey);
 
     const updated = await this.tenantRepo.updateCredentials(tenantId, partial);
 

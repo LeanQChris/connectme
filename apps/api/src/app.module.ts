@@ -56,8 +56,9 @@ import {
 import { InboxRealtimeGateway } from "./presentation/gateways/inbox-realtime.gateway";
 import { RealtimeBridgeService } from "./infrastructure/realtime/realtime-bridge.service";
 
-// Link preview
+// Link preview & AI
 import { LinkPreviewService } from "./infrastructure/services/link-preview.service";
+import { AiService } from "./infrastructure/services/ai.service";
 
 // Use cases
 import { SendReplyUseCase } from "./application/use-cases/messages/send-reply.use-case";
@@ -89,6 +90,7 @@ import { ScheduledMessagesController } from "./presentation/controllers/schedule
 import { StatsController } from "./presentation/controllers/stats.controller";
 import { LinkPreviewController } from "./presentation/controllers/link-preview.controller";
 import { WidgetController } from "./presentation/controllers/widget.controller";
+import { AiController } from "./presentation/controllers/ai.controller";
 
 import { SetupController } from "./presentation/controllers/setup.controller";
 
@@ -169,6 +171,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     HealthController,
     LinkPreviewController,
     WidgetController,
+    AiController,
   ],
   providers: [
     // Global guards: rate limiting first, then authentication.
@@ -190,6 +193,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     SchedulingQueueService,
     S3PresignService,
     LinkPreviewService,
+    AiService,
 
     // Channel Drivers
     WhatsAppClient,
