@@ -29,10 +29,11 @@ export default function ReplyWindowBar({
   const now = useNow(1000);
   const [showInfo, setShowInfo] = useState(false);
 
-  if (channel === "telegram" || channel === "discord") {
+  if (channel === "telegram" || channel === "discord" || channel === "slack") {
     const isDiscord = channel === "discord";
-    const brandColor = isDiscord ? "bg-[#5865F2]" : "bg-sky-500";
-    const name = isDiscord ? "Discord" : "Telegram";
+    const isSlack = channel === "slack";
+    const brandColor = isDiscord ? "bg-[#5865F2]" : isSlack ? "bg-[#4A154B]" : "bg-sky-500";
+    const name = isDiscord ? "Discord" : isSlack ? "Slack" : "Telegram";
 
     return (
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-hairline bg-canvas-elevated/70 px-3.5 text-[11px] backdrop-blur-xs">
