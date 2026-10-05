@@ -13,6 +13,7 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   loading: boolean;
+  onNewConversation?: () => void;
 }
 
 interface Row {
@@ -36,6 +37,7 @@ export default function ConversationList({
   selectedId,
   onSelect,
   loading,
+  onNewConversation,
 }: Props) {
   const [search, setSearch] = useState("");
   const query = search.trim();
@@ -78,14 +80,24 @@ export default function ConversationList({
         <p className="max-w-[24ch] text-[12px] leading-relaxed text-body">
           Incoming messages from WhatsApp, Messenger, Instagram &amp; Telegram will appear here.
         </p>
+        {onNewConversation && (
+          <button
+            type="button"
+            onClick={onNewConversation}
+            className="mt-2 flex items-center gap-1.5 rounded-[6px] bg-primary px-3 py-1.5 text-[12px] font-medium text-on-primary transition-opacity hover:opacity-90 active:scale-95 cursor-pointer shadow-2xs"
+          >
+            <span>+</span>
+            <span>New Conversation</span>
+          </button>
+        )}
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-canvas">
-      <div className="border-b border-hairline p-2.5">
-        <div className="relative flex items-center">
+      <div className="flex items-center gap-1.5 border-b border-hairline p-2.5">
+        <div className="relative flex flex-1 items-center">
           <svg
             className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-mute"
             fill="none"
@@ -110,6 +122,24 @@ export default function ConversationList({
             <span className="absolute right-2.5 font-mono text-[10px] text-mute">…</span>
           )}
         </div>
+
+        {onNewConversation && (
+          <button
+            type="button"
+            onClick={onNewConversation}
+            title="Start new conversation (Slack)"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas-elevated text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink active:scale-95 cursor-pointer"
+          >
+            <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            </svg>
+          </button>
+        )}
       </div>
 
       <ul className="min-h-0 flex-1 divide-y divide-hairline overflow-y-auto">

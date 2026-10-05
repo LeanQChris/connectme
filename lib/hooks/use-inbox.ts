@@ -302,3 +302,45 @@ export function useSendReply(conversationId: string | null) {
     },
   });
 }
+
+export function useSlackDirectory(enabled = true) {
+  return useQuery({
+    queryKey: ["slack-directory"] as const,
+    queryFn: () => fetchJson<import("@/lib/slack/client").SlackDirectory>("/api/slack/directory"),
+    enabled,
+    staleTime: 60000,
+  });
+}
+
+export function useCreateConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      channel: import("@/lib/types").Channel;
+      contactExternalId: string;
+      contactName?: string | null;
+      avatarUrl?: string | null;
+      accountId?: string | null;
+      accountName?: string | null;
+    }) => {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      return data as { conversation: ConversationSummary };
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
+      if (data.conversation?.id) {
+        void queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.conversation(data.conversation.id),
+        });
+      }
+    },
+  });
+}
+

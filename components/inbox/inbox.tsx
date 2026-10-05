@@ -19,6 +19,7 @@ import type { Channel, ConversationStatus } from "@/lib/types";
 import { channelMeta } from "./channel-badge";
 import ChannelRail from "./channel-rail";
 import ConversationList from "./conversation-list";
+import NewConversationModal from "./new-conversation-modal";
 import type { ReplyPayload } from "./reply-box";
 import SoundToggle from "./sound-toggle";
 import ThemeToggle from "./theme-toggle";
@@ -36,6 +37,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   const [filter, setFilter] = useState("");
   const [accountId, setAccountId] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
 
   // React Query cached hooks
   const { data: all = [], isLoading: loadingList } = useConversations();
@@ -284,6 +286,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               selectedId={selectedId}
               onSelect={select}
               loading={loadingList}
+              onNewConversation={() => setIsNewModalOpen(true)}
             />
           </div>
         </aside>
@@ -321,10 +324,26 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
                   ? "Fetching cached messages from memory…"
                   : "Select a conversation from the sidebar to view thread history and reply."}
               </p>
+              <button
+                type="button"
+                onClick={() => setIsNewModalOpen(true)}
+                className="mt-4 flex items-center gap-1.5 rounded-[6px] bg-primary px-3.5 py-2 text-[12.5px] font-medium text-on-primary transition-opacity hover:opacity-90 active:scale-95 cursor-pointer shadow-2xs"
+              >
+                <span>+</span>
+                <span>Start New Conversation</span>
+              </button>
             </div>
           </main>
         )}
       </div>
+
+      {/* New Conversation Directory Modal */}
+      <NewConversationModal
+        isOpen={isNewModalOpen}
+        onClose={() => setIsNewModalOpen(false)}
+        onSelectConversation={select}
+        teamName={accounts.find((a) => a.channel === "slack")?.name || null}
+      />
     </div>
   );
 }

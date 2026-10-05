@@ -365,6 +365,82 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
   });
 }
 
+export interface CreateConversationInput {
+  userId: string;
+  channel: Channel;
+  contactExternalId: string;
+  contactName?: string | null;
+  contactAvatarUrl?: string | null;
+  accountId?: string | null;
+  accountName?: string | null;
+}
+
+export async function findOrCreateConversation(
+  input: CreateConversationInput,
+): Promise<ConversationSummary> {
+  return tx((data) => {
+    const key = contactKey(input.channel, input.contactExternalId);
+    let contact = data.contacts.find(
+      (c) => c.userId === input.userId && contactKey(c.channel, c.externalId) === key,
+    );
+
+    if (!contact) {
+      contact = {
+        id: randomUUID(),
+        userId: input.userId,
+        channel: input.channel,
+        externalId: input.contactExternalId,
+        name: input.contactName?.trim() || null,
+        avatarUrl: input.contactAvatarUrl ?? null,
+        createdAt: new Date().toISOString(),
+      };
+      data.contacts.push(contact);
+    } else {
+      if (input.contactName?.trim()) {
+        contact.name = input.contactName.trim();
+      }
+      if (input.contactAvatarUrl) {
+        contact.avatarUrl = input.contactAvatarUrl;
+      }
+    }
+
+    let conversation = data.conversations.find(
+      (c) => c.userId === input.userId && c.contactId === contact!.id,
+    );
+
+    if (!conversation) {
+      const now = new Date().toISOString();
+      conversation = {
+        id: randomUUID(),
+        userId: input.userId,
+        contactId: contact.id,
+        accountId: input.accountId ?? null,
+        accountName: input.accountName ?? null,
+        lastMessageAt: now,
+        lastInboundAt: null,
+        unreadCount: 0,
+        lastReadAt: now,
+        assignee: null,
+        tags: [],
+        status: "open",
+        createdAt: now,
+      };
+      data.conversations.push(conversation);
+    } else {
+      // Reopen if closed
+      conversation.status = "open";
+      if (input.accountId) conversation.accountId = input.accountId;
+      if (input.accountName) conversation.accountName = input.accountName;
+    }
+
+    const summary = summarize(conversation, data);
+    if (!summary) {
+      throw new Error("Failed to summarize conversation");
+    }
+    return summary;
+  });
+}
+
 export async function recordOutbound(input: OutboundInput): Promise<Message | null> {
   return tx((data) => {
     const contact = data.contacts.find(

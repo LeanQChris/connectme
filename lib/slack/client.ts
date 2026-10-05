@@ -328,3 +328,140 @@ export async function verifySlackBot(
     };
   }
 }
+
+export interface SlackDirectoryUser {
+  id: string;
+  name: string;
+  displayName: string;
+  avatarUrl: string | null;
+  title?: string;
+  isBot?: boolean;
+}
+
+export interface SlackDirectoryChannel {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+  topic?: string;
+  numMembers?: number;
+}
+
+export interface SlackDirectory {
+  users: SlackDirectoryUser[];
+  channels: SlackDirectoryChannel[];
+}
+
+/**
+ * Fetches all workspace users and channels for the new conversation picker.
+ */
+export async function fetchSlackDirectory(rawToken: string): Promise<SlackDirectory> {
+  const token = rawToken.trim();
+  const users: SlackDirectoryUser[] = [];
+  const channels: SlackDirectoryChannel[] = [];
+  const seenChannelIds = new Set<string>();
+
+  // 1. Fetch Users
+  try {
+    const usersRes = await fetch("https://slack.com/api/users.list?limit=500", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (usersRes.ok) {
+      const usersData = await usersRes.json();
+      if (usersData.ok && Array.isArray(usersData.members)) {
+        for (const m of usersData.members) {
+          // Skip deleted users and USLACKBOT
+          if (m.deleted || m.id === "USLACKBOT") continue;
+          const displayName =
+            m.profile?.display_name?.trim() ||
+            m.profile?.real_name?.trim() ||
+            m.real_name?.trim() ||
+            m.name ||
+            `User ${m.id}`;
+
+          const avatar =
+            m.profile?.image_72 ||
+            m.profile?.image_192 ||
+            m.profile?.image_512 ||
+            null;
+
+          users.push({
+            id: m.id,
+            name: m.name || m.id,
+            displayName,
+            avatarUrl: avatar,
+            title: m.profile?.title || undefined,
+            isBot: Boolean(m.is_bot),
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[slack] users.list directory fetch failed:", err);
+  }
+
+  // 2. Fetch Bot Member Channels (users.conversations)
+  try {
+    const userConvsRes = await fetch(
+      "https://slack.com/api/users.conversations?types=public_channel,private_channel&limit=500",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (userConvsRes.ok) {
+      const data = await userConvsRes.json();
+      if (data.ok && Array.isArray(data.channels)) {
+        for (const c of data.channels) {
+          if (c.id && c.name && !seenChannelIds.has(c.id)) {
+            seenChannelIds.add(c.id);
+            slackChannelCache.set(c.id, c.name.trim());
+            channels.push({
+              id: c.id,
+              name: c.name.trim(),
+              isPrivate: Boolean(c.is_private),
+              topic: c.topic?.value || c.purpose?.value || undefined,
+              numMembers: c.num_members,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[slack] users.conversations directory fetch failed:", err);
+  }
+
+  // 3. Fetch Public Channels (conversations.list)
+  try {
+    const listRes = await fetch(
+      "https://slack.com/api/conversations.list?types=public_channel&limit=500",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      if (listData.ok && Array.isArray(listData.channels)) {
+        for (const c of listData.channels) {
+          if (c.id && c.name && !seenChannelIds.has(c.id)) {
+            seenChannelIds.add(c.id);
+            slackChannelCache.set(c.id, c.name.trim());
+            channels.push({
+              id: c.id,
+              name: c.name.trim(),
+              isPrivate: false,
+              topic: c.topic?.value || c.purpose?.value || undefined,
+              numMembers: c.num_members,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[slack] conversations.list directory fetch failed:", err);
+  }
+
+  // Sort channels alphabetically
+  channels.sort((a, b) => a.name.localeCompare(b.name));
+  // Sort users alphabetically (non-bots first)
+  users.sort((a, b) => {
+    if (a.isBot !== b.isBot) return a.isBot ? 1 : -1;
+    return a.displayName.localeCompare(b.displayName);
+  });
+
+  return { users, channels };
+}
