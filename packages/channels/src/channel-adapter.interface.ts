@@ -1,11 +1,20 @@
 import { ChannelType, TenantCredential } from "@connectme/database";
 
+export interface ChannelMediaItem {
+  url: string;
+  type?: string;
+  name?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
+}
+
 export interface ChannelSendContext {
   credentials?: TenantCredential | null;
   pageAccessToken?: string | null;
   contactExternalId: string;
   text?: string;
   mediaUrl?: string;
+  media?: ChannelMediaItem[];
   mimeType?: string;
   type?: string;
   /** Meta message tag (e.g. HUMAN_AGENT) for sending outside the 24h window. */
@@ -14,6 +23,7 @@ export interface ChannelSendContext {
 
 export interface ChannelSendResult {
   externalId: string | null;
+  skipped?: string[];
 }
 
 export interface IChannelClient {

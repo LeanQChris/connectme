@@ -23,13 +23,35 @@ export class MessengerClient implements IChannelClient {
   }
 
   async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
-    if (!ctx.mediaUrl) throw new Error("Messenger media send requires a mediaUrl.");
-    return this.post(ctx, {
-      attachment: {
-        type: toMetaMediaType(ctx.mimeType, ctx.type === "image" ? "image" : "file"),
-        payload: { url: ctx.mediaUrl, is_reusable: true },
-      },
-    });
+    const items = ctx.media && ctx.media.length > 0
+      ? ctx.media
+      : ctx.mediaUrl
+      ? [{ url: ctx.mediaUrl, type: ctx.type, name: "file", mimeType: ctx.mimeType }]
+      : [];
+
+    if (items.length === 0) {
+      return this.sendText(ctx);
+    }
+
+    let primaryExternalId: string | null = null;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const res = await this.post(ctx, {
+        attachment: {
+          type: toMetaMediaType(item.mimeType ?? undefined, item.type === "image" ? "image" : "file"),
+          payload: { url: item.url, is_reusable: true },
+        },
+      });
+      if (!primaryExternalId) {
+        primaryExternalId = res.externalId;
+      }
+    }
+
+    if (ctx.text) {
+      await this.sendText(ctx);
+    }
+
+    return { externalId: primaryExternalId };
   }
 
   private async post(

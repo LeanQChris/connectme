@@ -23,13 +23,44 @@ export class InstagramClient implements IChannelClient {
   }
 
   async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
-    if (!ctx.mediaUrl) throw new Error("Instagram media send requires a mediaUrl.");
-    return this.post(ctx, {
-      attachment: {
-        type: toMetaMediaType(ctx.mimeType, "image"),
-        payload: { url: ctx.mediaUrl },
-      },
-    });
+    const items = ctx.media && ctx.media.length > 0
+      ? ctx.media
+      : ctx.mediaUrl
+      ? [{ url: ctx.mediaUrl, type: ctx.type, name: "image", mimeType: ctx.mimeType }]
+      : [];
+
+    if (items.length === 0) {
+      return this.sendText(ctx);
+    }
+
+    const skipped: string[] = [];
+    let primaryExternalId: string | null = null;
+
+    for (const item of items) {
+      const isImage = item.type === "image" || item.mimeType?.startsWith("image/");
+      const isAudio = item.type === "audio" || item.mimeType?.startsWith("audio/");
+      if (!isImage && !isAudio) {
+        skipped.push(`${item.name || item.url} (${item.type || "file"} not supported by Instagram)`);
+        continue;
+      }
+
+      const res = await this.post(ctx, {
+        attachment: {
+          type: toMetaMediaType(item.mimeType ?? undefined, isAudio ? "audio" : "image"),
+          payload: { url: item.url },
+        },
+      });
+
+      if (!primaryExternalId) {
+        primaryExternalId = res.externalId;
+      }
+    }
+
+    if (ctx.text) {
+      await this.sendText(ctx);
+    }
+
+    return { externalId: primaryExternalId, skipped: skipped.length > 0 ? skipped : undefined };
   }
 
   private async post(

@@ -22,14 +22,31 @@ export class DiscordClient implements IChannelClient {
   }
 
   async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
-    if (!ctx.mediaUrl) throw new Error("Discord media send requires a mediaUrl.");
-    const isImage = ctx.mimeType?.startsWith("image/") || ctx.type === "image";
-    if (!isImage) {
-      throw new Error("Discord sends only support image embeds; attach a link for other media.");
+    const items = ctx.media && ctx.media.length > 0
+      ? ctx.media
+      : ctx.mediaUrl
+      ? [{ url: ctx.mediaUrl, type: ctx.type, name: "file", mimeType: ctx.mimeType }]
+      : [];
+
+    if (items.length === 0) {
+      return this.sendText(ctx);
     }
+
+    const embeds = items
+      .filter((i) => i.type === "image" || i.mimeType?.startsWith("image/"))
+      .slice(0, 10)
+      .map((i) => ({ image: { url: i.url } }));
+
+    const nonImages = items.filter((i) => i.type !== "image" && !i.mimeType?.startsWith("image/"));
+    let text = ctx.text || "";
+    if (nonImages.length > 0) {
+      const links = nonImages.map((i) => `📎 [${i.name || "Attachment"}](${i.url})`).join("\n");
+      text = text ? `${text}\n\n${links}` : links;
+    }
+
     return this.post(ctx, {
-      content: ctx.text || "",
-      embeds: [{ image: { url: ctx.mediaUrl } }],
+      content: text,
+      embeds: embeds.length > 0 ? embeds : undefined,
     });
   }
 

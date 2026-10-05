@@ -54,6 +54,15 @@ export class Message {
   @Column({ type: "int", nullable: true })
   mediaSize?: number | null;
 
+  @Column({ type: "jsonb", nullable: true })
+  media?: Array<{
+    url: string;
+    type: string;
+    name?: string;
+    size?: number;
+    mimeType?: string;
+  }> | null;
+
   @Column({
     type: "enum",
     enum: MessageStatus,

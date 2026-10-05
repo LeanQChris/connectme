@@ -32,20 +32,44 @@ export class WhatsAppClient implements IChannelClient {
     if (!creds?.waPhoneNumberId || !creds?.waAccessTokenEnc) {
       throw new Error("WhatsApp Cloud API credentials not configured.");
     }
-    if (!ctx.mediaUrl) throw new Error("WhatsApp media send requires a mediaUrl.");
+
+    const items = ctx.media && ctx.media.length > 0
+      ? ctx.media
+      : ctx.mediaUrl
+      ? [{ url: ctx.mediaUrl, type: ctx.type, name: "document", mimeType: ctx.mimeType }]
+      : [];
+
+    if (items.length === 0) {
+      return this.sendText(ctx);
+    }
 
     const token = this.aesVault.decryptStrict<string>(creds.waAccessTokenEnc);
-    const type = (ctx.type || this.detectType(ctx.mimeType)).toLowerCase();
-    const mediaObject: Record<string, unknown> = { link: ctx.mediaUrl };
-    if (type !== "audio") mediaObject.caption = ctx.text || "";
-    if (type === "document") mediaObject.filename = ctx.text || "document";
+    let primaryExternalId: string | null = null;
 
-    return this.post(creds.waPhoneNumberId, token, {
-      messaging_product: "whatsapp",
-      to: ctx.contactExternalId,
-      type,
-      [type]: mediaObject,
-    });
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const type = (item.type || this.detectType(item.mimeType ?? undefined)).toLowerCase();
+      const mediaObject: Record<string, unknown> = { link: item.url };
+      if (i === 0 && ctx.text && type !== "audio") {
+        mediaObject.caption = ctx.text;
+      }
+      if (type === "document") {
+        mediaObject.filename = item.name || "document";
+      }
+
+      const res = await this.post(creds.waPhoneNumberId, token, {
+        messaging_product: "whatsapp",
+        to: ctx.contactExternalId,
+        type,
+        [type]: mediaObject,
+      });
+
+      if (!primaryExternalId) {
+        primaryExternalId = res.externalId;
+      }
+    }
+
+    return { externalId: primaryExternalId };
   }
 
   private detectType(mimeType?: string): string {

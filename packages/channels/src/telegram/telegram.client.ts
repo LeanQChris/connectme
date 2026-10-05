@@ -27,15 +27,51 @@ export class TelegramClient implements IChannelClient {
   }
 
   async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
-    if (!ctx.mediaUrl) throw new Error("Telegram media send requires a mediaUrl.");
+    const items = ctx.media && ctx.media.length > 0
+      ? ctx.media
+      : ctx.mediaUrl
+      ? [{ url: ctx.mediaUrl, type: ctx.type, name: "file", mimeType: ctx.mimeType }]
+      : [];
+
+    if (items.length === 0) {
+      return this.sendText(ctx);
+    }
+
     const { base } = this.apiBase(ctx);
-    const method = this.methodFor(ctx.mimeType, ctx.type);
-    const field = method.slice("send".length).toLowerCase();
-    return this.post(`${base}/${method}`, {
-      chat_id: ctx.contactExternalId,
-      [field]: ctx.mediaUrl,
-      caption: ctx.text || "",
-    });
+
+    // If 2-10 photos/videos, send as album
+    const allVisual = items.every((i) => i.type === "image" || i.type === "video" || i.mimeType?.startsWith("image/") || i.mimeType?.startsWith("video/"));
+    if (items.length >= 2 && items.length <= 10 && allVisual) {
+      const mediaGroup = items.map((item, idx) => ({
+        type: item.type === "video" || item.mimeType?.startsWith("video/") ? "video" : "photo",
+        media: item.url,
+        caption: idx === 0 ? ctx.text || "" : undefined,
+      }));
+
+      const res = await this.post(`${base}/sendMediaGroup`, {
+        chat_id: ctx.contactExternalId,
+        media: mediaGroup,
+      });
+      return { externalId: res.externalId };
+    }
+
+    // Otherwise send sequentially
+    let primaryExternalId: string | null = null;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const method = this.methodFor(item.mimeType ?? undefined, item.type);
+      const field = method.slice("send".length).toLowerCase();
+      const res = await this.post(`${base}/${method}`, {
+        chat_id: ctx.contactExternalId,
+        [field]: item.url,
+        caption: i === 0 ? ctx.text || "" : "",
+      });
+      if (!primaryExternalId) {
+        primaryExternalId = res.externalId;
+      }
+    }
+
+    return { externalId: primaryExternalId };
   }
 
   private methodFor(mimeType?: string, type?: string): string {

@@ -8,113 +8,87 @@ interface MessageAttachmentProps {
 }
 
 export function MessageAttachment({ message, onOpenImage }: MessageAttachmentProps) {
-  const { mediaUrl, type } = message;
+  const mediaList = message.media && message.media.length > 0
+    ? message.media
+    : message.mediaUrl
+    ? [{ url: message.mediaUrl, type: message.type, name: message.text || "Attachment" }]
+    : [];
 
-  if (type === "image") {
-    if (!mediaUrl) {
+  if (mediaList.length === 0) return null;
+
+  if (mediaList.length === 1) {
+    const item = mediaList[0];
+    const type = item.type || message.type;
+    const url = item.url;
+    const name = item.name || message.text || "Attachment";
+
+    if (type === "sticker") {
       return (
-        <div className="flex items-center gap-2.5 rounded-[8px] bg-surface-well p-2.5 text-[12px] border border-hairline">
-          <span className="text-xl">🖼️</span>
-          <div>
-            <p className="font-medium text-ink">Photo Attachment</p>
-            <span className="text-[10.5px] text-mute font-mono">Image received</span>
-          </div>
+        <div className="block overflow-hidden max-w-[160px] cursor-pointer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt="Sticker"
+            onClick={() => onOpenImage(url)}
+            className="max-h-40 w-auto object-contain"
+            loading="lazy"
+          />
         </div>
       );
     }
-    return (
-      <div className="group/media relative block overflow-hidden rounded-[10px] cursor-pointer bg-black/10">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mediaUrl}
-          alt="Attachment"
-          onClick={() => onOpenImage(mediaUrl)}
-          className="max-h-80 w-full object-cover transition-transform duration-200 group-hover/media:scale-[1.02]"
-          loading="lazy"
-        />
-        <div
-          onClick={() => onOpenImage(mediaUrl)}
-          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/media:bg-black/25"
-        >
-          <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-sm">
-            <span>View Full Size</span>
-            <span>↗</span>
-          </span>
-        </div>
-      </div>
-    );
-  }
 
-  if (type === "video") {
-    if (!mediaUrl) {
+    if (type === "image") {
       return (
-        <div className="flex items-center gap-3 rounded-[8px] bg-surface-well p-2.5 text-[12px] border border-hairline min-w-[180px]">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] bg-canvas-elevated text-lg border border-hairline">
-            🎥
-          </div>
-          <div>
-            <p className="font-medium text-[13px] text-ink">
-              {message.text && message.text !== "[video]" ? message.text : "Video message"}
-            </p>
-            <span className="text-[10.5px] text-mute font-mono">Video attachment</span>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="overflow-hidden rounded-[10px] bg-black/20 max-w-[320px]">
-        <video
-          src={mediaUrl}
-          controls
-          playsInline
-          className="max-h-80 w-full rounded-[10px]"
-          preload="metadata"
-        />
-      </div>
-    );
-  }
-
-  if (type === "audio") {
-    if (!mediaUrl) {
-      return (
-        <div className="flex items-center gap-2.5 rounded-[8px] bg-surface-well p-2 text-[12px] border border-hairline">
-          <span className="text-lg">🎤</span>
-          <div>
-            <p className="font-medium text-ink">Voice / Audio message</p>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="flex items-center gap-2 rounded-[8px] bg-canvas-elevated p-2 border border-hairline my-1 max-w-[280px]">
-        <span className="text-lg">🎵</span>
-        <audio src={mediaUrl} controls className="h-8 w-full min-w-[200px]" />
-      </div>
-    );
-  }
-
-  if (type === "document" || (!mediaUrl && type !== "text")) {
-    const filename =
-      message.text && message.text !== "[document]" ? message.text : "Attached Document";
-    const ext = filename.split(".").pop()?.toUpperCase() || "DOC";
-
-    if (!mediaUrl) {
-      return (
-        <div className="flex items-center gap-3 rounded-[8px] bg-surface-well p-2.5 text-[12px] border border-hairline min-w-[180px]">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas-elevated font-mono text-[10px] font-bold text-body">
-            {ext.slice(0, 4)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium text-ink">{filename}</p>
-            <span className="font-mono text-[10.5px] text-mute">File attachment</span>
+        <div className="group/media relative block overflow-hidden rounded-[10px] cursor-pointer bg-black/10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt={name}
+            onClick={() => onOpenImage(url)}
+            className="max-h-80 w-full object-cover transition-transform duration-200 group-hover/media:scale-[1.02]"
+            loading="lazy"
+          />
+          <div
+            onClick={() => onOpenImage(url)}
+            className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/media:bg-black/25"
+          >
+            <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-sm">
+              <span>View Full Size</span>
+              <span>↗</span>
+            </span>
           </div>
         </div>
       );
     }
 
+    if (type === "video") {
+      return (
+        <div className="overflow-hidden rounded-[10px] bg-black/20 max-w-[320px]">
+          <video
+            src={url}
+            controls
+            playsInline
+            className="max-h-80 w-full rounded-[10px]"
+            preload="metadata"
+          />
+        </div>
+      );
+    }
+
+    if (type === "audio") {
+      return (
+        <div className="flex items-center gap-2 rounded-[8px] bg-canvas-elevated p-2 border border-hairline my-1 max-w-[280px]">
+          <span className="text-lg">🎵</span>
+          <audio src={url} controls className="h-8 w-full min-w-[200px]" />
+        </div>
+      );
+    }
+
+    // Default: document/file
+    const ext = name.split(".").pop()?.toUpperCase() || "FILE";
     return (
       <a
-        href={mediaUrl}
+        href={url}
         target="_blank"
         rel="noopener noreferrer"
         download
@@ -124,7 +98,7 @@ export function MessageAttachment({ message, onOpenImage }: MessageAttachmentPro
           {ext.slice(0, 4)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium text-ink">{filename}</p>
+          <p className="truncate text-[13px] font-medium text-ink">{name}</p>
           <span className="font-mono text-[10.5px] text-mute flex items-center gap-1">
             <span>Download file</span>
             <span>↓</span>
@@ -147,5 +121,50 @@ export function MessageAttachment({ message, onOpenImage }: MessageAttachmentPro
     );
   }
 
-  return null;
+  // Multi-attachment grid / list
+  const allImages = mediaList.every((m) => m.type === "image" || m.mimeType?.startsWith("image/"));
+  if (allImages) {
+    return (
+      <div className={`grid gap-1.5 overflow-hidden rounded-[10px] ${mediaList.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+        {mediaList.map((m, idx) => (
+          <div key={idx} className="group/media relative aspect-square overflow-hidden bg-black/10 cursor-pointer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={m.url}
+              alt={m.name || `Image ${idx + 1}`}
+              onClick={() => onOpenImage(m.url)}
+              className="h-full w-full object-cover transition-transform duration-200 group-hover/media:scale-105"
+              loading="lazy"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {mediaList.map((item, idx) => {
+        const ext = (item.name || "FILE").split(".").pop()?.toUpperCase() || "FILE";
+        return (
+          <a
+            key={idx}
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            download
+            className="group flex items-center gap-3 rounded-[10px] border border-hairline bg-canvas p-2 text-left text-ink transition-colors hover:bg-surface-well"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas-elevated font-mono text-[9.5px] font-bold text-body">
+              {ext.slice(0, 4)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[12.5px] font-medium text-ink">{item.name || `Attachment ${idx + 1}`}</p>
+            </div>
+            <span className="text-[12px] text-mute">↓</span>
+          </a>
+        );
+      })}
+    </div>
+  );
 }

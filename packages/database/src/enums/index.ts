@@ -4,6 +4,8 @@ export enum ChannelType {
   INSTAGRAM = "INSTAGRAM",
   TELEGRAM = "TELEGRAM",
   DISCORD = "DISCORD",
+  SLACK = "SLACK",
+  WIDGET = "WIDGET",
 }
 
 export enum MessageDirection {
@@ -26,6 +28,10 @@ export enum MediaType {
   VIDEO = "VIDEO",
   AUDIO = "AUDIO",
   DOCUMENT = "DOCUMENT",
+  STICKER = "STICKER",
+  LOCATION = "LOCATION",
+  FILE = "FILE",
+  OTHER = "OTHER",
 }
 
 export enum ConversationStatus {
