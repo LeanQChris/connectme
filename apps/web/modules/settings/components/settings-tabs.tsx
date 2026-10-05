@@ -117,6 +117,19 @@ export const SettingsTabs = memo(function SettingsTabs({
 
       <button
         type="button"
+        onClick={() => onSelectTab("team")}
+        className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+          activeTab === "team"
+            ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 font-semibold"
+            : "border-transparent text-mute hover:text-body"
+        }`}
+      >
+        <span className="text-indigo-500">👥</span>
+        <span>Team & Roles</span>
+      </button>
+
+      <button
+        type="button"
         onClick={() => onSelectTab("notifications")}
         className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
           activeTab === "notifications"

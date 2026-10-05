@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { whatsappTemplateApi } from "@/modules/inbox/api/whatsapp-template.api";
 import type { WhatsAppTemplateDto, WhatsAppTemplateCategory } from "@connectme/contracts";
 import { Button } from "@/components/ui/button";

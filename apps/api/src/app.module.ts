@@ -64,6 +64,7 @@ import { RealtimeBridgeService } from "./infrastructure/realtime/realtime-bridge
 import { LinkPreviewService } from "./infrastructure/services/link-preview.service";
 import { AiService } from "./infrastructure/services/ai.service";
 import { WhatsAppTemplateService } from "./infrastructure/services/whatsapp-template.service";
+import { TeamService } from "./infrastructure/services/team.service";
 
 // Use cases
 import { SendReplyUseCase } from "./application/use-cases/messages/send-reply.use-case";
@@ -97,6 +98,7 @@ import { LinkPreviewController } from "./presentation/controllers/link-preview.c
 import { WidgetController } from "./presentation/controllers/widget.controller";
 import { AiController } from "./presentation/controllers/ai.controller";
 import { WhatsAppTemplateController } from "./presentation/controllers/whatsapp-template.controller";
+import { TeamController } from "./presentation/controllers/team.controller";
 
 import { SetupController } from "./presentation/controllers/setup.controller";
 
@@ -182,6 +184,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     WidgetController,
     AiController,
     WhatsAppTemplateController,
+    TeamController,
   ],
   providers: [
     // Global guards: rate limiting first, then authentication.
@@ -205,6 +208,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     LinkPreviewService,
     AiService,
     WhatsAppTemplateService,
+    TeamService,
 
     // Channel Drivers
     WhatsAppClient,

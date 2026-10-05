@@ -9,3 +9,4 @@ export * from "./webhooks";
 export * from "./stats";
 export * from "./ai";
 export * from "./whatsapp-template";
+export * from "./team";

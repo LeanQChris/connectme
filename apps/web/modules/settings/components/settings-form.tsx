@@ -9,6 +9,7 @@ import { DiscordSettings } from "./discord-settings";
 import { NotificationsSettings } from "./notifications-settings";
 import { WebhooksSettings } from "./webhooks-settings";
 import { AiByokSettings } from "./ai-byok-settings";
+import { TeamRbacSettings } from "./team-rbac-settings";
 import type { SettingsPayload } from "@/core/types";
 
 export interface SettingsFormProps {
@@ -251,6 +252,8 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
           onRegisterSlash={registerDiscord}
         />
       )}
+
+      {activeTab === "team" && <TeamRbacSettings />}
 
       {activeTab === "notifications" && <NotificationsSettings />}
 
