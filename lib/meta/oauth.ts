@@ -170,7 +170,7 @@ export async function subscribePageToWebhook(
   const url = new URL(graphUrl(config.graphVersion, `${pageId}/subscribed_apps`));
   url.searchParams.set(
     "subscribed_fields",
-    "messages,messaging_postbacks,message_reads,message_deliveries",
+    "messages,messaging_postbacks,message_reads,message_deliveries,standby,feed",
   );
   url.searchParams.set("access_token", pageAccessToken);
 
