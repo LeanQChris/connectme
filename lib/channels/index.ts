@@ -2,6 +2,7 @@ import type { Channel } from "../types";
 import { discordAdapter } from "./discord";
 import { instagramAdapter } from "./instagram";
 import { messengerAdapter } from "./messenger";
+import { slackAdapter } from "./slack";
 import { telegramAdapter } from "./telegram";
 import type { ChannelAdapter, Tenant } from "./types";
 import { whatsappAdapter } from "./whatsapp";
@@ -18,6 +19,7 @@ const adapters: Partial<Record<Channel, ChannelAdapter>> = {
   instagram: instagramAdapter,
   telegram: telegramAdapter,
   discord: discordAdapter,
+  slack: slackAdapter,
 };
 
 export function getChannel(channel: Channel): ChannelAdapter | undefined {

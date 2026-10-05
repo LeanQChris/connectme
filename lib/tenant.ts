@@ -62,6 +62,8 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
       telegramBotToken: "",
       discordBotToken: "",
       discordPublicKey: "",
+      slackBotToken: "",
+      slackSigningSecret: "",
       graphVersion: GRAPH_VERSION_FALLBACK,
     },
   );
@@ -87,6 +89,9 @@ function connectedFlags(
     discord:
       Boolean(secrets.discordBotToken) ||
       accounts.some((a) => a.channel === "discord"),
+    slack:
+      Boolean(secrets.slackBotToken) ||
+      accounts.some((a) => a.channel === "slack"),
   };
 }
 
@@ -114,6 +119,8 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
     instagramUsername: record?.instagramUsername ?? null,
     telegramBotId: record?.telegramBotId ?? null,
     discordBotId: record?.discordBotId ?? null,
+    slackTeamId: record?.slackTeamId ?? null,
+    slackBotId: record?.slackBotId ?? null,
     updatedAt: record?.updatedAt ?? null,
   };
 }
@@ -141,6 +148,8 @@ export async function settingsPayload(
       instagramUsername: settings.instagramUsername,
       telegramBotId: settings.telegramBotId,
       discordBotId: settings.discordBotId,
+      slackTeamId: settings.slackTeamId,
+      slackBotId: settings.slackBotId,
       updatedAt: settings.updatedAt,
       webhookVerifyToken: settings.secrets.webhookVerifyToken,
       waPhoneNumberId: settings.secrets.waPhoneNumberId || null,
@@ -153,6 +162,7 @@ export async function settingsPayload(
       meta: `${origin}/api/webhook`,
       telegram: botId ? `${origin}/api/webhook/telegram/${botId}` : null,
       discord: `${origin}/api/webhook/discord`,
+      slack: `${origin}/api/webhook/slack`,
     },
   };
 }
@@ -389,6 +399,35 @@ export async function syncProviderMetadata(userId: string): Promise<ConnectedAcc
       }
     } catch (err) {
       console.warn("[sync] Discord discovery failed:", err);
+    }
+  }
+
+  // 5. Slack
+  if (secrets.slackBotToken) {
+    try {
+      const slackRes = await fetch("https://slack.com/api/auth.test", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secrets.slackBotToken.trim()}`,
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        cache: "no-store",
+      });
+      const slackData = await slackRes.json().catch(() => null);
+      if (slackRes.ok && slackData?.ok && slackData.team_id) {
+        const teamLabel = slackData.team ? `${slackData.team} (${slackData.user})` : `Slack Workspace ${slackData.team_id}`;
+        discovered.push({
+          id: `slack_${slackData.team_id}`,
+          provider: "slack",
+          channel: "slack",
+          name: teamLabel,
+          externalId: slackData.team_id,
+          token: secrets.slackBotToken,
+          connectedAt: now,
+        });
+      }
+    } catch (err) {
+      console.warn("[sync] Slack discovery failed:", err);
     }
   }
 

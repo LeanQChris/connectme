@@ -117,3 +117,35 @@ export async function verifyDiscord(secrets: ProviderSecrets): Promise<VerifyRes
     return { ok: false, detail: err instanceof Error ? err.message : "Connection failed" };
   }
 }
+
+export async function verifySlack(secrets: ProviderSecrets): Promise<VerifyResult> {
+  const token = secrets.slackBotToken?.trim();
+  if (!token) return { ok: false, detail: "Slack Bot Token (xoxb-...) is required." };
+
+  try {
+    const response = await fetch("https://slack.com/api/auth.test", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      error?: string;
+      team?: string;
+      user?: string;
+    } | null;
+
+    if (!response.ok || !payload?.ok) {
+      return { ok: false, detail: payload?.error || `Slack replied HTTP ${response.status}` };
+    }
+
+    const team = payload.team || "Workspace";
+    const user = payload.user ? ` (${payload.user})` : "";
+    return { ok: true, detail: `Connected to ${team}${user}` };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : "Connection failed" };
+  }
+}

@@ -3,7 +3,14 @@
  * so this file must stay free of any server-only imports.
  */
 
-export const CHANNELS = ["whatsapp", "messenger", "instagram", "telegram", "discord"] as const;
+export const CHANNELS = [
+  "whatsapp",
+  "messenger",
+  "instagram",
+  "telegram",
+  "discord",
+  "slack",
+] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const DIRECTIONS = ["in", "out", "note"] as const;
@@ -140,7 +147,7 @@ export interface TenantUser {
 /** A connected social messaging account (Facebook Page, Instagram handle, etc.) */
 export interface ConnectedAccount {
   id: string;
-  provider: "meta" | "telegram" | "discord" | "whatsapp";
+  provider: "meta" | "telegram" | "discord" | "whatsapp" | "slack";
   channel: Channel;
   name: string;
   externalId: string;
@@ -169,6 +176,8 @@ export interface ProviderSecrets {
   telegramBotToken: string;
   discordBotToken: string;
   discordPublicKey: string;
+  slackBotToken: string;
+  slackSigningSecret: string;
   graphVersion: string;
 }
 
@@ -183,11 +192,13 @@ export const EMPTY_SECRETS: ProviderSecrets = {
   telegramBotToken: "",
   discordBotToken: "",
   discordPublicKey: "",
+  slackBotToken: "",
+  slackSigningSecret: "",
   graphVersion: "",
 };
 
 /** What the settings UI may read back: presence flags, never the secrets. */
-export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram" | "discord";
+export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram" | "discord" | "slack";
 
 /** Stored shape: encrypted blob plus the plaintext ids webhooks route on. */
 export interface CredentialRecord {
@@ -207,6 +218,9 @@ export interface CredentialRecord {
   telegramBotId?: string;
   /** Discord bot / application id; routes Discord webhooks. */
   discordBotId?: string;
+  /** Slack workspace / bot id. */
+  slackTeamId?: string;
+  slackBotId?: string;
   updatedAt: string;
 }
 
@@ -219,6 +233,8 @@ export interface TenantSettings {
   instagramUsername: string | null;
   telegramBotId: string | null;
   discordBotId: string | null;
+  slackTeamId: string | null;
+  slackBotId: string | null;
   updatedAt: string | null;
 }
 
@@ -232,6 +248,8 @@ export interface SettingsPayload {
     instagramUsername: string | null;
     telegramBotId: string | null;
     discordBotId: string | null;
+    slackTeamId: string | null;
+    slackBotId: string | null;
     updatedAt: string | null;
     /** Copyable only — the tokens themselves are never sent back. */
     webhookVerifyToken: string;
@@ -241,5 +259,10 @@ export interface SettingsPayload {
   oauth: {
     metaConfigured: boolean;
   };
-  webhookUrls: { meta: string; telegram: string | null; discord: string | null };
+  webhookUrls: {
+    meta: string;
+    telegram: string | null;
+    discord: string | null;
+    slack: string | null;
+  };
 }

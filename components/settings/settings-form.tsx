@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ChannelIcon } from "@/components/inbox/channel-badge";
 import type { ConnectedAccount, SettingsPayload } from "@/lib/types";
 
-type TabId = "whatsapp" | "meta" | "telegram" | "discord" | "webhooks";
+type TabId = "whatsapp" | "meta" | "telegram" | "discord" | "slack" | "webhooks";
 
 export default function SettingsForm({ initial }: { initial: SettingsPayload }) {
   const searchParams = useSearchParams();
@@ -62,6 +62,11 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   const [discordForm, setDiscordForm] = useState({
     discordBotToken: "",
     discordPublicKey: "",
+  });
+
+  const [slackForm, setSlackForm] = useState({
+    slackBotToken: "",
+    slackSigningSecret: "",
   });
 
   const [showManualMeta, setShowManualMeta] = useState(false);
@@ -130,8 +135,8 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
     }
   }
 
-  // Verification helper for WhatsApp, Page (Facebook/Instagram), Telegram, Discord
-  async function verifyChannel(channel: "whatsapp" | "page" | "telegram" | "discord") {
+  // Verification helper for WhatsApp, Page (Facebook/Instagram), Telegram, Discord, Slack
+  async function verifyChannel(channel: "whatsapp" | "page" | "telegram" | "discord" | "slack") {
     setBusy(`verify-${channel}`);
     setChannelStatus((prev) => ({ ...prev, [channel]: { ok: true, detail: "Verifying…" } }));
 
@@ -252,6 +257,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
     (data.settings.accounts && data.settings.accounts.length > 0);
   const isTelegramConnected = data.settings.connected.telegram;
   const isDiscordConnected = data.settings.connected.discord;
+  const isSlackConnected = data.settings.connected.slack;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const metaUrl = data.webhookUrls.meta.startsWith("http")
@@ -377,6 +383,24 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
           <span
             className={`h-2 w-2 rounded-full ${
               isDiscordConnected ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+            }`}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("slack")}
+          className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "slack"
+              ? "border-ink text-ink font-semibold"
+              : "border-transparent text-mute hover:text-body"
+          }`}
+        >
+          <ChannelIcon channel="slack" className="h-4 w-4 text-[#E01E5A]" />
+          <span>Slack</span>
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isSlackConnected ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
             }`}
           />
         </button>
@@ -1061,13 +1085,156 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
       )}
 
       {/* =======================================================================
-          TAB 5: WEBHOOKS & ENDPOINTS
+          TAB 5: SLACK
+         ======================================================================= */}
+      {activeTab === "slack" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-hairline">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#4A154B]/10 text-[#4A154B] dark:bg-[#E01E5A]/10 dark:text-[#E01E5A]">
+                  <ChannelIcon channel="slack" className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-[16px] font-semibold text-ink">Slack App &amp; Bot</h2>
+                  <p className="text-[12.5px] text-body">
+                    Route customer inquiries, channel messages, and direct DMs through Slack.
+                  </p>
+                </div>
+              </div>
+
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium self-start sm:self-auto ${
+                  isSlackConnected
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                    : "bg-surface-well text-mute border border-hairline"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${isSlackConnected ? "bg-emerald-500" : "bg-neutral-400"}`} />
+                {isSlackConnected ? "Connected" : "Not connected"}
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-medium text-ink">
+                  Bot User OAuth Token <span className="text-error">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={visibleSecrets.slackBotToken ? "text" : "password"}
+                    value={slackForm.slackBotToken}
+                    onChange={(e) =>
+                      setSlackForm((prev) => ({ ...prev, slackBotToken: e.target.value }))
+                    }
+                    placeholder={isSlackConnected ? "••••••••••••  (Active & Encrypted)" : "xoxb-..."}
+                    className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 pr-10 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecret("slackBotToken")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1 cursor-pointer"
+                  >
+                    {visibleSecrets.slackBotToken ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <span className="text-[11px] text-mute">From Slack API → OAuth &amp; Permissions → Bot User OAuth Token</span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-medium text-ink">
+                  Signing Secret <span className="text-error">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={visibleSecrets.slackSigningSecret ? "text" : "password"}
+                    value={slackForm.slackSigningSecret}
+                    onChange={(e) =>
+                      setSlackForm((prev) => ({ ...prev, slackSigningSecret: e.target.value }))
+                    }
+                    placeholder={isSlackConnected ? "••••••••••••  (Active & Encrypted)" : "Basic Information → Signing Secret"}
+                    className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 pr-10 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecret("slackSigningSecret")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1 cursor-pointer"
+                  >
+                    {visibleSecrets.slackSigningSecret ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <span className="text-[11px] text-mute">Used to verify X-Slack-Signature on incoming webhooks</span>
+              </div>
+            </div>
+
+            {/* Quick Setup Instructions */}
+            <div className="mt-5 rounded-lg border border-hairline bg-surface-well/50 p-3.5 text-[12.5px] text-body space-y-2">
+              <span className="font-semibold text-ink flex items-center gap-1.5">
+                <span>⚡</span> Slack App Setup Checklist
+              </span>
+              <ul className="list-disc space-y-1 pl-4 text-[12px] text-mute">
+                <li>Create an App at <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-ink underline">api.slack.com/apps</a>.</li>
+                <li>Under <strong>OAuth &amp; Permissions</strong>, add Bot Scopes: <code className="text-ink font-mono text-[11px]">chat:write</code>, <code className="text-ink font-mono text-[11px]">channels:history</code>, <code className="text-ink font-mono text-[11px]">im:history</code>, <code className="text-ink font-mono text-[11px]">groups:history</code>, <code className="text-ink font-mono text-[11px]">users:read</code>, <code className="text-ink font-mono text-[11px]">files:read</code>.</li>
+                <li>Under <strong>Event Subscriptions</strong>, toggle On, paste your Webhook URL (<code className="text-ink font-mono text-[11px]">{data.webhookUrls.slack || `${origin}/api/webhook/slack`}</code>), and subscribe to bot events: <code className="text-ink font-mono text-[11px]">message.channels</code>, <code className="text-ink font-mono text-[11px]">message.im</code>, <code className="text-ink font-mono text-[11px]">message.groups</code>.</li>
+                <li>Install the App to your workspace and paste the tokens above.</li>
+              </ul>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-hairline">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void saveChannel(
+                      {
+                        slackBotToken: slackForm.slackBotToken,
+                        slackSigningSecret: slackForm.slackSigningSecret,
+                      },
+                      "slack",
+                      "Slack settings saved successfully!",
+                      () => setSlackForm({ slackBotToken: "", slackSigningSecret: "" }),
+                    )
+                  }
+                  disabled={busy !== null}
+                  className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                >
+                  {busy === "save-slack" ? "Saving…" : "Save Slack Settings"}
+                </button>
+
+                {isSlackConnected && (
+                  <button
+                    type="button"
+                    onClick={() => void verifyChannel("slack")}
+                    disabled={busy !== null}
+                    className="h-9 rounded-lg border border-hairline bg-canvas-elevated px-3 text-[13px] font-medium text-ink transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer"
+                  >
+                    {busy === "verify-slack" ? "Testing…" : "Test Connection"}
+                  </button>
+                )}
+              </div>
+
+              {channelStatus.slack && (
+                <span
+                  className={`text-[12.5px] font-medium ${
+                    channelStatus.slack.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"
+                  }`}
+                >
+                  {channelStatus.slack.detail}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================================================
+          TAB 6: WEBHOOKS & ENDPOINTS
          ======================================================================= */}
       {activeTab === "webhooks" && (
         <div className="space-y-6">
           <div className="rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
             <div className="pb-4 border-b border-hairline">
-              <h2 className="text-[16px] font-semibold text-ink">Inbound Webhooks & Endpoints</h2>
+              <h2 className="text-[16px] font-semibold text-ink">Inbound Webhooks &amp; Endpoints</h2>
               <p className="mt-1 text-[12.5px] text-body">
                 Copy these endpoint URLs into your respective platform developer consoles to route messages into ConnectMe.
               </p>
@@ -1075,7 +1242,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
 
             <div className="mt-5 space-y-3.5">
               <CopyCard
-                label="Meta Webhook Callback URL (WhatsApp, Messenger & Instagram)"
+                label="Meta Webhook Callback URL (WhatsApp, Messenger &amp; Instagram)"
                 value={metaUrl}
                 hint="Paste into Meta App Dashboard → Webhooks → Edit Subscription → Callback URL"
               />
@@ -1099,6 +1266,14 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                   label="Discord Interactions Endpoint URL"
                   value={data.webhookUrls.discord}
                   hint="Paste into Discord Developer Portal → General Information → Interactions Endpoint URL"
+                />
+              )}
+
+              {data.webhookUrls.slack && (
+                <CopyCard
+                  label="Slack Event Subscriptions Request URL"
+                  value={data.webhookUrls.slack}
+                  hint="Paste into Slack API Dashboard → Event Subscriptions → Request URL"
                 />
               )}
             </div>

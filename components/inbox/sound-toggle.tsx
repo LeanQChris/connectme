@@ -1,18 +1,15 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { soundNotifier } from "@/lib/audio-chime";
 
 export default function SoundToggle() {
-  const [enabled, setEnabled] = useState(true);
-
-  useEffect(() => {
-    setEnabled(soundNotifier.isEnabled());
-  }, []);
+  const enabled = useSyncExternalStore(
+    soundNotifier.subscribe,
+    soundNotifier.isEnabled,
+    () => true,
+  );
 
   function handleToggle() {
-    const next = soundNotifier.toggleSound();
-    setEnabled(next);
+    soundNotifier.toggleSound();
   }
 
   return (

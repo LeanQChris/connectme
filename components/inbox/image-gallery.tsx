@@ -1,8 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import type { Message } from "@/lib/types";
-
 interface ImageItem {
   id: string;
   url: string;
@@ -12,13 +9,12 @@ interface ImageItem {
 
 interface ImageGalleryProps {
   images: ImageItem[];
-  outgoing: boolean;
+  outgoing?: boolean;
   onOpenLightbox: (index: number) => void;
 }
 
 export default function ImageGallery({
   images,
-  outgoing,
   onOpenLightbox,
 }: ImageGalleryProps) {
   const count = images.length;

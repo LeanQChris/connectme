@@ -7,6 +7,8 @@ class SoundNotifier {
   private audioCtx: AudioContext | null = null;
   private soundEnabled: boolean = true;
 
+  private listeners = new Set<() => void>();
+
   constructor() {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("connectme_sound_enabled");
@@ -16,20 +18,26 @@ class SoundNotifier {
     }
   }
 
+  public subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
   public toggleSound(): boolean {
     this.soundEnabled = !this.soundEnabled;
     if (typeof window !== "undefined") {
       localStorage.setItem("connectme_sound_enabled", String(this.soundEnabled));
     }
+    this.listeners.forEach((l) => l());
     if (this.soundEnabled) {
       this.playChime();
     }
     return this.soundEnabled;
   }
 
-  public isEnabled(): boolean {
+  public isEnabled = (): boolean => {
     return this.soundEnabled;
-  }
+  };
 
   public playChime(): void {
     if (!this.soundEnabled || typeof window === "undefined") return;

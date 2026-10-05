@@ -14,7 +14,7 @@ import {
   useSetConversationStatus,
   useSettings,
 } from "@/lib/hooks/use-inbox";
-import { CHANNELS, type Channel, type ConversationStatus } from "@/lib/types";
+import type { Channel, ConversationStatus } from "@/lib/types";
 
 import { channelMeta } from "./channel-badge";
 import ChannelRail from "./channel-rail";
@@ -195,11 +195,13 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
       {/* 48px Geist Navbar (per DESIGN.md nav-bar) */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-hairline bg-canvas px-4">
         <div className="flex items-center gap-3">
-          <a
+          <Link
             href="/"
             onClick={(e) => {
-              e.preventDefault();
-              back();
+              if (selectedId) {
+                e.preventDefault();
+                back();
+              }
             }}
             className="group flex items-center gap-2.5 cursor-pointer select-none"
           >
@@ -214,7 +216,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
                 Unified Gateway
               </span>
             </div>
-          </a>
+          </Link>
         </div>
 
         <div className="flex items-center gap-2">

@@ -225,7 +225,9 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     tags: conv.tags ?? [],
     status: conv.status,
     window:
-      contact.channel === "telegram" || contact.channel === "discord"
+      contact.channel === "telegram" ||
+      contact.channel === "discord" ||
+      contact.channel === "slack"
         ? { open: true, msRemaining: null }
         : replyWindow(conv.lastInboundAt),
   };
