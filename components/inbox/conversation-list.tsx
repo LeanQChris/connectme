@@ -157,6 +157,11 @@ export default function ConversationList({
               (conversation.channel === "slack" &&
                 (conversation.contactExternalId.startsWith("C") ||
                   conversation.contactExternalId.startsWith("G")));
+            const displayName = isChannel
+              ? conversation.contactName.startsWith("#")
+                ? conversation.contactName
+                : `#${conversation.contactName || conversation.contactExternalId}`
+              : conversation.contactName;
             const hasRealName =
               !isChannel && conversation.contactName !== conversation.contactExternalId;
             const unread = conversation.unreadCount > 0;
@@ -175,7 +180,7 @@ export default function ConversationList({
                   }`}
                 >
                   <Avatar
-                    name={conversation.contactName}
+                    name={displayName}
                     avatarUrl={conversation.avatarUrl}
                     channel={conversation.channel}
                     size="md"
@@ -195,7 +200,7 @@ export default function ConversationList({
                               : "font-medium text-ink"
                           }`}
                         >
-                          {conversation.contactName}
+                          {displayName}
                         </span>
 
                         {isChannel ? (

@@ -335,6 +335,18 @@ export default function Thread({
 
   const channelInfo = channelMeta(conversation.channel);
 
+  const isChannel =
+    conversation.contactName.startsWith("#") ||
+    (conversation.channel === "slack" &&
+      (conversation.contactExternalId.startsWith("C") ||
+        conversation.contactExternalId.startsWith("G")));
+
+  const displayName = isChannel
+    ? conversation.contactName.startsWith("#")
+      ? conversation.contactName
+      : `#${conversation.contactName || conversation.contactExternalId}`
+    : conversation.contactName;
+
   // First outbound after the first inbound: the SLA the reply window is judged on.
   const firstResponse = useMemo(() => {
     const firstInbound = messages.find((m) => m.direction === "in");
@@ -383,22 +395,29 @@ export default function Thread({
           </button>
 
           <Avatar
-            name={conversation.contactName}
+            name={displayName}
             avatarUrl={conversation.avatarUrl}
             channel={conversation.channel}
             size="sm"
+            isChannel={isChannel}
           />
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <h2 className="truncate text-[13px] sm:text-[14px] font-semibold tracking-[-0.02em] text-ink">
-                {conversation.contactName}
+                {displayName}
               </h2>
-              <span
-                className={`inline-flex items-center rounded-full px-1.5 sm:px-2 py-0.2 font-mono text-[9.5px] sm:text-[10px] font-medium tracking-wide uppercase shrink-0 ${channelInfo.soft}`}
-              >
-                {channelInfo.label}
-              </span>
+              {isChannel ? (
+                <span className="inline-flex items-center rounded-full bg-[#4A154B]/10 text-[#4A154B] dark:bg-[#E01E5A]/10 dark:text-[#E01E5A] px-1.5 sm:px-2 py-0.2 font-mono text-[9.5px] sm:text-[10px] font-semibold tracking-wide uppercase shrink-0">
+                  Channel
+                </span>
+              ) : (
+                <span
+                  className={`inline-flex items-center rounded-full px-1.5 sm:px-2 py-0.2 font-mono text-[9.5px] sm:text-[10px] font-medium tracking-wide uppercase shrink-0 ${channelInfo.soft}`}
+                >
+                  {channelInfo.label}
+                </span>
+              )}
               {conversation.accountName && (
                 <span
                   title={`Received on ${conversation.accountName} · ${channelInfo.label}`}

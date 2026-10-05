@@ -36,18 +36,18 @@ export async function handleSlackMessage(
     }
   }
 
-  // Label the conversation: DM uses sender name, channel uses #channelName
-  let contactName = senderName;
-  const isDirectMessage = event.channel_type === "im" || event.channel_type === "mpim" || channelId.startsWith("D");
+  // Label the conversation: DM uses sender name, channel uses #channelName or #channelId
+  const isDirectMessage =
+    event.channel_type === "im" ||
+    event.channel_type === "mpim" ||
+    channelId.startsWith("D");
+
+  let contactName = isDirectMessage ? senderName : `#${channelId}`;
 
   try {
     const channelName = await fetchSlackChannelName(token, channelId);
     if (channelName) {
       contactName = isDirectMessage ? (senderName || channelName) : `#${channelName.replace(/^#+/, "")}`;
-    } else if (isDirectMessage) {
-      contactName = senderName;
-    } else if (channelId.startsWith("C") || channelId.startsWith("G")) {
-      contactName = `#${channelId}`;
     }
   } catch (err) {
     console.warn("[slack] channel name fetch error:", err);

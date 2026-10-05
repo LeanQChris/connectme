@@ -273,6 +273,15 @@ function findConversation(data: StoreData, userId: string, id: string): Conversa
 }
 
 function contactLabel(contact: Contact): string {
+  if (
+    contact.channel === "slack" &&
+    (contact.externalId.startsWith("C") || contact.externalId.startsWith("G"))
+  ) {
+    if (contact.name && contact.name.startsWith("#")) {
+      return contact.name;
+    }
+    return `#${contact.name || contact.externalId}`;
+  }
   return contact.name?.trim() || contact.externalId;
 }
 
@@ -415,8 +424,19 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
       };
       data.contacts.push(contact);
     } else {
-      if (input.senderName?.trim() && (!contact.name || contact.name === contact.externalId)) {
-        contact.name = input.senderName.trim();
+      if (input.senderName?.trim()) {
+        const isSlackChannel =
+          input.channel === "slack" &&
+          (normalizedSenderId.startsWith("C") || normalizedSenderId.startsWith("G"));
+        if (isSlackChannel) {
+          if (input.senderName.startsWith("#") || !contact.name || !contact.name.startsWith("#")) {
+            contact.name = input.senderName.startsWith("#")
+              ? input.senderName
+              : `#${input.senderName}`;
+          }
+        } else if (!contact.name || contact.name === contact.externalId) {
+          contact.name = input.senderName.trim();
+        }
       }
       if (input.senderAvatarUrl && !contact.avatarUrl) {
         contact.avatarUrl = input.senderAvatarUrl;
@@ -704,14 +724,23 @@ async function resolveContactProfile(
             }
             changed = true;
           }
-        } else {
+        } else if (contact.externalId.startsWith("C") || contact.externalId.startsWith("G")) {
           const cName = await fetchSlackChannelName(slackToken, contact.externalId);
           if (cName) {
-            const formattedName = contact.externalId.startsWith("D") ? cName : `#${cName}`;
+            const formattedName = `#${cName.replace(/^#+/, "")}`;
             if (contact.name !== formattedName) {
               contact.name = formattedName;
               changed = true;
             }
+          } else if (!contact.name || !contact.name.startsWith("#")) {
+            contact.name = `#${contact.externalId}`;
+            changed = true;
+          }
+        } else if (contact.externalId.startsWith("D")) {
+          const cName = await fetchSlackChannelName(slackToken, contact.externalId);
+          if (cName && contact.name !== cName) {
+            contact.name = cName;
+            changed = true;
           }
         }
       } catch {

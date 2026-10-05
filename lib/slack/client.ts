@@ -236,10 +236,10 @@ export async function fetchSlackChannelName(
     console.warn(`[slack] conversations.info fetch error for ${channelId}:`, err);
   }
 
-  // 2. Try conversations.list (public channels)
+  // 2. Try conversations.list (public and private channels)
   try {
     const listRes = await fetch(
-      "https://slack.com/api/conversations.list?types=public_channel&limit=1000",
+      "https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=1000",
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -267,10 +267,10 @@ export async function fetchSlackChannelName(
     console.warn("[slack] conversations.list fallback failed:", err);
   }
 
-  // 3. Try users.conversations (public channels bot belongs to)
+  // 3. Try users.conversations (public and private channels bot belongs to)
   try {
     const usersConvsRes = await fetch(
-      "https://slack.com/api/users.conversations?types=public_channel&limit=1000",
+      "https://slack.com/api/users.conversations?types=public_channel,private_channel&limit=1000",
       {
         headers: { Authorization: `Bearer ${token}` },
       },
