@@ -1,0 +1,56 @@
+# ConnectMe VPS edge — single public origin.
+#
+# TLS certificates are obtained and renewed automatically by Caddy. The only
+# ports that must be reachable from the internet are 80 and 443; everything else
+# (Postgres, Redis, API, web) lives on the internal Docker network.
+#
+# Routing contract:
+#   /api/*       → the NestJS API        (REST; the browser sees same-origin,
+#                                         so Next's own /api rewrite never fires)
+#   /socket.io/* → the NestJS API        (Socket.IO; WebSocket upgrade is
+#                                         handled automatically by reverse_proxy)
+#   /*          → the Next.js web app
+#
+# Keeping everything on one origin is deliberate. The web client's CSP allows
+# `connect-src` for the API origin, and it derives that from API_URL. If the
+# browser had to reach the API on a second host, every realtime socket would be
+# blocked by CSP with nothing in the server logs to explain it.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode gzip zstd
+
+	header {
+		# Next.js sets these too; they are repeated here so responses served
+		# directly by the API (health probes, webhooks) carry them as well.
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# REST. Caddy strips the hop count the API needs via TRUST_PROXY=1.
+	handle /api/* {
+		reverse_proxy api:8081
+	}
+
+	# Realtime. Long-lived connections must not be cut by the default timeouts.
+	handle /socket.io/* {
+		reverse_proxy api:8081 {
+			flush_interval -1
+		}
+	}
+
+	# Everything else is the Next.js app.
+	handle {
+		reverse_proxy web:3001
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

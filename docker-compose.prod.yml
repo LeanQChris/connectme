@@ -1,0 +1,224 @@
+# ConnectMe — single-VPS production stack.
+#
+# Usage (from the repo root):
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+#
+# The explicit --env-file matters twice over: Compose uses it to interpolate the
+# build-time NEXT_PUBLIC_* values for the web image, and it keeps the legacy dev
+# .env out of the picture.
+#
+# Security posture: only Caddy publishes a port. Postgres and Redis have no
+# `ports:` at all, so they are unreachable from outside the internal network.
+
+# Deliberately NOT "connectme": the dev docker-compose.yml has no explicit
+# project name, so it defaults to the directory name. Sharing a project name
+# would make this stack reuse the dev stack's pgdata/redisdata volumes — and
+# Postgres ignores POSTGRES_PASSWORD once a volume is initialised, so a deploy
+# would silently attach to a dev database with the wrong credentials.
+name: connectme-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ------------------------------------------------------------------ data --
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-connectme}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-connectme}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    # AOF is not optional here. BullMQ keeps scheduled posts and messages in
+    # Redis; the default RDB-only config can lose the last ~60s of writes on an
+    # unclean restart, which silently drops scheduled sends.
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory-policy noeviction
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  # -------------------------------------------------------------- migrate --
+  # Runs once per deploy and gates the API and worker. TypeORM is configured
+  # without a `migrations` option in the API, so nothing self-migrates — this
+  # step is the only thing that keeps schema and code in step.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    restart: "no"
+    env_file: [.env.production]
+    environment:
+      NODE_ENV: production
+      DB_SYNCHRONIZE: "false"
+      # Derived here rather than in .env.production so the password is defined
+      # exactly once. Uses the internal network name — never localhost.
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-connectme}
+    command:
+      - node
+      - node_modules/typeorm/cli.js
+      - migration:run
+      - -d
+      - packages/database/dist/data-source.js
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  # ------------------------------------------------------------------ api --
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: [.env.production]
+    environment:
+      NODE_ENV: production
+      DB_SYNCHRONIZE: "false"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-connectme}
+      # Exactly one proxy (Caddy) in front of the API. Without this, every
+      # request appears to originate from Caddy and IP-keyed rate limiting
+      # either collapses all tenants into one bucket or is trivially bypassed.
+      TRUST_PROXY: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Liveness only — it must stay green while a dependency is down, or a
+    # database blip restarts every otherwise-healthy instance.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/api/health/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks: [internal]
+
+  # --------------------------------------------------------------- worker --
+  # BullMQ processors: sends replies and fires scheduled posts. Shares the API's
+  # ENCRYPTION_KEY because it decrypts the same tenant provider tokens.
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      target: runner
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: [.env.production]
+    environment:
+      NODE_ENV: production
+      DB_SYNCHRONIZE: "false"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-connectme}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+
+  # ------------------------------------------------------------------ web --
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner
+      args:
+        # NEXT_PUBLIC_* values are inlined at BUILD time, not read at runtime.
+        # Changing any of these requires rebuilding this image.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?set NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?set NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/}
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: [.env.production]
+    environment:
+      NODE_ENV: production
+      # Server-side only: used by the /api rewrite fallback and CSP. Must stay a
+      # reachable internal address, never the public one — pointing it at the
+      # public origin would make Next proxy to itself.
+      API_URL: http://api:8081
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Deliberately a page this service owns, not an /api route: proxying
+      # through Next's rewrite would couple web's health to the API's, so an
+      # API restart would mark healthy web instances unhealthy.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks: [internal]
+
+  # ----------------------------------------------------------------- edge --
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env.production}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env.production}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificates and ACME account
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:

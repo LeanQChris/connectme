@@ -285,6 +285,30 @@ npm run dev:api     # Start NestJS API only
 npm run dev:worker  # Start BullMQ worker only
 ```
 
+### Health & Deployment Probes
+
+The API exposes separate liveness and readiness endpoints. Point each probe at the
+matching one:
+
+| Endpoint | Purpose | Behavior |
+| :--- | :--- | :--- |
+| `GET /api/health/live` | **Liveness** — "is this process running?" | Always `200` when the process can serve a request. Touches no dependency. |
+| `GET /api/health/ready` | **Readiness** — "should this instance get traffic?" | `200` healthy / `degraded`, `503` when Postgres is unreachable. Probes Postgres and Redis (2s timeout each). |
+| `GET /api/health` | Legacy alias | Identical to `/ready`, kept so existing probes keep working. |
+
+Liveness deliberately ignores dependencies. A restart policy pointed at a
+dependency check turns a brief Postgres blip into a restart loop of otherwise
+healthy instances, converting a dependency outage into a full outage — so keep
+liveness on `/api/health/live`.
+
+```bash
+curl http://localhost:8081/api/health/live
+curl http://localhost:8081/api/health/ready
+```
+
+Redis degradation is reported as `"status": "degraded"` with a `200`: only the
+database is treated as fatal for readiness.
+
 ---
 
 ## 🌐 Channel Integrations & Webhooks
@@ -426,7 +450,58 @@ Run commands from the root directory using Turborepo:
 
 ## 🚢 Deployment Guide
 
-### Recommended Cloud Topology
+### Option A — Single VPS (Docker Compose)
+
+Everything runs on one box: Postgres, Redis, API, worker, web, and Caddy as the
+only public entrypoint. Point an `A` record for your domain at the server
+*before* the first `up`, because Caddy requests its TLS certificate on boot.
+
+```bash
+cp .env.production.example .env.production
+openssl rand -hex 32   # fill in ENCRYPTION_KEY, OAUTH_STATE_SECRET, POSTGRES_PASSWORD
+chmod 600 .env.production
+
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.prod.yml ps
+```
+
+What the stack does for you:
+
+- **Only Caddy publishes a port.** Postgres and Redis have no `ports:` mapping,
+  so the database is unreachable from the internet.
+- **Migrations gate the deploy.** A one-shot `migrate` service runs before the
+  API and worker start (`service_completed_successfully`).
+- **Redis runs with AOF.** BullMQ keeps scheduled posts there; the default
+  RDB-only config can silently drop the last minute of scheduled sends on an
+  unclean restart.
+- **One public origin.** Caddy routes `/api/*` and `/socket.io/*` to the API and
+  everything else to the web app, so the browser never makes a cross-origin
+  request and the page CSP stays satisfied. See [deploy/Caddyfile](deploy/Caddyfile).
+- **Liveness and readiness are separate** — see the table above.
+
+```bash
+# Logs for one service
+docker compose --env-file .env.production -f docker-compose.prod.yml logs -f api
+
+# Update after a code change
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+**Before real data goes on the box**, set up a `pg_dump` backup cron writing
+somewhere off the server. A single VPS is a single disk, and
+`connectme-prod_pgdata` is where every tenant's conversation history lives.
+
+Set `ufw` to allow only 22, 80, and 443.
+
+### Option B — Managed Services
+
+Frontend (Vercel or Cloudflare Pages). Backend API and worker as containers on
+Railway, Render, Fly.io, or ECS, sharing one managed Postgres and one managed
+Redis. In this topology `API_URL` and `NEXT_PUBLIC_API_URL` both point at the
+public API origin, and the API's `CORS_ORIGINS` must list the web origin — the
+single-origin assumption in the Caddyfile no longer applies.
+
+### Recommended Cloud Topology (Option B)
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
