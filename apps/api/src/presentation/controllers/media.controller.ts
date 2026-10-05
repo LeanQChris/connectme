@@ -112,6 +112,45 @@ export class MediaController {
     }
   }
 
+  /**
+   * Proxies Slack private files using the tenant's Slack bot token.
+   */
+  @Get("slack")
+  async getSlackMedia(
+    @TenantId() tenantId: string,
+    @Query("url") rawUrl: string,
+    @Res() res: Response,
+  ) {
+    if (!rawUrl || !isAllowedMediaHost(rawUrl)) {
+      throw new BadRequestException("Media host is not allowed.");
+    }
+
+    const creds = await this.tenantRepo.getCredentials(tenantId);
+    if (!creds?.slackBotTokenEnc) {
+      throw new NotFoundException("Slack credentials not found for media download");
+    }
+
+    const token = decryptStrict(this.aesVault, creds.slackBotTokenEnc);
+
+    try {
+      const mediaRes = await this.fetchFollowingSafeRedirects(rawUrl, token);
+      const declaredLength = Number(mediaRes.headers.get("content-length") || "0");
+      if (declaredLength > MAX_MEDIA_BYTES) {
+        throw new BadRequestException("Media exceeds the maximum allowed size.");
+      }
+
+      const contentType = mediaRes.headers.get("content-type") || "application/octet-stream";
+      res.setHeader("Content-Type", contentType);
+
+      const buffer = Buffer.from(await mediaRes.arrayBuffer());
+      return res.send(buffer);
+    } catch (err: any) {
+      if (err instanceof BadRequestException || err instanceof NotFoundException) throw err;
+      this.logger.error(`Slack file proxy error: ${err.message}`, err.stack);
+      return res.status(502).json({ error: "Slack media download failed" });
+    }
+  }
+
   private async fetchFollowingSafeRedirects(
     url: string,
     token: string,

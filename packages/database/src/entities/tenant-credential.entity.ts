@@ -28,6 +28,9 @@ export class TenantCredential {
   @Column({ type: "text", nullable: true })
   metaAppSecretEnc?: string | null;
 
+  @Column({ type: "text", nullable: true })
+  instagramAppSecretEnc?: string | null;
+
   @Column({ type: "varchar", nullable: true })
   webhookVerifyToken?: string | null;
 
@@ -42,6 +45,12 @@ export class TenantCredential {
 
   @Column({ type: "varchar", nullable: true })
   discordPublicKey?: string | null;
+
+  @Column({ type: "text", nullable: true })
+  slackBotTokenEnc?: string | null;
+
+  @Column({ type: "text", nullable: true })
+  slackSigningSecretEnc?: string | null;
 
   @UpdateDateColumn({ type: "timestamp with time zone" })
   updatedAt!: Date;

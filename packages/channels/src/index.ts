@@ -13,3 +13,5 @@ export * from "./telegram/telegram.client";
 export * from "./telegram/telegram-post.client";
 export * from "./discord/discord.client";
 export * from "./discord/discord-post.client";
+export * from "./slack";
+

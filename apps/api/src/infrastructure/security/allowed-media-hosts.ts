@@ -11,6 +11,12 @@ const DEFAULT_ALLOWED_SUFFIXES = [
   "fbsbx.com",
   "whatsapp.net",
   "cdninstagram.com",
+  "slack.com",
+  "slack-edge.com",
+  "slack-files.com",
+  "discordapp.com",
+  "discordapp.net",
+  "telegram.org",
 ];
 
 function hostnameAllowed(hostname: string, allowlist: string[]): boolean {
