@@ -236,37 +236,7 @@ export async function fetchSlackChannelName(
     console.warn(`[slack] conversations.info fetch error for ${channelId}:`, err);
   }
 
-  // 2. Try users.conversations (all channels & groups the bot is a member of)
-  try {
-    const usersConvsRes = await fetch(
-      "https://slack.com/api/users.conversations?types=public_channel,private_channel,mpim,im&limit=1000",
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-
-    if (usersConvsRes.ok) {
-      const usersData = (await usersConvsRes.json()) as {
-        ok: boolean;
-        channels?: Array<{ id: string; name?: string; is_im?: boolean; user?: string }>;
-      };
-
-      if (usersData.ok && Array.isArray(usersData.channels)) {
-        for (const ch of usersData.channels) {
-          if (ch.id && ch.name) {
-            slackChannelCache.set(ch.id, ch.name.trim());
-          }
-        }
-        if (slackChannelCache.has(channelId)) {
-          return slackChannelCache.get(channelId)!;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("[slack] users.conversations fallback error:", err);
-  }
-
-  // 3. Fallback: list all public channels in the workspace
+  // 2. Try conversations.list (public channels)
   try {
     const listRes = await fetch(
       "https://slack.com/api/conversations.list?types=public_channel&limit=1000",
@@ -295,6 +265,36 @@ export async function fetchSlackChannelName(
     }
   } catch (err) {
     console.warn("[slack] conversations.list fallback failed:", err);
+  }
+
+  // 3. Try users.conversations (public channels bot belongs to)
+  try {
+    const usersConvsRes = await fetch(
+      "https://slack.com/api/users.conversations?types=public_channel&limit=1000",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    if (usersConvsRes.ok) {
+      const usersData = (await usersConvsRes.json()) as {
+        ok: boolean;
+        channels?: Array<{ id: string; name?: string; is_im?: boolean; user?: string }>;
+      };
+
+      if (usersData.ok && Array.isArray(usersData.channels)) {
+        for (const ch of usersData.channels) {
+          if (ch.id && ch.name) {
+            slackChannelCache.set(ch.id, ch.name.trim());
+          }
+        }
+        if (slackChannelCache.has(channelId)) {
+          return slackChannelCache.get(channelId)!;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[slack] users.conversations fallback error:", err);
   }
 
   return null;
