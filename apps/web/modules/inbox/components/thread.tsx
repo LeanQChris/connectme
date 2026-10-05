@@ -334,6 +334,10 @@ export default function Thread({
       {/* Reply Input Box */}
       <ReplyBox
         disabled={!windowOpen}
+        conversationId={conversation.id}
+        contactName={conversation.contactName}
+        channel={conversation.channel}
+        lastMessages={messages}
         onSend={onSend}
         onSchedule={onSchedule}
         onNote={onNote}

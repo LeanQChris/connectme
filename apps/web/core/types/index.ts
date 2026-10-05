@@ -151,7 +151,15 @@ export interface ConnectedAccount {
   createdAt: string;
 }
 
-export type ConnectionFlag = "whatsapp" | "messenger" | "instagram" | "telegram" | "discord";
+export type ConnectionFlag =
+  | "whatsapp"
+  | "messenger"
+  | "instagram"
+  | "telegram"
+  | "discord"
+  | "slack"
+  | "widget"
+  | "ai";
 
 export interface SettingsPayload {
   settings: {
@@ -162,6 +170,21 @@ export interface SettingsPayload {
     instagramUsername: string | null;
     telegramBotId: string | null;
     discordBotId: string | null;
+    slackBotId?: string | null;
+    whatsappPhoneId?: string | null;
+    metaAppId?: string | null;
+    discordPublicKeyConfigured?: boolean;
+    ai?: {
+      configured: boolean;
+      provider: string | null;
+      model: string | null;
+      customBaseUrl: string | null;
+      customSystemPrompt: string | null;
+      fallbackConfigured?: boolean;
+      fallbackProvider?: string | null;
+      fallbackModel?: string | null;
+      routingStrategy?: string | null;
+    };
     updatedAt: string | null;
     webhookVerifyToken: string;
     waPhoneNumberId?: string | null;
@@ -170,5 +193,10 @@ export interface SettingsPayload {
   oauth: {
     metaConfigured: boolean;
   };
-  webhookUrls: { meta: string; telegram: string | null; discord: string | null };
+  webhookUrls: {
+    meta: string;
+    telegram: string | null;
+    discord: string | null;
+    slack?: string | null;
+  };
 }

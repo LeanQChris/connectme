@@ -8,6 +8,7 @@ import { TelegramSettings } from "./telegram-settings";
 import { DiscordSettings } from "./discord-settings";
 import { NotificationsSettings } from "./notifications-settings";
 import { WebhooksSettings } from "./webhooks-settings";
+import { AiByokSettings } from "./ai-byok-settings";
 import type { SettingsPayload } from "@/core/types";
 
 export interface SettingsFormProps {
@@ -115,9 +116,20 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
         isMetaConnected={isMetaConnected}
         isTelegramConnected={isTelegramConnected}
         isDiscordConnected={isDiscordConnected}
+        isAiConnected={Boolean(data.settings.ai?.configured)}
       />
 
       {/* Tab Panels */}
+      {activeTab === "ai" && (
+        <AiByokSettings
+          initialConfig={data.settings.ai}
+          saving={Boolean(busy)}
+          onSave={async (secrets) => {
+            await saveChannel(secrets, "ai", "AI Copilot settings updated successfully!");
+          }}
+        />
+      )}
+
       {activeTab === "whatsapp" && (
         <WhatsappSettings
           data={data}

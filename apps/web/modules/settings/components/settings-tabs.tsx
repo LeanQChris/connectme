@@ -11,6 +11,7 @@ interface SettingsTabsProps {
   isMetaConnected: boolean;
   isTelegramConnected: boolean;
   isDiscordConnected: boolean;
+  isAiConnected?: boolean;
 }
 
 export const SettingsTabs = memo(function SettingsTabs({
@@ -20,9 +21,28 @@ export const SettingsTabs = memo(function SettingsTabs({
   isMetaConnected,
   isTelegramConnected,
   isDiscordConnected,
+  isAiConnected,
 }: SettingsTabsProps) {
   return (
     <div className="mb-6 flex overflow-x-auto border-b border-hairline no-scrollbar gap-1 sm:gap-2">
+      <button
+        type="button"
+        onClick={() => onSelectTab("ai")}
+        className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+          activeTab === "ai"
+            ? "border-violet-500 text-violet-600 dark:text-violet-400 font-semibold"
+            : "border-transparent text-mute hover:text-body"
+        }`}
+      >
+        <span className="text-violet-500">✨</span>
+        <span>AI Copilot & BYOK</span>
+        <span
+          className={`h-2 w-2 rounded-full ${
+            isAiConnected ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+          }`}
+        />
+      </button>
+
       <button
         type="button"
         onClick={() => onSelectTab("whatsapp")}

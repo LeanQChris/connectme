@@ -1,6 +1,6 @@
 import type { SettingsPayload, ConnectedAccount, Channel } from "@/core/types";
 
-export type SettingsTabId = "whatsapp" | "meta" | "telegram" | "discord" | "notifications" | "webhooks";
+export type SettingsTabId = "whatsapp" | "meta" | "telegram" | "discord" | "notifications" | "webhooks" | "ai";
 
 export interface ChannelStatusResult {
   ok: boolean;

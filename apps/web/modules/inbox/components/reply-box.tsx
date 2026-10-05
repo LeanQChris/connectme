@@ -8,6 +8,8 @@ import { useReplyBox } from "../hooks/use-reply-box";
 import { EmojiPickerPopover } from "./emoji-picker-popover";
 import { QuickRepliesTray } from "./quick-replies-tray";
 import { AttachmentPreview } from "./attachment-preview";
+import { AiCopilotBar } from "./ai-copilot-bar";
+import { AiRewriteMenu } from "./ai-rewrite-menu";
 
 export interface ReplyPayload {
   text: string;
@@ -21,12 +23,30 @@ interface ReplyBoxProps {
   onNote?: (text: string) => Promise<void>;
   onSchedule?: (payload: ReplyPayload, scheduledForIso: string) => Promise<void>;
   disabled: boolean;
+  conversationId?: string;
+  contactName?: string;
+  channel?: string;
+  lastMessages?: {
+    direction: "in" | "out" | "note";
+    text?: string | null;
+    createdAt?: string;
+  }[];
 }
 
 const QUICK_EMOJIS = ["👍", "❤️", "😊", "😂", "🙏", "🔥", "🎉", "✨", "🚀", "💯"];
 
-const ReplyBox = memo(function ReplyBox({ onSend, onNote, onSchedule, disabled }: ReplyBoxProps) {
+const ReplyBox = memo(function ReplyBox({
+  onSend,
+  onNote,
+  onSchedule,
+  disabled,
+  conversationId,
+  contactName,
+  channel,
+  lastMessages,
+}: ReplyBoxProps) {
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [showAiRewrite, setShowAiRewrite] = useState(false);
   const {
     text,
     setText,
@@ -114,6 +134,17 @@ const ReplyBox = memo(function ReplyBox({ onSend, onNote, onSchedule, disabled }
         </div>
       )}
 
+      {/* AI Copilot Suggestions Bar */}
+      {!noteMode && (
+        <AiCopilotBar
+          conversationId={conversationId}
+          contactName={contactName}
+          channel={channel}
+          lastMessages={lastMessages}
+          onSelectSuggestion={(suggestion) => setText(suggestion)}
+        />
+      )}
+
       {/* Quick Replies Tray */}
       {!text && !noteMode && <QuickRepliesTray onSelect={setText} />}
 
@@ -124,10 +155,19 @@ const ReplyBox = memo(function ReplyBox({ onSend, onNote, onSchedule, disabled }
 
       {/* Main Input Box */}
       <div
-        className={`flex items-end gap-1.5 rounded-[8px] border bg-canvas-elevated p-1.5 shadow-2xs transition-colors ${
+        className={`relative flex items-end gap-1.5 rounded-[8px] border bg-canvas-elevated p-1.5 shadow-2xs transition-colors ${
           noteMode ? "border-warning/60" : "border-hairline focus-within:border-ink"
         }`}
       >
+        {/* AI Rewrite Menu */}
+        {showAiRewrite && (
+          <AiRewriteMenu
+            text={text}
+            onApply={(newText) => setText(newText)}
+            onClose={() => setShowAiRewrite(false)}
+          />
+        )}
+
         <input
           ref={fileRef}
           type="file"
@@ -171,6 +211,25 @@ const ReplyBox = memo(function ReplyBox({ onSend, onNote, onSchedule, disabled }
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well cursor-pointer"
           >
             <span className="text-base leading-none">😀</span>
+          </button>
+        )}
+
+        {/* AI Rewrite / Tone Button */}
+        {!noteMode && (
+          <button
+            type="button"
+            title="Rewrite or translate with AI"
+            aria-label="AI Rewrite"
+            onClick={() => setShowAiRewrite((prev) => !prev)}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] transition-colors cursor-pointer ${
+              showAiRewrite
+                ? "bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold"
+                : text.trim().length > 0
+                  ? "text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
+                  : "text-mute hover:bg-surface-well hover:text-ink"
+            }`}
+          >
+            <span className="text-sm">✨</span>
           </button>
         )}
 
