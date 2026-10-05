@@ -23,15 +23,13 @@ export default function NewConversationModal({
   connected = {},
   accounts = [],
 }: NewConversationModalProps) {
-  // Available channels
+  // Available channels for outbound initiation (Meta forbids cold outbound messaging on Messenger & Instagram)
   const availableChannels = useMemo<Channel[]>(() => {
     const list: Channel[] = [];
     if (connected.slack || accounts.some((a) => a.channel === "slack")) list.push("slack");
     if (connected.whatsapp || accounts.some((a) => a.channel === "whatsapp")) list.push("whatsapp");
     if (connected.telegram || accounts.some((a) => a.channel === "telegram")) list.push("telegram");
     if (connected.discord || accounts.some((a) => a.channel === "discord")) list.push("discord");
-    if (connected.messenger || accounts.some((a) => a.channel === "messenger")) list.push("messenger");
-    if (connected.instagram || accounts.some((a) => a.channel === "instagram")) list.push("instagram");
     // Default fallback to slack and whatsapp if none explicitly connected
     if (list.length === 0) list.push("slack", "whatsapp", "telegram");
     return list;
@@ -517,7 +515,7 @@ export default function NewConversationModal({
                   {selectedChannel === "whatsapp"
                     ? "Recipient Phone Number (with country code)"
                     : selectedChannel === "telegram"
-                    ? "Telegram Username (@username) or Chat ID"
+                    ? "Telegram Numeric Chat ID or Public Channel (@channel)"
                     : selectedChannel === "discord"
                     ? "Discord User ID or Channel ID"
                     : "Recipient ID / Handle"}
@@ -531,11 +529,16 @@ export default function NewConversationModal({
                     selectedChannel === "whatsapp"
                       ? "+1 555 123 4567"
                       : selectedChannel === "telegram"
-                      ? "@username or 12345678"
+                      ? "123456789 or @public_channel"
                       : "1234567890"
                   }
                   className="h-9 w-full rounded-[8px] border border-hairline bg-canvas-elevated px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
                 />
+                {selectedChannel === "telegram" && (
+                  <p className="mt-1 text-[11px] text-mute">
+                    Telegram bots cannot cold-message personal usernames. Enter a numeric <strong>Chat ID</strong> (user must have clicked /start on your bot) or a public <strong>@channelname</strong>.
+                  </p>
+                )}
               </div>
 
               <div>

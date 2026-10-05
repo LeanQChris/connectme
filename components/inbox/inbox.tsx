@@ -9,6 +9,7 @@ import {
   useAddNote,
   useConversation,
   useConversations,
+  useDeleteConversation,
   useSendReply,
   useSetConversationMeta,
   useSetConversationStatus,
@@ -50,6 +51,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   const statusMutation = useSetConversationStatus();
   const metaMutation = useSetConversationMeta(selectedId);
   const noteMutation = useAddNote(selectedId);
+  const deleteMutation = useDeleteConversation();
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -192,6 +194,13 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     statusMutation.mutate({ id: selectedId, status });
   }
 
+  function handleDelete() {
+    if (!selectedId) return;
+    const targetId = selectedId;
+    back();
+    deleteMutation.mutate(targetId);
+  }
+
   return (
     <div className="flex h-[100dvh] flex-col bg-canvas text-ink selection:bg-ink selection:text-on-primary">
       {/* 48px Geist Navbar (per DESIGN.md nav-bar) */}
@@ -301,6 +310,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
               onSend={handleSend}
               onNote={handleNote}
               onArchive={handleArchive}
+              onDelete={handleDelete}
               onMeta={handleMeta}
             />
           </main>

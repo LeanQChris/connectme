@@ -860,6 +860,31 @@ export async function setStatus(
   });
 }
 
+/** Permanently deletes a conversation, its messages, and any orphaned contact. */
+export async function deleteConversation(userId: string, id: string): Promise<boolean> {
+  return tx((data) => {
+    const convIndex = data.conversations.findIndex((c) => c.id === id && c.userId === userId);
+    if (convIndex === -1) return false;
+    const conversation = data.conversations[convIndex];
+
+    // Remove the conversation
+    data.conversations.splice(convIndex, 1);
+
+    // Remove all messages belonging to this conversation
+    data.messages = data.messages.filter((m) => m.conversationId !== id);
+
+    // If no other conversations reference this contactId, remove the contact
+    const hasOtherConv = data.conversations.some(
+      (c) => c.contactId === conversation.contactId && c.userId === userId,
+    );
+    if (!hasOtherConv) {
+      data.contacts = data.contacts.filter((c) => c.id !== conversation.contactId);
+    }
+
+    return true;
+  });
+}
+
 export interface ConversationMetaPatch {
   assignee?: string | null;
   tags?: string[];

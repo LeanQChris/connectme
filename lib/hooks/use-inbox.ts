@@ -88,6 +88,29 @@ export function useSetConversationStatus() {
   });
 }
 
+/** Permanently deletes a conversation. */
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/conversations/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      return { id };
+    },
+    onSuccess: ({ id }) => {
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.conversation(id) });
+      queryClient.setQueryData<ConversationSummary[]>(QUERY_KEYS.conversations, (prev) =>
+        prev ? prev.filter((c) => c.id !== id) : [],
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
+    },
+  });
+}
+
 export interface ConversationMetaPatch {
   assignee?: string | null;
   tags?: string[];

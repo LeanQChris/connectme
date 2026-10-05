@@ -29,6 +29,7 @@ interface Props {
   onSend: (payload: ReplyPayload) => Promise<void>;
   onNote: (text: string) => Promise<void>;
   onArchive: (status: ConversationStatus) => void;
+  onDelete?: () => void;
   onMeta: (patch: ConversationMetaPatch) => void;
 }
 
@@ -302,11 +303,13 @@ export default function Thread({
   onSend,
   onNote,
   onArchive,
+  onDelete,
   onMeta,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<
     { id: string; url: string; text?: string | null; createdAt: string }[] | null
   >(null);
@@ -478,8 +481,83 @@ export default function Thread({
             </svg>
             <span className="hidden sm:inline">{archived ? "Restore" : "Archive"}</span>
           </button>
+
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => setIsConfirmingDelete(true)}
+              title="Delete conversation permanently"
+              className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2 sm:px-2.5 text-[12px] font-medium text-mute shadow-2xs transition-colors hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-500 active:scale-95 cursor-pointer"
+            >
+              <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+          )}
         </div>
       </header>
+
+      {/* Delete Confirmation Modal */}
+      {isConfirmingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            className="w-full max-w-sm rounded-[10px] border border-hairline bg-canvas-elevated p-5 shadow-xl animate-in zoom-in-95 duration-150"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+                <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 id="delete-dialog-title" className="text-[14px] font-semibold text-ink">
+                  Delete Conversation
+                </h3>
+                <p className="mt-0.5 text-[12px] text-mute">
+                  Delete conversation with{" "}
+                  <span className="font-medium text-ink">{conversation.contactName}</span>?
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-[11.5px] text-body leading-relaxed">
+              All messages and thread history will be permanently erased. This action cannot be undone.
+            </p>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDelete(false)}
+                className="rounded-[6px] border border-hairline bg-canvas px-3 py-1.5 text-[12px] font-medium text-body transition-colors hover:bg-surface-well hover:text-ink cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirmingDelete(false);
+                  onDelete?.();
+                }}
+                className="rounded-[6px] bg-red-500 px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 active:scale-95 cursor-pointer shadow-2xs"
+              >
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {archived && (
         <div className="flex items-center gap-2 border-b border-hairline bg-surface-well px-4 py-2 text-[11px] text-body">

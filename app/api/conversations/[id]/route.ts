@@ -1,4 +1,4 @@
-import { getConversation, resetUnread, setStatus, updateConversationMeta } from "@/lib/store";
+import { deleteConversation, getConversation, resetUnread, setStatus, updateConversationMeta } from "@/lib/store";
 import { requireUserId, tenantSecrets } from "@/lib/tenant";
 import { CONVERSATION_STATUSES, type ConversationStatus } from "@/lib/types";
 
@@ -80,4 +80,20 @@ export async function PATCH(
 
   const detail = await getConversation(auth.userId, id, tenant);
   return Response.json({ conversation: detail?.conversation });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
+  const { id } = await context.params;
+  const deleted = await deleteConversation(auth.userId, id);
+  if (!deleted) {
+    return Response.json({ error: "Conversation not found" }, { status: 404 });
+  }
+
+  return Response.json({ ok: true });
 }
