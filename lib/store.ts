@@ -230,6 +230,10 @@ function normalize(data: Partial<StoreData>): StoreData {
       return Math.abs(t1 - t2) < 15_000;
     });
     if (isDup) continue;
+
+    // Filter out WhatsApp unsupported system container events that have no media
+    if (msg.text === "[unsupported]" && !msg.mediaUrl) continue;
+
     uniqueMessages.push(msg);
   }
   merged.messages = uniqueMessages;

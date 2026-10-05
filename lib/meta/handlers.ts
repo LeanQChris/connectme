@@ -78,6 +78,11 @@ export async function handleWhatsApp(
         }
 
         const rawType = message.type || "text";
+        if (rawType === "unsupported") {
+          console.warn("[webhook] skipping whatsapp unsupported system event");
+          continue;
+        }
+
         let type: MessageType = "text";
         let text: string | null = null;
         let mediaUrl: string | null = null;
