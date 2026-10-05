@@ -472,6 +472,9 @@ export default async function HomePage() {
             <Link href="/privacy" className="transition-colors hover:text-ink">
               Privacy
             </Link>
+            <Link href="/terms" className="transition-colors hover:text-ink">
+              Terms
+            </Link>
           </div>
         </div>
       </footer>

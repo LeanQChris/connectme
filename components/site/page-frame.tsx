@@ -45,6 +45,10 @@ export async function PageFrame({ children }: { children: React.ReactNode }) {
               Privacy
             </Link>
             <span>·</span>
+            <Link href="/terms" className="transition-colors hover:text-ink">
+              Terms
+            </Link>
+            <span>·</span>
             <Link href="/inbox" className="transition-colors hover:text-ink">
               Workspace
             </Link>

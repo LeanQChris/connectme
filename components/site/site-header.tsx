@@ -18,6 +18,7 @@ const NAV_LINKS = [
   { label: "How it works", href: "/#setup" },
   { label: "About", href: "/about" },
   { label: "Privacy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
 ];
 
 export default async function SiteHeader({ variant = "public" }: SiteHeaderProps) {

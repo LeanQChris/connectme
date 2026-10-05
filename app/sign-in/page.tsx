@@ -196,8 +196,12 @@ export default async function SignInPage({
                     Privacy Policy
                   </Link>
                   <span>•</span>
+                  <Link href="/terms" className="hover:text-ink transition-colors">
+                    Terms
+                  </Link>
+                  <span>•</span>
                   <Link href="/about" className="hover:text-ink transition-colors">
-                    About ConnectMe
+                    About
                   </Link>
                 </div>
               </div>
