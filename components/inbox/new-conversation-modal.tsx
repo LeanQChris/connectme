@@ -429,8 +429,20 @@ export default function NewConversationModal({
                   </ul>
                 )
               ) : filteredChannels.length === 0 ? (
-                <div className="py-16 text-center text-mute text-[12.5px]">
-                  {query ? `No channels match “#${query}”` : "No channels found in workspace"}
+                <div className="py-12 px-6 text-center text-[12.5px] flex flex-col items-center justify-center gap-2">
+                  <span className="text-2xl">#️⃣</span>
+                  <p className="font-medium text-ink">
+                    {query ? `No channels match “#${query}”` : "No channels found"}
+                  </p>
+                  {directory?.scopeWarning ? (
+                    <div className="mt-2 rounded-[8px] border border-amber-500/20 bg-amber-500/10 p-3 text-left font-mono text-[11px] text-amber-600 dark:text-amber-400 max-w-md">
+                      ⚠️ {directory.scopeWarning}
+                    </div>
+                  ) : (
+                    <p className="text-[11.5px] text-mute max-w-sm">
+                      To see your workspace channels here, invite the bot (e.g. type <code className="font-mono bg-surface-well px-1 py-0.5 rounded text-ink">/invite @ConnectMe</code> in Slack) or enable the <code className="font-mono bg-surface-well px-1 py-0.5 rounded text-ink">channels:read</code> scope at <span className="underline">api.slack.com</span>.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <ul className="space-y-1">

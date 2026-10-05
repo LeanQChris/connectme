@@ -36,22 +36,18 @@ export async function handleSlackMessage(
     }
   }
 
-  // Label the conversation with the channel name, falling back to a readable ID-based label
+  // Label the conversation: DM uses sender name, channel uses #channelName
   let contactName = senderName;
+  const isDirectMessage = event.channel_type === "im" || event.channel_type === "mpim" || channelId.startsWith("D");
+
   try {
     const channelName = await fetchSlackChannelName(token, channelId);
     if (channelName) {
-      // Resolved from API — real channel name or DM user name
-      contactName = channelId.startsWith("D") ? channelName : `#${channelName}`;
-    } else if (event.channel_type === "im" || channelId.startsWith("D")) {
-      // Direct message — use sender name
+      contactName = isDirectMessage ? (senderName || channelName) : `#${channelName.replace(/^#+/, "")}`;
+    } else if (isDirectMessage) {
       contactName = senderName;
-    } else if (channelId.startsWith("C")) {
-      // Public channel fallback
-      contactName = senderName && !senderName.startsWith("Slack User") ? `${senderName} (#${channelId})` : `#${channelId}`;
-    } else if (channelId.startsWith("G")) {
-      // Private group/channel
-      contactName = `🔒 Private Group`;
+    } else if (channelId.startsWith("C") || channelId.startsWith("G")) {
+      contactName = `#${channelId}`;
     }
   } catch (err) {
     console.warn("[slack] channel name fetch error:", err);

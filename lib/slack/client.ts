@@ -349,19 +349,18 @@ export interface SlackDirectoryChannel {
 export interface SlackDirectory {
   users: SlackDirectoryUser[];
   channels: SlackDirectoryChannel[];
+  scopeWarning?: string;
 }
 
 /**
  * Fetches all workspace users and channels for the new conversation picker.
  */
-export async function fetchSlackDirectory(
-  rawToken: string,
-  knownChannels?: Array<{ id: string; name?: string }>,
-): Promise<SlackDirectory> {
+export async function fetchSlackDirectory(rawToken: string): Promise<SlackDirectory> {
   const token = rawToken.trim();
   const users: SlackDirectoryUser[] = [];
   const channels: SlackDirectoryChannel[] = [];
   const seenChannelIds = new Set<string>();
+  let scopeWarning: string | undefined;
 
   const addChannel = (
     id: string,
@@ -371,8 +370,10 @@ export async function fetchSlackDirectory(
     numMembers?: number,
   ) => {
     const cleanId = id.trim();
-    const cleanName = name.trim().replace(/^#/, "");
+    const cleanName = name.trim().replace(/^#+/, "");
+    // Avoid IDs or contact names leaking into channels
     if (!cleanId || !cleanName || seenChannelIds.has(cleanId)) return;
+    if (cleanName.includes("(#") || cleanName.startsWith("User ") || cleanName.startsWith("Slack User")) return;
     seenChannelIds.add(cleanId);
     slackChannelCache.set(cleanId, cleanName);
     channels.push({
@@ -435,8 +436,6 @@ export async function fetchSlackDirectory(
             isBot: Boolean(m.is_bot),
           });
         }
-      } else {
-        console.warn("[slack] users.list directory fetch returned:", usersData);
       }
     }
   } catch (err) {
@@ -453,6 +452,7 @@ export async function fetchSlackDirectory(
       const listData = (await listRes.json()) as {
         ok: boolean;
         error?: string;
+        needed?: string;
         channels?: Array<{
           id: string;
           name?: string;
@@ -468,8 +468,8 @@ export async function fetchSlackDirectory(
             addChannel(c.id, c.name, Boolean(c.is_private), c.topic?.value || c.purpose?.value, c.num_members);
           }
         }
-      } else {
-        console.warn("[slack] conversations.list?types=public_channel returned:", listData);
+      } else if (listData.error === "missing_scope") {
+        scopeWarning = `Slack Bot is missing the '${listData.needed || "channels:read"}' scope to list workspace channels. Add it in your Slack App Settings at api.slack.com -> OAuth & Permissions.`;
       }
     }
   } catch (err) {
@@ -516,6 +516,7 @@ export async function fetchSlackDirectory(
       const data = (await userConvsRes.json()) as {
         ok: boolean;
         error?: string;
+        needed?: string;
         channels?: Array<{
           id: string;
           name?: string;
@@ -531,6 +532,8 @@ export async function fetchSlackDirectory(
             addChannel(c.id, c.name, Boolean(c.is_private), c.topic?.value || c.purpose?.value, c.num_members);
           }
         }
+      } else if (!scopeWarning && data.error === "missing_scope") {
+        scopeWarning = `Slack Bot is missing the '${data.needed || "channels:read"}' scope. Add it in your Slack App Settings at api.slack.com -> OAuth & Permissions.`;
       }
     }
   } catch (err) {
@@ -567,35 +570,6 @@ export async function fetchSlackDirectory(
     // ignore
   }
 
-  // 6. Check any known channels passed in
-  if (knownChannels && Array.isArray(knownChannels)) {
-    for (const kc of knownChannels) {
-      if (!seenChannelIds.has(kc.id)) {
-        let name = kc.name;
-        if (!name) {
-          name = (await fetchSlackChannelName(token, kc.id)) || undefined;
-        }
-        if (name) {
-          addChannel(kc.id, name);
-        }
-      }
-    }
-  }
-
-  // 7. Check cached channels
-  for (const [cachedId, cachedName] of slackChannelCache.entries()) {
-    if (
-      (cachedId.startsWith("C") || cachedId.startsWith("G")) &&
-      !seenChannelIds.has(cachedId) &&
-      cachedName &&
-      !cachedName.startsWith("C0") &&
-      !cachedName.startsWith("G0") &&
-      !cachedName.startsWith("User ")
-    ) {
-      addChannel(cachedId, cachedName);
-    }
-  }
-
   // Sort channels alphabetically
   channels.sort((a, b) => a.name.localeCompare(b.name));
   // Sort users alphabetically (non-bots first)
@@ -604,5 +578,5 @@ export async function fetchSlackDirectory(
     return a.displayName.localeCompare(b.displayName);
   });
 
-  return { users, channels };
+  return { users, channels, scopeWarning };
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchSlackDirectory } from "@/lib/slack/client";
 import { requireUserId, tenantSecrets } from "@/lib/tenant";
-import { listKnownSlackChannels } from "@/lib/store";
 
 export const runtime = "nodejs";
 
@@ -18,8 +17,7 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const knownChannels = await listKnownSlackChannels(auth.userId);
-    const directory = await fetchSlackDirectory(secrets.slackBotToken, knownChannels);
+    const directory = await fetchSlackDirectory(secrets.slackBotToken);
     return NextResponse.json(directory);
   } catch (err) {
     console.error("[api/slack/directory] fetch error:", err);

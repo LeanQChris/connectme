@@ -30,6 +30,7 @@ import type {
   MessageType,
   SearchHit,
   TenantUser,
+  WidgetOutboxItem,
 } from "./types";
 import { replyWindow } from "./window";
 
@@ -43,6 +44,8 @@ interface StoreData {
   contacts: Contact[];
   conversations: Conversation[];
   messages: Message[];
+  /** Replies waiting in a visitor's browser; drained by the widget poll route. */
+  widgetOutbox: WidgetOutboxItem[];
 }
 
 const EMPTY: StoreData = {
@@ -51,6 +54,7 @@ const EMPTY: StoreData = {
   contacts: [],
   conversations: [],
   messages: [],
+  widgetOutbox: [],
 };
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -107,6 +111,7 @@ function normalize(data: Partial<StoreData>): StoreData {
     contacts: data.contacts ?? [],
     conversations: data.conversations ?? [],
     messages: data.messages ?? [],
+    widgetOutbox: data.widgetOutbox ?? [],
   };
 
   const owner = [...merged.users].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]?.userId;
@@ -120,9 +125,20 @@ function normalize(data: Partial<StoreData>): StoreData {
     }
   }
 
-  // Normalize all contact external IDs (e.g. clean WhatsApp digits)
+  // Normalize all contact external IDs (e.g. clean WhatsApp digits) and clean malformed Slack names
   for (const contact of merged.contacts) {
     contact.externalId = normalizeExternalId(contact.channel, contact.externalId);
+    if (contact.channel === "slack" && contact.name) {
+      // Clean up '#Chris Thapa (#COB6WUKNF4L)' -> 'Chris Thapa'
+      const match = contact.name.match(/^#?(.+?)\s*\(\#[A-Z0-9]+\)$/i);
+      if (match) {
+        contact.name = match[1].trim();
+      }
+      // Remove accidental leading '#' from people's names
+      if (contact.name.startsWith("#") && !contact.externalId.startsWith("C") && !contact.externalId.startsWith("G")) {
+        contact.name = contact.name.replace(/^#+/, "");
+      }
+    }
   }
 
   // 1. Deduplicate contacts with the same userId + channel + normalized externalId
@@ -315,7 +331,8 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     window:
       contact.channel === "telegram" ||
       contact.channel === "discord" ||
-      contact.channel === "slack"
+      contact.channel === "slack" ||
+      contact.channel === "widget"
         ? { open: true, msRemaining: null }
         : replyWindow(conv.lastInboundAt),
   };
@@ -950,6 +967,63 @@ function snippet(text: string, needle: string, radius = 48): string {
   return `${start > 0 ? "…" : ""}${text.slice(start, end).trim()}${end < text.length ? "…" : ""}`;
 }
 
+/* -------------------------------------------------------------- website widget */
+
+/**
+ * Queues a reply for a visitor's browser to pick up.
+ *
+ * The widget has no push transport: the page polls, so "sent" only means "queued".
+ * The returned id is the message's externalId.
+ */
+export async function enqueueWidgetMessage(input: {
+  userId: string;
+  sid: string;
+  text: string | null;
+  mediaUrl?: string | null;
+  type: MessageType;
+}): Promise<string> {
+  return tx((data) => {
+    const id = randomUUID();
+    data.widgetOutbox.push({
+      id,
+      userId: input.userId,
+      sid: input.sid,
+      text: input.text,
+      mediaUrl: input.mediaUrl ?? null,
+      type: input.type,
+      createdAt: new Date().toISOString(),
+      deliveredAt: null,
+    });
+    return id;
+  });
+}
+
+/**
+ * Hands the visitor's undelivered replies to their browser and marks them taken.
+ * Purges items already delivered a day ago so the queue cannot grow forever.
+ */
+export async function takeWidgetMessages(
+  userId: string,
+  sid: string,
+  limit = 20,
+): Promise<WidgetOutboxItem[]> {
+  return tx((data) => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    data.widgetOutbox = data.widgetOutbox.filter(
+      (item) => !(item.deliveredAt && Date.parse(item.deliveredAt) < cutoff),
+    );
+
+    const pending = data.widgetOutbox
+      .filter((item) => item.userId === userId && item.sid === sid && !item.deliveredAt)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(0, limit);
+
+    const now = new Date().toISOString();
+    for (const item of pending) item.deliveredAt = now;
+    return pending.map(({ deliveredAt: _deliveredAt, ...item }) => ({ ...item, deliveredAt: null }));
+  });
+}
+
 /* ------------------------------------------------------------------ tenancy */
 
 /** Creates or refreshes the local mirror of a Clerk user. */
@@ -995,6 +1069,7 @@ export async function credentialsByRoutingId(field: {
   waPhoneNumberId?: string;
   pageId?: string;
   telegramBotId?: string;
+  widgetId?: string;
 }): Promise<CredentialRecord[]> {
   const data = await read();
   return data.credentials.filter((c) => {
@@ -1011,29 +1086,8 @@ export async function credentialsByRoutingId(field: {
     if (field.waPhoneNumberId && c.waPhoneNumberId === field.waPhoneNumberId) return true;
     if (field.pageId && c.pageId === field.pageId) return true;
     if (field.telegramBotId && c.telegramBotId === field.telegramBotId) return true;
+    if (field.widgetId && c.widgetId === field.widgetId) return true;
 
     return false;
   });
-}
-
-/**
- * Returns any Slack channels or groups known to the store for a given user.
- */
-export async function listKnownSlackChannels(
-  userId: string,
-): Promise<Array<{ id: string; name?: string }>> {
-  const data = await read();
-  const map = new Map<string, string | undefined>();
-  for (const contact of data.contacts) {
-    if (contact.userId === userId && contact.channel === "slack") {
-      if (contact.externalId.startsWith("C") || contact.externalId.startsWith("G")) {
-        const cleanName =
-          contact.name && !contact.name.startsWith("C0") && !contact.name.startsWith("G0")
-            ? contact.name.replace(/^#/, "")
-            : undefined;
-        map.set(contact.externalId, cleanName);
-      }
-    }
-  }
-  return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
 }
