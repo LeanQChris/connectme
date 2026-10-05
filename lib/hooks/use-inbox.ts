@@ -334,6 +334,16 @@ export function useCreateConversation() {
       return data as { conversation: ConversationSummary };
     },
     onSuccess: (data) => {
+      if (data.conversation) {
+        queryClient.setQueryData<ConversationSummary[]>(QUERY_KEYS.conversations, (old) => {
+          if (!old) return [data.conversation];
+          const exists = old.some((c) => c.id === data.conversation.id);
+          if (exists) {
+            return old.map((c) => (c.id === data.conversation.id ? data.conversation : c));
+          }
+          return [data.conversation, ...old];
+        });
+      }
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
       if (data.conversation?.id) {
         void queryClient.invalidateQueries({

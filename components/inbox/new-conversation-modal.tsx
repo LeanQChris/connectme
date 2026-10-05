@@ -9,7 +9,7 @@ import { channelMeta } from "./channel-badge";
 interface NewConversationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectConversation: (conversationId: string) => void;
+  onSelectConversation: (conversationId: string, channel?: Channel) => void;
   initialChannel?: string;
   connected?: Record<string, boolean>;
   accounts?: ConnectedAccount[];
@@ -121,7 +121,7 @@ export default function NewConversationModal({
         accountName: slackAccount?.name || undefined,
       });
       if (res?.conversation?.id) {
-        onSelectConversation(res.conversation.id);
+        onSelectConversation(res.conversation.id, "slack");
         onClose();
       }
     } catch (err) {
@@ -141,7 +141,7 @@ export default function NewConversationModal({
         accountName: slackAccount?.name || undefined,
       });
       if (res?.conversation?.id) {
-        onSelectConversation(res.conversation.id);
+        onSelectConversation(res.conversation.id, "slack");
         onClose();
       }
     } catch (err) {
@@ -171,7 +171,7 @@ export default function NewConversationModal({
         accountName: matchedAcc?.name,
       });
       if (res?.conversation?.id) {
-        onSelectConversation(res.conversation.id);
+        onSelectConversation(res.conversation.id, selectedChannel);
         onClose();
       }
     } catch (err) {

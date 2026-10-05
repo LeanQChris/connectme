@@ -341,7 +341,12 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
       <NewConversationModal
         isOpen={isNewModalOpen}
         onClose={() => setIsNewModalOpen(false)}
-        onSelectConversation={select}
+        onSelectConversation={(id, ch) => {
+          if (ch && filter && filter !== ch) {
+            setFilter("");
+          }
+          select(id);
+        }}
         initialChannel={filter}
         connected={connected}
         accounts={accounts}
