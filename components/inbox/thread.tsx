@@ -13,9 +13,11 @@ import { channelMeta } from "./channel-badge";
 import { formatTime } from "./format";
 import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
 
+import FileCard from "./file-card";
 import ImageGallery, { Lightbox } from "./image-gallery";
 import ReplyBox, { type ReplyPayload } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
+import { getProxiedMediaUrl } from "@/lib/media";
 
 interface Props {
   conversation: ConversationSummary;
@@ -295,10 +297,11 @@ function MessageAttachment({
   message: Message;
   onOpenImage: (url: string) => void;
 }) {
-  const { mediaUrl, type } = message;
+  const { mediaUrl, type, channel, text, createdAt, direction } = message;
+  const proxiedUrl = getProxiedMediaUrl(mediaUrl, { channel, name: text });
 
   if (type === "image") {
-    if (!mediaUrl) {
+    if (!proxiedUrl) {
       return (
         <div className="flex items-center gap-2.5 rounded-[12px] bg-surface-well p-3 text-[12px] border border-hairline">
           <span className="text-xl">🖼️</span>
@@ -310,17 +313,17 @@ function MessageAttachment({
       );
     }
     return (
-      <div className="group/media relative block overflow-hidden rounded-[12px] cursor-pointer bg-black/5 dark:bg-white/5">
+      <div className="group/media relative block overflow-hidden rounded-[12px] cursor-pointer bg-black/5 dark:bg-white/5 border border-hairline/60">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={mediaUrl}
-          alt="Attachment"
-          onClick={() => onOpenImage(mediaUrl)}
+          src={proxiedUrl}
+          alt={text || "Attachment"}
+          onClick={() => onOpenImage(proxiedUrl)}
           className="max-h-[360px] w-auto max-w-full rounded-[12px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
           loading="lazy"
         />
         <div
-          onClick={() => onOpenImage(mediaUrl)}
+          onClick={() => onOpenImage(proxiedUrl)}
           className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
         >
           <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
@@ -333,26 +336,26 @@ function MessageAttachment({
   }
 
   if (type === "video") {
-    if (!mediaUrl) {
+    if (!proxiedUrl) {
       return (
         <div className="flex items-center gap-3 rounded-[8px] bg-surface-well p-2.5 text-[12px] border border-hairline min-w-[180px]">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] bg-canvas-elevated text-lg border border-hairline">
             🎥
           </div>
           <div>
-            <p className="font-medium text-[13px] text-ink">{message.text && message.text !== "[video]" ? message.text : "Video message"}</p>
+            <p className="font-medium text-[13px] text-ink">{text && text !== "[video]" ? text : "Video message"}</p>
             <span className="text-[10.5px] text-mute font-mono">Video attachment</span>
           </div>
         </div>
       );
     }
     return (
-      <div className="overflow-hidden rounded-[10px] bg-black/20 max-w-[320px]">
+      <div className="overflow-hidden rounded-[12px] bg-black/20 max-w-[320px] border border-hairline">
         <video
-          src={mediaUrl}
+          src={proxiedUrl}
           controls
           playsInline
-          className="max-h-80 w-full rounded-[10px]"
+          className="max-h-80 w-full rounded-[12px]"
           preload="metadata"
         />
       </div>
@@ -360,7 +363,7 @@ function MessageAttachment({
   }
 
   if (type === "audio") {
-    if (!mediaUrl) {
+    if (!proxiedUrl) {
       return (
         <div className="flex items-center gap-2.5 rounded-[8px] bg-surface-well p-2 text-[12px] border border-hairline">
           <span className="text-lg">🎤</span>
@@ -371,58 +374,23 @@ function MessageAttachment({
       );
     }
     return (
-      <div className="flex items-center gap-2 rounded-[8px] bg-canvas-elevated p-2 border border-hairline my-1 max-w-[280px]">
+      <div className="flex items-center gap-2 rounded-[12px] bg-canvas-elevated p-2 border border-hairline my-1 max-w-[280px] shadow-2xs">
         <span className="text-lg">🎵</span>
-        <audio src={mediaUrl} controls className="h-8 w-full min-w-[200px]" />
+        <audio src={proxiedUrl} controls className="h-8 w-full min-w-[200px]" />
       </div>
     );
   }
 
   if (type === "document" || (!mediaUrl && type !== "text")) {
-    const filename = message.text && message.text !== "[document]" ? message.text : "Attached Document";
-    const ext = filename.split(".").pop()?.toUpperCase() || "DOC";
-
-    if (!mediaUrl) {
-      return (
-        <div className="flex items-center gap-3 rounded-[8px] bg-surface-well p-2.5 text-[12px] border border-hairline min-w-[180px]">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas-elevated font-mono text-[10px] font-bold text-body">
-            {ext.slice(0, 4)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium text-ink">{filename}</p>
-            <span className="font-mono text-[10.5px] text-mute">File attachment</span>
-          </div>
-        </div>
-      );
-    }
-
     return (
-      <a
-        href={mediaUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        download
-        className="group flex items-center gap-3 rounded-[10px] border border-hairline bg-canvas p-2.5 text-left text-ink transition-colors hover:bg-surface-well"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas-elevated font-mono text-[10px] font-bold text-body">
-          {ext.slice(0, 4)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium text-ink">{filename}</p>
-          <span className="font-mono text-[10.5px] text-mute flex items-center gap-1">
-            <span>Download file</span>
-            <span>↓</span>
-          </span>
-        </div>
-        <svg
-          className="h-4 w-4 shrink-0 text-mute transition-transform group-hover:translate-y-0.5 group-hover:text-ink"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-        </svg>
-      </a>
+      <FileCard
+        filename={text}
+        mediaUrl={mediaUrl}
+        channel={channel}
+        createdAt={createdAt}
+        outgoing={direction === "out"}
+        compact
+      />
     );
   }
 
@@ -709,7 +677,7 @@ export default function Thread({
             if (isGroup) {
               const galleryImages = item.messages.map((m) => ({
                 id: m.id,
-                url: m.mediaUrl!,
+                url: getProxiedMediaUrl(m.mediaUrl, { channel: m.channel, name: m.text }),
                 text: m.text,
                 createdAt: m.createdAt,
               }));
@@ -818,81 +786,86 @@ export default function Thread({
 
                   {/* 1. Pure Single Image (No chat bubble wrapper) */}
                   {isImage && isPureMedia ? (
-                    <div className="group/media relative max-w-[85%] sm:max-w-[360px] overflow-hidden rounded-[14px] border border-hairline/80 shadow-2xs bg-black/5 dark:bg-white/5 cursor-pointer">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={message.mediaUrl!}
-                        alt="Photo attachment"
-                        onClick={() => {
-                          setLightboxImages([{ id: message.id, url: message.mediaUrl!, text: message.text, createdAt: message.createdAt }]);
-                          setLightboxIndex(0);
-                        }}
-                        className="max-h-[380px] w-auto max-w-full rounded-[14px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
-                        loading="lazy"
-                      />
-                      <div
-                        onClick={() => {
-                          setLightboxImages([{ id: message.id, url: message.mediaUrl!, text: message.text, createdAt: message.createdAt }]);
-                          setLightboxIndex(0);
-                        }}
-                        className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
-                      >
-                        <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
-                          <span>View full size</span>
-                          <span>↗</span>
-                        </span>
-                      </div>
-                      {/* Floating timestamp pill */}
-                      <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
-                        <span>{formatTime(message.createdAt)}</span>
-                        {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
-                      </div>
-                    </div>
+                    (() => {
+                      const proxiedImgUrl = getProxiedMediaUrl(message.mediaUrl, {
+                        channel: message.channel,
+                        name: message.text,
+                      });
+                      return (
+                        <div className="group/media relative max-w-[85%] sm:max-w-[360px] overflow-hidden rounded-[14px] border border-hairline/80 shadow-2xs bg-black/5 dark:bg-white/5 cursor-pointer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={proxiedImgUrl}
+                            alt="Photo attachment"
+                            onClick={() => {
+                              setLightboxImages([{ id: message.id, url: proxiedImgUrl, text: message.text, createdAt: message.createdAt }]);
+                              setLightboxIndex(0);
+                            }}
+                            className="max-h-[380px] w-auto max-w-full rounded-[14px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
+                            loading="lazy"
+                          />
+                          <div
+                            onClick={() => {
+                              setLightboxImages([{ id: message.id, url: proxiedImgUrl, text: message.text, createdAt: message.createdAt }]);
+                              setLightboxIndex(0);
+                            }}
+                            className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
+                          >
+                            <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
+                              <span>View full size</span>
+                              <span>↗</span>
+                            </span>
+                          </div>
+                          {/* Floating timestamp pill */}
+                          <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
+                            <span>{formatTime(message.createdAt)}</span>
+                            {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
+                          </div>
+                        </div>
+                      );
+                    })()
                   ) : isAudio && isPureMedia ? (
                     /* 2. Standalone Audio Message Pill */
-                    <div className={`flex items-center gap-2 rounded-[22px] border px-3.5 py-1.5 shadow-2xs ${
-                      outgoing ? "bg-primary/10 border-primary/20 text-ink" : "bg-canvas-elevated border-hairline text-ink"
-                    }`}>
-                      <span className="text-base">🎵</span>
-                      <audio src={message.mediaUrl!} controls className="h-8 max-w-[200px] sm:max-w-[240px]" />
-                      <span className="font-mono text-[10px] text-mute shrink-0 pl-1">
-                        {formatTime(message.createdAt)}
-                      </span>
-                      {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
-                    </div>
+                    (() => {
+                      const proxiedAudioUrl = getProxiedMediaUrl(message.mediaUrl, { channel: message.channel });
+                      return (
+                        <div className={`flex items-center gap-2 rounded-[22px] border px-3.5 py-1.5 shadow-2xs ${
+                          outgoing ? "bg-primary/10 border-primary/20 text-ink" : "bg-canvas-elevated border-hairline text-ink"
+                        }`}>
+                          <span className="text-base">🎵</span>
+                          <audio src={proxiedAudioUrl} controls className="h-8 max-w-[200px] sm:max-w-[240px]" />
+                          <span className="font-mono text-[10px] text-mute shrink-0 pl-1">
+                            {formatTime(message.createdAt)}
+                          </span>
+                          {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
+                        </div>
+                      );
+                    })()
                   ) : isVideo && isPureMedia ? (
                     /* 3. Standalone Video Player */
-                    <div className="relative overflow-hidden rounded-[14px] bg-black border border-hairline shadow-2xs max-w-[320px]">
-                      <video
-                        src={message.mediaUrl!}
-                        controls
-                        playsInline
-                        className="max-h-[340px] w-full rounded-[14px]"
-                        preload="metadata"
-                      />
-                    </div>
+                    (() => {
+                      const proxiedVideoUrl = getProxiedMediaUrl(message.mediaUrl, { channel: message.channel });
+                      return (
+                        <div className="relative overflow-hidden rounded-[14px] bg-black border border-hairline shadow-2xs max-w-[320px]">
+                          <video
+                            src={proxiedVideoUrl}
+                            controls
+                            playsInline
+                            className="max-h-[340px] w-full rounded-[14px]"
+                            preload="metadata"
+                          />
+                        </div>
+                      );
+                    })()
                   ) : isDoc && isPureMedia ? (
                     /* 4. Standalone Document Attachment Card */
-                    <a
-                      href={message.mediaUrl!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download
-                      className="group flex items-center gap-3 rounded-[12px] border border-hairline bg-canvas-elevated p-3 text-left text-ink transition-colors hover:bg-surface-well shadow-2xs max-w-[300px]"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-hairline bg-surface-well font-mono text-[10.5px] font-bold text-body">
-                        {((message.text || "DOC").split(".").pop() || "DOC").slice(0, 4).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium text-ink">
-                          {message.text && message.text !== "[document]" ? message.text : "Document"}
-                        </p>
-                        <span className="font-mono text-[10px] text-mute flex items-center gap-1">
-                          <span>{formatTime(message.createdAt)}</span>
-                          <span>· Download ↓</span>
-                        </span>
-                      </div>
-                    </a>
+                    <FileCard
+                      filename={message.text}
+                      mediaUrl={message.mediaUrl}
+                      channel={message.channel}
+                      createdAt={message.createdAt}
+                      outgoing={outgoing}
+                    />
                   ) : onlyEmoji ? (
                     /* 5. Pure Emoji Message */
                     <div className="text-4xl leading-tight select-text py-1">
