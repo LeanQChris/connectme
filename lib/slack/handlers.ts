@@ -36,12 +36,22 @@ export async function handleSlackMessage(
     }
   }
 
-  // If this is a public/private channel (starts with C or G), label the conversation with the channel name
+  // Label the conversation with the channel name, falling back to a readable ID-based label
   let contactName = senderName;
   try {
     const channelName = await fetchSlackChannelName(token, channelId);
     if (channelName) {
+      // Resolved from API — real channel name
       contactName = `#${channelName}`;
+    } else if (event.channel_type === "im" || channelId.startsWith("D")) {
+      // Direct message — use sender name
+      contactName = senderName;
+    } else if (channelId.startsWith("C")) {
+      // Public channel — couldn't resolve name (missing channels:read scope?)
+      contactName = `#${channelId}`;
+    } else if (channelId.startsWith("G")) {
+      // Private group/channel
+      contactName = `🔒 Private Group`;
     }
   } catch (err) {
     console.warn("[slack] channel name fetch error:", err);
