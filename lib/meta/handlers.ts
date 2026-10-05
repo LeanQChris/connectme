@@ -274,24 +274,77 @@ export async function handleMessenger(
         }
       }
 
-      try {
-        const inserted = await recordInbound({
-          userId: tenant.userId,
-          channel: "messenger",
-          accountId: entry?.id,
-          externalId: mid,
-          senderExternalId: senderId,
-          senderName,
-          senderAvatarUrl,
-          text,
-          mediaUrl,
-          type,
-          createdAt: new Date(timestamp),
-        });
-        if (inserted) console.log(`[webhook] messenger inbound ${mid} (${type}) from ${senderName ?? senderId}`);
-        else console.log(`[webhook] messenger duplicate ${mid}, ignored`);
-      } catch (error) {
-        console.error("[webhook] failed to store messenger message:", error);
+      const attachments = message.attachments ?? [];
+
+      if (attachments.length > 0) {
+        for (let i = 0; i < attachments.length; i++) {
+          const att = attachments[i];
+          const attachType = att.type;
+          let type: MessageType = "other";
+          if (attachType === "image") type = "image";
+          else if (attachType === "audio") type = "audio";
+          else if (attachType === "video") type = "video";
+          else if (attachType === "file") type = "document";
+
+          let mediaUrl = att.payload?.url ?? null;
+          let text = i === 0 ? (message.text || att.title || att.payload?.title || null) : (att.title || att.payload?.title || null);
+
+          if (!mediaUrl) {
+            try {
+              const attachData = await fetchMessengerMessageAttachment(
+                mid,
+                pageToken,
+                tenant.graphVersion,
+              );
+              if (attachData.mediaUrl) {
+                mediaUrl = attachData.mediaUrl;
+                type = attachData.type;
+                if (!text && attachData.text) text = attachData.text;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          const externalId = i === 0 ? mid : `${mid}_att_${i}`;
+          try {
+            const inserted = await recordInbound({
+              userId: tenant.userId,
+              channel: "messenger",
+              accountId: entry?.id,
+              externalId,
+              senderExternalId: senderId,
+              senderName,
+              senderAvatarUrl,
+              text,
+              mediaUrl,
+              type,
+              createdAt: new Date(timestamp + i),
+            });
+            if (inserted) console.log(`[webhook] messenger attachment ${i + 1}/${attachments.length} (${type}) from ${senderName ?? senderId}`);
+          } catch (error) {
+            console.error("[webhook] failed to store messenger message:", error);
+          }
+        }
+      } else {
+        try {
+          const inserted = await recordInbound({
+            userId: tenant.userId,
+            channel: "messenger",
+            accountId: entry?.id,
+            externalId: mid,
+            senderExternalId: senderId,
+            senderName,
+            senderAvatarUrl,
+            text: message.text ?? null,
+            mediaUrl: null,
+            type: "text",
+            createdAt: new Date(timestamp),
+          });
+          if (inserted) console.log(`[webhook] messenger inbound ${mid} (text) from ${senderName ?? senderId}`);
+        } catch (error) {
+          console.error("[webhook] failed to store messenger message:", error);
+        }
       }
     }
   }
@@ -326,18 +379,6 @@ export async function handleInstagram(
       }
 
       const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now();
-      const firstAttachment = message.attachments?.[0];
-      let mediaUrl: string | null = null;
-      let type: MessageType = "text";
-      let text = message.text ?? null;
-
-      if (firstAttachment) {
-        type = mapType(firstAttachment.type);
-        mediaUrl = firstAttachment.payload?.url ?? null;
-        if (!text) text = firstAttachment.title ?? firstAttachment.payload?.title ?? null;
-      } else if (message.text === undefined) {
-        type = "other";
-      }
 
       // Fetch user profile name and profile picture from Instagram Graph API
       let senderName: string | null = null;
@@ -356,24 +397,54 @@ export async function handleInstagram(
         }
       }
 
-      try {
-        const inserted = await recordInbound({
-          userId: tenant.userId,
-          channel: "instagram",
-          accountId: entry?.id,
-          externalId: mid,
-          senderExternalId: senderId,
-          senderName,
-          senderAvatarUrl,
-          text: text || placeholder(type),
-          mediaUrl,
-          type,
-          createdAt: new Date(timestamp),
-        });
-        if (inserted) console.log(`[webhook] instagram inbound ${mid} (${type}) from ${senderName ?? senderId}`);
-        else console.log(`[webhook] instagram duplicate ${mid}, ignored`);
-      } catch (error) {
-        console.error("[webhook] failed to store instagram message:", error);
+      const attachments = message.attachments ?? [];
+
+      if (attachments.length > 0) {
+        for (let i = 0; i < attachments.length; i++) {
+          const att = attachments[i];
+          const type: MessageType = mapType(att.type);
+          const mediaUrl = att.payload?.url ?? null;
+          const text = i === 0 ? (message.text || att.title || att.payload?.title || null) : (att.title || att.payload?.title || null);
+          const externalId = i === 0 ? mid : `${mid}_att_${i}`;
+
+          try {
+            const inserted = await recordInbound({
+              userId: tenant.userId,
+              channel: "instagram",
+              accountId: entry?.id,
+              externalId,
+              senderExternalId: senderId,
+              senderName,
+              senderAvatarUrl,
+              text: text || placeholder(type),
+              mediaUrl,
+              type,
+              createdAt: new Date(timestamp + i),
+            });
+            if (inserted) console.log(`[webhook] instagram attachment ${i + 1}/${attachments.length} (${type}) from ${senderName ?? senderId}`);
+          } catch (error) {
+            console.error("[webhook] failed to store instagram message:", error);
+          }
+        }
+      } else {
+        try {
+          const inserted = await recordInbound({
+            userId: tenant.userId,
+            channel: "instagram",
+            accountId: entry?.id,
+            externalId: mid,
+            senderExternalId: senderId,
+            senderName,
+            senderAvatarUrl,
+            text: message.text ?? null,
+            mediaUrl: null,
+            type: "text",
+            createdAt: new Date(timestamp),
+          });
+          if (inserted) console.log(`[webhook] instagram inbound ${mid} (text) from ${senderName ?? senderId}`);
+        } catch (error) {
+          console.error("[webhook] failed to store instagram message:", error);
+        }
       }
     }
   }
