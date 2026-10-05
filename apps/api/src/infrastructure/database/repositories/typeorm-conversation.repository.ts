@@ -151,6 +151,11 @@ export class TypeOrmConversationRepository implements IConversationRepository {
     return (await this.findById(tenantId, conversationId))!;
   }
 
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const res = await this.convRepo.delete({ tenantId, id });
+    return (res.affected ?? 0) > 0;
+  }
+
   async searchConversations(tenantId: string, query: string): Promise<Conversation[]> {
     const qb = this.convRepo
       .createQueryBuilder("c")

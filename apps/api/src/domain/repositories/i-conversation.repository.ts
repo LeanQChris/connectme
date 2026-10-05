@@ -29,5 +29,6 @@ export interface IConversationRepository {
     text: string | null,
     inbound: boolean,
   ): Promise<Conversation>;
+  delete(tenantId: string, id: string): Promise<boolean>;
   searchConversations(tenantId: string, query: string): Promise<Conversation[]>;
 }
