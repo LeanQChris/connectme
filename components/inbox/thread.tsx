@@ -14,6 +14,7 @@ import { formatTime } from "./format";
 import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
 
 import FileCard from "./file-card";
+import FormattedText from "./formatted-text";
 import ImageGallery, { Lightbox } from "./image-gallery";
 import ReplyBox, { type ReplyPayload } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
@@ -290,112 +291,7 @@ function isOnlyEmoji(str: string | null | undefined): boolean {
   return emojiRegex.test(trimmed);
 }
 
-function MessageAttachment({
-  message,
-  onOpenImage,
-}: {
-  message: Message;
-  onOpenImage: (url: string) => void;
-}) {
-  const { mediaUrl, type, channel, text, createdAt, direction } = message;
-  const proxiedUrl = getProxiedMediaUrl(mediaUrl, { channel, name: text });
 
-  if (type === "image") {
-    if (!proxiedUrl) {
-      return (
-        <div className="flex items-center gap-2.5 rounded-[12px] bg-surface-well p-3 text-[12px] border border-hairline">
-          <span className="text-xl">🖼️</span>
-          <div>
-            <p className="font-medium text-ink">Photo Attachment</p>
-            <span className="text-[10.5px] text-mute font-mono">Image received</span>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="group/media relative block overflow-hidden rounded-[12px] cursor-pointer bg-black/5 dark:bg-white/5 border border-hairline/60">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={proxiedUrl}
-          alt={text || "Attachment"}
-          onClick={() => onOpenImage(proxiedUrl)}
-          className="max-h-[360px] w-auto max-w-full rounded-[12px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
-          loading="lazy"
-        />
-        <div
-          onClick={() => onOpenImage(proxiedUrl)}
-          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
-        >
-          <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
-            <span>View full size</span>
-            <span>↗</span>
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  if (type === "video") {
-    if (!proxiedUrl) {
-      return (
-        <div className="flex items-center gap-3 rounded-[8px] bg-surface-well p-2.5 text-[12px] border border-hairline min-w-[180px]">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] bg-canvas-elevated text-lg border border-hairline">
-            🎥
-          </div>
-          <div>
-            <p className="font-medium text-[13px] text-ink">{text && text !== "[video]" ? text : "Video message"}</p>
-            <span className="text-[10.5px] text-mute font-mono">Video attachment</span>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="overflow-hidden rounded-[12px] bg-black/20 max-w-[320px] border border-hairline">
-        <video
-          src={proxiedUrl}
-          controls
-          playsInline
-          className="max-h-80 w-full rounded-[12px]"
-          preload="metadata"
-        />
-      </div>
-    );
-  }
-
-  if (type === "audio") {
-    if (!proxiedUrl) {
-      return (
-        <div className="flex items-center gap-2.5 rounded-[8px] bg-surface-well p-2 text-[12px] border border-hairline">
-          <span className="text-lg">🎤</span>
-          <div>
-            <p className="font-medium text-ink">Voice / Audio message</p>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="flex items-center gap-2 rounded-[12px] bg-canvas-elevated p-2 border border-hairline my-1 max-w-[280px] shadow-2xs">
-        <span className="text-lg">🎵</span>
-        <audio src={proxiedUrl} controls className="h-8 w-full min-w-[200px]" />
-      </div>
-    );
-  }
-
-  if (type === "document" || (!mediaUrl && type !== "text")) {
-    return (
-      <FileCard
-        filename={text}
-        mediaUrl={mediaUrl}
-        channel={channel}
-        createdAt={createdAt}
-        outgoing={direction === "out"}
-        compact
-      />
-    );
-  }
-
-  return null;
-}
 
 export default function Thread({
   conversation,
@@ -741,8 +637,7 @@ export default function Thread({
             const isImage = message.type === "image" && message.mediaUrl;
             const isAudio = message.type === "audio" && message.mediaUrl;
             const isVideo = message.type === "video" && message.mediaUrl;
-            const isDoc = message.type === "document" && message.mediaUrl;
-            const isPureMedia = (isImage || isAudio || isVideo || isDoc) && (!message.text || message.text.startsWith("[") || message.text === "Photo Attachment" || message.text === "Video message");
+            const isDoc = message.type === "document" || (message.type !== "text" && message.mediaUrl);
 
             return (
               <Fragment key={item.id}>
@@ -784,81 +679,145 @@ export default function Thread({
                     </div>
                   )}
 
-                  {/* 1. Pure Single Image (No chat bubble wrapper) */}
-                  {isImage && isPureMedia ? (
+                  {/* 1. Standalone Image */}
+                  {isImage ? (
                     (() => {
                       const proxiedImgUrl = getProxiedMediaUrl(message.mediaUrl, {
                         channel: message.channel,
                         name: message.text,
                       });
+                      const hasCaption =
+                        message.text &&
+                        !message.text.startsWith("[") &&
+                        message.text !== "Photo Attachment" &&
+                        message.text !== message.mediaUrl;
+
                       return (
-                        <div className="group/media relative max-w-[85%] sm:max-w-[360px] overflow-hidden rounded-[14px] border border-hairline/80 shadow-2xs bg-black/5 dark:bg-white/5 cursor-pointer">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={proxiedImgUrl}
-                            alt="Photo attachment"
-                            onClick={() => {
-                              setLightboxImages([{ id: message.id, url: proxiedImgUrl, text: message.text, createdAt: message.createdAt }]);
-                              setLightboxIndex(0);
-                            }}
-                            className="max-h-[380px] w-auto max-w-full rounded-[14px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
-                            loading="lazy"
-                          />
-                          <div
-                            onClick={() => {
-                              setLightboxImages([{ id: message.id, url: proxiedImgUrl, text: message.text, createdAt: message.createdAt }]);
-                              setLightboxIndex(0);
-                            }}
-                            className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
-                          >
-                            <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
-                              <span>View full size</span>
-                              <span>↗</span>
-                            </span>
+                        <div className="flex flex-col gap-1 max-w-[85%] sm:max-w-[360px]">
+                          <div className="group/media relative overflow-hidden rounded-[14px] border border-hairline/80 shadow-2xs bg-black/5 dark:bg-white/5 cursor-pointer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={proxiedImgUrl}
+                              alt={message.text || "Photo attachment"}
+                              onClick={() => {
+                                setLightboxImages([
+                                  {
+                                    id: message.id,
+                                    url: proxiedImgUrl,
+                                    text: message.text,
+                                    createdAt: message.createdAt,
+                                  },
+                                ]);
+                                setLightboxIndex(0);
+                              }}
+                              className="max-h-[380px] w-auto max-w-full rounded-[14px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
+                              loading="lazy"
+                            />
+                            <div
+                              onClick={() => {
+                                setLightboxImages([
+                                  {
+                                    id: message.id,
+                                    url: proxiedImgUrl,
+                                    text: message.text,
+                                    createdAt: message.createdAt,
+                                  },
+                                ]);
+                                setLightboxIndex(0);
+                              }}
+                              className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
+                            >
+                              <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
+                                <span>View full size</span>
+                                <span>↗</span>
+                              </span>
+                            </div>
+                            {/* Floating timestamp pill */}
+                            <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
+                              <span>{formatTime(message.createdAt)}</span>
+                              {outgoing && status.text ? (
+                                <span className={status.color}>{status.text}</span>
+                              ) : null}
+                            </div>
                           </div>
-                          {/* Floating timestamp pill */}
-                          <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
-                            <span>{formatTime(message.createdAt)}</span>
-                            {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
-                          </div>
+                          {hasCaption && (
+                            <div
+                              className={`px-1.5 py-0.5 text-[12.5px] ${
+                                outgoing ? "text-right text-mute" : "text-left text-ink"
+                              }`}
+                            >
+                              <FormattedText text={message.text} outgoing={false} />
+                            </div>
+                          )}
                         </div>
                       );
                     })()
-                  ) : isAudio && isPureMedia ? (
+                  ) : isAudio ? (
                     /* 2. Standalone Audio Message Pill */
                     (() => {
-                      const proxiedAudioUrl = getProxiedMediaUrl(message.mediaUrl, { channel: message.channel });
+                      const proxiedAudioUrl = getProxiedMediaUrl(message.mediaUrl, {
+                        channel: message.channel,
+                      });
                       return (
-                        <div className={`flex items-center gap-2 rounded-[22px] border px-3.5 py-1.5 shadow-2xs ${
-                          outgoing ? "bg-primary/10 border-primary/20 text-ink" : "bg-canvas-elevated border-hairline text-ink"
-                        }`}>
+                        <div
+                          className={`flex items-center gap-2 rounded-[22px] border px-3.5 py-1.5 shadow-2xs ${
+                            outgoing
+                              ? "bg-primary/10 border-primary/20 text-ink"
+                              : "bg-canvas-elevated border-hairline text-ink"
+                          }`}
+                        >
                           <span className="text-base">🎵</span>
-                          <audio src={proxiedAudioUrl} controls className="h-8 max-w-[200px] sm:max-w-[240px]" />
+                          <audio
+                            src={proxiedAudioUrl}
+                            controls
+                            className="h-8 max-w-[200px] sm:max-w-[240px]"
+                          />
                           <span className="font-mono text-[10px] text-mute shrink-0 pl-1">
                             {formatTime(message.createdAt)}
                           </span>
-                          {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
+                          {outgoing && status.text ? (
+                            <span className={status.color}>{status.text}</span>
+                          ) : null}
                         </div>
                       );
                     })()
-                  ) : isVideo && isPureMedia ? (
+                  ) : isVideo ? (
                     /* 3. Standalone Video Player */
                     (() => {
-                      const proxiedVideoUrl = getProxiedMediaUrl(message.mediaUrl, { channel: message.channel });
+                      const proxiedVideoUrl = getProxiedMediaUrl(message.mediaUrl, {
+                        channel: message.channel,
+                      });
+                      const hasCaption =
+                        message.text &&
+                        !message.text.startsWith("[") &&
+                        message.text !== "Video message" &&
+                        message.text !== message.mediaUrl;
+
                       return (
-                        <div className="relative overflow-hidden rounded-[14px] bg-black border border-hairline shadow-2xs max-w-[320px]">
-                          <video
-                            src={proxiedVideoUrl}
-                            controls
-                            playsInline
-                            className="max-h-[340px] w-full rounded-[14px]"
-                            preload="metadata"
-                          />
+                        <div className="flex flex-col gap-1 max-w-[320px]">
+                          <div className="relative overflow-hidden rounded-[14px] bg-black border border-hairline shadow-2xs">
+                            <video
+                              src={proxiedVideoUrl}
+                              controls
+                              playsInline
+                              className="max-h-[340px] w-full rounded-[14px]"
+                              preload="metadata"
+                            />
+                          </div>
+                          {hasCaption && (
+                            <div
+                              className={`px-1.5 py-0.5 text-[12.5px] ${
+                                outgoing ? "text-right text-mute" : "text-left text-ink"
+                              }`}
+                            >
+                              <FormattedText text={message.text} outgoing={false} />
+                            </div>
+                          )}
                         </div>
                       );
                     })()
-                  ) : isDoc && isPureMedia ? (
-                    /* 4. Standalone Document Attachment Card */
+                  ) : isDoc ? (
+                    /* 4. Standalone Document Attachment Card (No chat bubble wrapper!) */
                     <FileCard
                       filename={message.text}
                       mediaUrl={message.mediaUrl}
@@ -872,7 +831,7 @@ export default function Thread({
                       {message.text}
                     </div>
                   ) : (
-                    /* 6. Standard Text Message (or message with caption) - CHAT BUBBLE */
+                    /* 6. Text Only Message - CHAT BUBBLE */
                     <div
                       className={`group relative max-w-[78%] leading-[1.55] sm:max-w-[68%] px-3.5 py-2 text-[13px] shadow-2xs ${
                         outgoing
@@ -880,23 +839,8 @@ export default function Thread({
                           : "rounded-[16px] rounded-bl-[4px] bg-canvas-elevated text-ink ring-1 ring-hairline ring-inset"
                       }`}
                     >
-                      {/* Attached media with caption */}
-                      {message.type !== "text" && (
-                        <div className="mb-2">
-                          <MessageAttachment
-                            message={message}
-                            onOpenImage={(url) => {
-                              setLightboxImages([{ id: message.id, url, text: message.text, createdAt: message.createdAt }]);
-                              setLightboxIndex(0);
-                            }}
-                          />
-                        </div>
-                      )}
-
                       {message.text && (
-                        <p className="whitespace-pre-wrap break-words select-text">
-                          {message.text}
-                        </p>
+                        <FormattedText text={message.text} outgoing={outgoing} />
                       )}
 
                       {message.error ? (
@@ -925,14 +869,31 @@ export default function Thread({
                             aria-label="Copy message"
                             className={`rounded p-0.5 leading-none transition-opacity ${
                               outgoing ? "hover:bg-white/15" : "hover:bg-surface-well"
-                            } ${copiedMessageId === message.id ? "opacity-100" : "opacity-0 group-hover:opacity-70"} cursor-pointer`}
+                            } ${
+                              copiedMessageId === message.id
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-70"
+                            } cursor-pointer`}
                           >
                             {copiedMessageId === message.id ? (
-                              <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                              <svg
+                                className="h-3 w-3 stroke-current"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2.5"
+                                  d="M5 13l4 4L19 7"
+                                />
                               </svg>
                             ) : (
-                              <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
+                              <svg
+                                className="h-3 w-3 stroke-current"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
                                 <path
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
@@ -944,7 +905,9 @@ export default function Thread({
                           </button>
                         )}
                         <span>{formatTime(message.createdAt)}</span>
-                        {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
+                        {outgoing && status.text ? (
+                          <span className={status.color}>{status.text}</span>
+                        ) : null}
                       </div>
                     </div>
                   )}

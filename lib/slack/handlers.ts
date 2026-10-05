@@ -82,6 +82,46 @@ export async function handleSlackMessage(
     }
   }
 
+  // Enrich Slack user mentions (<@U12345> -> <@U12345|Real Name>)
+  if (text && text.includes("<@")) {
+    const userMentionRegex = /<@([A-Z0-9]+)>/g;
+    const uids = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = userMentionRegex.exec(text)) !== null) {
+      uids.add(m[1]);
+    }
+    for (const uid of uids) {
+      try {
+        const uProfile = await fetchSlackUserProfile(token, uid);
+        if (uProfile?.name && !uProfile.name.startsWith("User ")) {
+          text = text.replaceAll(`<@${uid}>`, `<@${uid}|${uProfile.name}>`);
+        }
+      } catch {
+        // ignore profile fetch error
+      }
+    }
+  }
+
+  // Enrich Slack channel mentions (<#C12345> -> <#C12345|channel-name>)
+  if (text && text.includes("<#")) {
+    const chanMentionRegex = /<#([A-Z0-9]+)>/g;
+    const cids = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = chanMentionRegex.exec(text)) !== null) {
+      cids.add(m[1]);
+    }
+    for (const cid of cids) {
+      try {
+        const cName = await fetchSlackChannelName(token, cid);
+        if (cName) {
+          text = text.replaceAll(`<#${cid}>`, `<#${cid}|${cName}>`);
+        }
+      } catch {
+        // ignore channel fetch error
+      }
+    }
+  }
+
   try {
     const inserted = await recordInbound({
       userId,
