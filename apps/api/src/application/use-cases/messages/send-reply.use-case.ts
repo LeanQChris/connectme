@@ -1,10 +1,13 @@
 import {
   Injectable,
+  Logger,
   BadRequestException,
   NotFoundException,
   BadGatewayException,
   Inject,
 } from "@nestjs/common";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
 import {
   MessageDirection,
   MessageStatus,
@@ -15,6 +18,7 @@ import { ITenantRepository } from "../../../domain/repositories/i-tenant.reposit
 import { IConversationRepository } from "../../../domain/repositories/i-conversation.repository";
 import { IMessageRepository } from "../../../domain/repositories/i-message.repository";
 import { MessagingWindowVO } from "../../../domain/value-objects/messaging-window.vo";
+import { OUTBOUND_RETRY_QUEUE } from "../../../infrastructure/queue/queue.constants";
 import {
   WhatsAppClient,
   MessengerClient,
@@ -22,6 +26,7 @@ import {
   TelegramClient,
   DiscordClient,
   SlackClient,
+  ChannelHttpError,
 } from "@connectme/channels";
 import { InboxRealtimeGateway } from "../../../presentation/gateways/inbox-realtime.gateway";
 
@@ -63,6 +68,8 @@ function resolveMediaType(mediaType?: string, media?: SendReplyMediaItem[]): Med
 
 @Injectable()
 export class SendReplyUseCase {
+  private readonly logger = new Logger(SendReplyUseCase.name);
+
   constructor(
     @Inject("ITenantRepository")
     private readonly tenantRepo: ITenantRepository,
@@ -77,6 +84,8 @@ export class SendReplyUseCase {
     private readonly discordClient: DiscordClient,
     private readonly slackClient: SlackClient,
     private readonly realtimeGateway: InboxRealtimeGateway,
+    @InjectQueue(OUTBOUND_RETRY_QUEUE)
+    private readonly retryQueue: Queue,
   ) {}
 
   async execute(input: SendReplyInput) {
@@ -194,6 +203,36 @@ export class SendReplyUseCase {
       msg.status = MessageStatus.FAILED;
       msg.errorDetail = err.message || "Failed to dispatch message to channel";
       await this.messageRepo.updateStatus(input.tenantId, msg.id, MessageStatus.FAILED, msg.errorDetail ?? undefined);
+
+      // Retry transient failures via the worker. Explicit provider 4xx/validation
+      // errors are not retried; network/timeout/abort and retryable HTTP errors are.
+      const retryable =
+        (err instanceof ChannelHttpError && err.retryable) ||
+        (typeof err?.status !== "number" && typeof err?.statusCode !== "number");
+      if (retryable) {
+        try {
+          await this.retryQueue.add(
+            "retry",
+            {
+              tenantId: input.tenantId,
+              conversationId: conv.id,
+              messageId: msg.id,
+              attempt: 1,
+            },
+            {
+              attempts: 5,
+              backoff: { type: "exponential", delay: 30_000 },
+              removeOnComplete: true,
+              removeOnFail: false,
+            },
+          );
+        } catch (queueErr: any) {
+          // A queue outage must never mask the original delivery error.
+          this.logger.warn(
+            `Failed to enqueue outbound retry for message ${msg.id}: ${queueErr?.message}`,
+          );
+        }
+      }
     }
 
     if (delivered) {

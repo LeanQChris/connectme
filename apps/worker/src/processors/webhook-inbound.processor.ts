@@ -1,5 +1,5 @@
-import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { Job } from "bullmq";
+import { Processor, WorkerHost, InjectQueue } from "@nestjs/bullmq";
+import { Job, Queue } from "bullmq";
 import { Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -13,7 +13,7 @@ import {
   MessageStatus,
   TenantCredential,
 } from "@connectme/database";
-import { INBOUND_WEBHOOKS_QUEUE } from "../queue.constants";
+import { INBOUND_WEBHOOKS_QUEUE, AI_AGENT_QUEUE, MEDIA_REHOST_QUEUE } from "../queue.constants";
 import { AesVaultService, fetchMetaProfile } from "@connectme/channels";import { RealtimePublisher } from "../realtime/realtime-publisher";
 import {
   createMessage,
@@ -61,8 +61,68 @@ export class WebhookInboundProcessor extends WorkerHost {
     private readonly credRepo: Repository<TenantCredential>,
     private readonly aesVault: AesVaultService,
     private readonly realtime: RealtimePublisher,
+    @InjectQueue(AI_AGENT_QUEUE) private readonly aiQueue: Queue,
+    @InjectQueue(MEDIA_REHOST_QUEUE) private readonly mediaQueue: Queue,
   ) {
     super();
+  }
+
+  /**
+   * Fan an inbound message out to the follow-up queues: AI auto-reply decision
+   * (every message) and media re-host (only when the message carries media).
+   * Best-effort — a queue outage must never fail inbound ingestion.
+   */
+  private async dispatchFollowUps(params: {
+    tenantId: string;
+    conversationId: string;
+    messageId: string;
+    channel: ChannelType;
+    mediaId?: string | null;
+    mediaUrl?: string | null;
+    mimeType?: string | null;
+  }): Promise<void> {
+    try {
+      await this.aiQueue.add(
+        "agent",
+        {
+          tenantId: params.tenantId,
+          conversationId: params.conversationId,
+          messageId: params.messageId,
+        },
+        {
+          attempts: 3,
+          backoff: { type: "exponential", delay: 15_000 },
+          removeOnComplete: true,
+          removeOnFail: 100,
+        },
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to enqueue AI agent job: ${(err as Error).message}`);
+    }
+
+    if (params.mediaId || params.mediaUrl) {
+      try {
+        await this.mediaQueue.add(
+          "rehost",
+          {
+            tenantId: params.tenantId,
+            messageId: params.messageId,
+            channel: params.channel,
+            mediaId: params.mediaId ?? null,
+            mediaUrl: params.mediaUrl ?? null,
+            mimeType: params.mimeType ?? null,
+          },
+          {
+            attempts: 5,
+            backoff: { type: "exponential", delay: 20_000 },
+            removeOnComplete: true,
+            removeOnFail: 100,
+          },
+        );
+      } catch (err) {
+        this.logger.warn(`Failed to enqueue media re-host job: ${(err as Error).message}`);
+      }
+    }
   }
 
   /** Resolve a usable page/bot token for outbound profile lookups. */
@@ -207,13 +267,19 @@ export class WebhookInboundProcessor extends WorkerHost {
       text: bodyText,
       mediaMimeType,
     });
-    void mediaId;
-
     await touchConversation(this.convRepo, conv, bodyText, true);
     await this.realtime.publish({
       type: "message:new",
       tenantId,
       payload: { conversationId: conv.id, message: saved },
+    });
+    await this.dispatchFollowUps({
+      tenantId,
+      conversationId: conv.id,
+      messageId: saved.id,
+      channel: ChannelType.WHATSAPP,
+      mediaId,
+      mimeType: mediaMimeType,
     });
   }
 
@@ -279,6 +345,13 @@ export class WebhookInboundProcessor extends WorkerHost {
           tenantId,
           payload: { conversationId: conv.id, message: saved },
         });
+        await this.dispatchFollowUps({
+          tenantId,
+          conversationId: conv.id,
+          messageId: saved.id,
+          channel,
+          mediaUrl,
+        });
       }
     } else {
       const text = message.text || "Message";
@@ -294,6 +367,12 @@ export class WebhookInboundProcessor extends WorkerHost {
         type: "message:new",
         tenantId,
         payload: { conversationId: conv.id, message: saved },
+      });
+      await this.dispatchFollowUps({
+        tenantId,
+        conversationId: conv.id,
+        messageId: saved.id,
+        channel,
       });
     }
   }
@@ -348,6 +427,12 @@ export class WebhookInboundProcessor extends WorkerHost {
       tenantId,
       payload: { conversationId: conv.id, message: saved },
     });
+    await this.dispatchFollowUps({
+      tenantId,
+      conversationId: conv.id,
+      messageId: saved.id,
+      channel: ChannelType.TELEGRAM,
+    });
   }
 
   private async handleDiscord(interaction: DiscordPayload): Promise<void> {
@@ -384,6 +469,12 @@ export class WebhookInboundProcessor extends WorkerHost {
       type: "message:new",
       tenantId,
       payload: { conversationId: conv.id, message: saved },
+    });
+    await this.dispatchFollowUps({
+      tenantId,
+      conversationId: conv.id,
+      messageId: saved.id,
+      channel: ChannelType.DISCORD,
     });
   }
 }

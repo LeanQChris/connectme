@@ -10,6 +10,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-router-sdk/core": "^0.1.0",
     "@connectme/channels": "*",
     "@connectme/contracts": "*",
     "@connectme/crypto": "*",

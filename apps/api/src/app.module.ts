@@ -14,6 +14,7 @@ import {
   Message,
   ScheduledPost,
   ScheduledMessage,
+  WhatsAppTemplate,
 } from "@connectme/database";
 
 // Repositories
@@ -34,7 +35,10 @@ import {
   SchedulingQueueService,
   OUTBOUND_SCHEDULER_QUEUE,
 } from "./infrastructure/queue/scheduling-queue.service";
-import { INBOUND_WEBHOOKS_QUEUE } from "./infrastructure/queue/queue.constants";
+import {
+  INBOUND_WEBHOOKS_QUEUE,
+  OUTBOUND_RETRY_QUEUE,
+} from "./infrastructure/queue/queue.constants";
 import { S3PresignService } from "./infrastructure/storage/s3-presign.service";
 
 // Channel Clients + Vault (shared package)
@@ -56,9 +60,10 @@ import {
 import { InboxRealtimeGateway } from "./presentation/gateways/inbox-realtime.gateway";
 import { RealtimeBridgeService } from "./infrastructure/realtime/realtime-bridge.service";
 
-// Link preview & AI
+// Link preview, AI & WhatsApp Templates
 import { LinkPreviewService } from "./infrastructure/services/link-preview.service";
 import { AiService } from "./infrastructure/services/ai.service";
+import { WhatsAppTemplateService } from "./infrastructure/services/whatsapp-template.service";
 
 // Use cases
 import { SendReplyUseCase } from "./application/use-cases/messages/send-reply.use-case";
@@ -91,6 +96,7 @@ import { StatsController } from "./presentation/controllers/stats.controller";
 import { LinkPreviewController } from "./presentation/controllers/link-preview.controller";
 import { WidgetController } from "./presentation/controllers/widget.controller";
 import { AiController } from "./presentation/controllers/ai.controller";
+import { WhatsAppTemplateController } from "./presentation/controllers/whatsapp-template.controller";
 
 import { SetupController } from "./presentation/controllers/setup.controller";
 
@@ -128,6 +134,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
         Message,
         ScheduledPost,
         ScheduledMessage,
+        WhatsAppTemplate,
       ],
       synchronize: shouldSynchronize(),
       logging: false,
@@ -142,6 +149,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
       Message,
       ScheduledPost,
       ScheduledMessage,
+      WhatsAppTemplate,
     ]),
     BullModule.forRootAsync({
       inject: [ConfigService],
@@ -155,6 +163,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     }),
     BullModule.registerQueue({ name: OUTBOUND_SCHEDULER_QUEUE }),
     BullModule.registerQueue({ name: INBOUND_WEBHOOKS_QUEUE }),
+    BullModule.registerQueue({ name: OUTBOUND_RETRY_QUEUE }),
   ],
   controllers: [
     WebhookController,
@@ -172,6 +181,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     LinkPreviewController,
     WidgetController,
     AiController,
+    WhatsAppTemplateController,
   ],
   providers: [
     // Global guards: rate limiting first, then authentication.
@@ -194,6 +204,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     S3PresignService,
     LinkPreviewService,
     AiService,
+    WhatsAppTemplateService,
 
     // Channel Drivers
     WhatsAppClient,
