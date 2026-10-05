@@ -705,7 +705,7 @@ export default function Thread({
               );
             }
 
-            // Image Group / Photo Album Collage
+            // Image Group / Photo Album Collage (No chat bubble wrapper)
             if (isGroup) {
               const galleryImages = item.messages.map((m) => ({
                 id: m.id,
@@ -726,7 +726,7 @@ export default function Thread({
 
                   <div
                     className={`flex items-end gap-2 ${outgoing ? "justify-end" : "justify-start"} ${
-                      runStart ? "mt-4" : "mt-1"
+                      runStart ? "mt-4" : "mt-1.5"
                     }`}
                   >
                     {!outgoing && (
@@ -744,13 +744,7 @@ export default function Thread({
                       </div>
                     )}
 
-                    <div
-                      className={`group relative max-w-[85%] sm:max-w-[75%] p-2 ${
-                        outgoing
-                          ? "rounded-[18px] rounded-br-[6px] bg-primary/10 border border-primary/20 shadow-xs"
-                          : "rounded-[18px] rounded-bl-[6px] bg-canvas-elevated border border-hairline shadow-xs"
-                      }`}
-                    >
+                    <div className="group relative max-w-[85%] sm:max-w-[420px] select-none">
                       <ImageGallery
                         images={galleryImages}
                         outgoing={outgoing}
@@ -760,15 +754,9 @@ export default function Thread({
                         }}
                       />
 
-                      {/* Metadata footer */}
-                      <div
-                        className={`mt-1.5 flex items-center justify-end gap-1.5 px-1 font-mono text-[10px] tabular-nums select-none ${
-                          outgoing ? "opacity-75 text-ink" : "text-mute opacity-75"
-                        }`}
-                      >
-                        <span className="text-[10px] font-sans font-medium">
-                          📷 {galleryImages.length} photos
-                        </span>
+                      {/* Floating translucent timestamp badge */}
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
+                        <span className="font-sans font-medium text-[9.5px]">📷 {galleryImages.length}</span>
                         <span>·</span>
                         <span>{formatTime(item.createdAt)}</span>
                         {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
@@ -782,8 +770,11 @@ export default function Thread({
             // Single Message
             const hasMedia = Boolean(message.mediaUrl);
             const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
-            const caption =
-              message.text && (message.type === "image" || message.type === "video" || !hasMedia);
+            const isImage = message.type === "image" && message.mediaUrl;
+            const isAudio = message.type === "audio" && message.mediaUrl;
+            const isVideo = message.type === "video" && message.mediaUrl;
+            const isDoc = message.type === "document" && message.mediaUrl;
+            const isPureMedia = (isImage || isAudio || isVideo || isDoc) && (!message.text || message.text.startsWith("[") || message.text === "Photo Attachment" || message.text === "Video message");
 
             return (
               <Fragment key={item.id}>
@@ -807,7 +798,7 @@ export default function Thread({
 
                 <div
                   className={`flex items-end gap-2 ${outgoing ? "justify-end" : "justify-start"} ${
-                    runStart ? "mt-4" : "mt-1"
+                    runStart ? "mt-4" : "mt-1.5"
                   }`}
                 >
                   {!outgoing && (
@@ -825,109 +816,165 @@ export default function Thread({
                     </div>
                   )}
 
-                  <div
-                    className={`group relative max-w-[78%] leading-[1.55] sm:max-w-[68%] ${
-                      onlyEmoji
-                        ? "p-1 bg-transparent !ring-0"
-                        : hasMedia
-                          ? "w-fit p-1.5"
-                          : "px-3 py-2 text-[13px]"
-                    } ${
-                      onlyEmoji
-                        ? ""
-                        : outgoing
-                          ? "rounded-[14px] rounded-br-[4px] bg-primary text-on-primary"
-                          : "rounded-[14px] rounded-bl-[4px] bg-canvas-elevated text-ink ring-1 ring-hairline ring-inset"
-                    }`}
-                  >
-                    {message.type !== "text" && (
-                      <MessageAttachment
-                        message={message}
-                        onOpenImage={(url) => {
-                          setLightboxImages([{ id: message.id, url, text: message.text, createdAt: message.createdAt }]);
+                  {/* 1. Pure Single Image (No chat bubble wrapper) */}
+                  {isImage && isPureMedia ? (
+                    <div className="group/media relative max-w-[85%] sm:max-w-[360px] overflow-hidden rounded-[14px] border border-hairline/80 shadow-2xs bg-black/5 dark:bg-white/5 cursor-pointer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={message.mediaUrl!}
+                        alt="Photo attachment"
+                        onClick={() => {
+                          setLightboxImages([{ id: message.id, url: message.mediaUrl!, text: message.text, createdAt: message.createdAt }]);
                           setLightboxIndex(0);
                         }}
+                        className="max-h-[380px] w-auto max-w-full rounded-[14px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
+                        loading="lazy"
                       />
-                    )}
-
-                    {onlyEmoji ? (
-                      <div className="text-3xl leading-tight select-text py-0.5">
-                        {message.text}
+                      <div
+                        onClick={() => {
+                          setLightboxImages([{ id: message.id, url: message.mediaUrl!, text: message.text, createdAt: message.createdAt }]);
+                          setLightboxIndex(0);
+                        }}
+                        className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
+                      >
+                        <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
+                          <span>View full size</span>
+                          <span>↗</span>
+                        </span>
                       </div>
-                    ) : (
-                      caption &&
-                      message.text &&
-                      !message.text.startsWith("[") &&
-                      message.type === "text" && (
-                        <p
-                          className={`whitespace-pre-wrap break-words select-text ${
-                            hasMedia ? "px-1.5 pt-1.5" : ""
-                          }`}
-                        >
-                          {message.text}
-                        </p>
-                      )
-                    )}
-
-                    {message.type !== "text" &&
-                      message.text &&
-                      !message.text.startsWith("[") &&
-                      message.text !== "Video message" &&
-                      message.text !== "Attached Document" &&
-                      message.text !== "Photo Attachment" && (
-                        <p className="whitespace-pre-wrap break-words select-text px-1.5 pt-1.5 text-[12.5px]">
-                          {message.text}
-                        </p>
-                      )}
-
-                    {message.error ? (
-                      <div className="mt-1.5 rounded-[6px] border border-error/30 bg-error/10 px-2 py-1.5 font-mono text-[11px] leading-snug text-error">
-                        <span className="block font-bold">{message.error}</span>
+                      {/* Floating timestamp pill */}
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
+                        <span>{formatTime(message.createdAt)}</span>
+                        {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
                       </div>
-                    ) : null}
-
-                    {/* Metadata footer */}
-                    <div
-                      className={`mt-1 flex items-center justify-end gap-1.5 font-mono text-[10px] tabular-nums select-none ${
-                        outgoing ? "opacity-60" : "text-mute opacity-70"
-                      } group-hover:opacity-100 ${hasMedia ? "-mb-0.5 pr-1" : ""}`}
-                      title={`${formatTime(message.createdAt)} · ${
-                        outgoing ? message.status : "received"
-                      }`}
-                    >
-                      {message.text && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(message.text ?? "");
-                            setCopiedMessageId(message.id);
-                            setTimeout(() => setCopiedMessageId(null), 1500);
-                          }}
-                          aria-label="Copy message"
-                          className={`rounded p-0.5 leading-none transition-opacity ${
-                            outgoing ? "hover:bg-white/15" : "hover:bg-surface-well"
-                          } ${copiedMessageId === message.id ? "opacity-100" : "opacity-0 group-hover:opacity-70"} cursor-pointer`}
-                        >
-                          {copiedMessageId === message.id ? (
-                            <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M9 9h10v10H9V9zM5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                      <span>{formatTime(message.createdAt)}</span>
+                    </div>
+                  ) : isAudio && isPureMedia ? (
+                    /* 2. Standalone Audio Message Pill */
+                    <div className={`flex items-center gap-2 rounded-[22px] border px-3.5 py-1.5 shadow-2xs ${
+                      outgoing ? "bg-primary/10 border-primary/20 text-ink" : "bg-canvas-elevated border-hairline text-ink"
+                    }`}>
+                      <span className="text-base">🎵</span>
+                      <audio src={message.mediaUrl!} controls className="h-8 max-w-[200px] sm:max-w-[240px]" />
+                      <span className="font-mono text-[10px] text-mute shrink-0 pl-1">
+                        {formatTime(message.createdAt)}
+                      </span>
                       {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
                     </div>
-                  </div>
+                  ) : isVideo && isPureMedia ? (
+                    /* 3. Standalone Video Player */
+                    <div className="relative overflow-hidden rounded-[14px] bg-black border border-hairline shadow-2xs max-w-[320px]">
+                      <video
+                        src={message.mediaUrl!}
+                        controls
+                        playsInline
+                        className="max-h-[340px] w-full rounded-[14px]"
+                        preload="metadata"
+                      />
+                    </div>
+                  ) : isDoc && isPureMedia ? (
+                    /* 4. Standalone Document Attachment Card */
+                    <a
+                      href={message.mediaUrl!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                      className="group flex items-center gap-3 rounded-[12px] border border-hairline bg-canvas-elevated p-3 text-left text-ink transition-colors hover:bg-surface-well shadow-2xs max-w-[300px]"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-hairline bg-surface-well font-mono text-[10.5px] font-bold text-body">
+                        {((message.text || "DOC").split(".").pop() || "DOC").slice(0, 4).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium text-ink">
+                          {message.text && message.text !== "[document]" ? message.text : "Document"}
+                        </p>
+                        <span className="font-mono text-[10px] text-mute flex items-center gap-1">
+                          <span>{formatTime(message.createdAt)}</span>
+                          <span>· Download ↓</span>
+                        </span>
+                      </div>
+                    </a>
+                  ) : onlyEmoji ? (
+                    /* 5. Pure Emoji Message */
+                    <div className="text-4xl leading-tight select-text py-1">
+                      {message.text}
+                    </div>
+                  ) : (
+                    /* 6. Standard Text Message (or message with caption) - CHAT BUBBLE */
+                    <div
+                      className={`group relative max-w-[78%] leading-[1.55] sm:max-w-[68%] px-3.5 py-2 text-[13px] shadow-2xs ${
+                        outgoing
+                          ? "rounded-[16px] rounded-br-[4px] bg-primary text-on-primary"
+                          : "rounded-[16px] rounded-bl-[4px] bg-canvas-elevated text-ink ring-1 ring-hairline ring-inset"
+                      }`}
+                    >
+                      {/* Attached media with caption */}
+                      {message.type !== "text" && (
+                        <div className="mb-2">
+                          <MessageAttachment
+                            message={message}
+                            onOpenImage={(url) => {
+                              setLightboxImages([{ id: message.id, url, text: message.text, createdAt: message.createdAt }]);
+                              setLightboxIndex(0);
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {message.text && (
+                        <p className="whitespace-pre-wrap break-words select-text">
+                          {message.text}
+                        </p>
+                      )}
+
+                      {message.error ? (
+                        <div className="mt-1.5 rounded-[6px] border border-error/30 bg-error/10 px-2 py-1.5 font-mono text-[11px] leading-snug text-error">
+                          <span className="block font-bold">{message.error}</span>
+                        </div>
+                      ) : null}
+
+                      {/* Metadata footer */}
+                      <div
+                        className={`mt-1 flex items-center justify-end gap-1.5 font-mono text-[10px] tabular-nums select-none ${
+                          outgoing ? "opacity-65" : "text-mute opacity-75"
+                        } group-hover:opacity-100`}
+                        title={`${formatTime(message.createdAt)} · ${
+                          outgoing ? message.status : "received"
+                        }`}
+                      >
+                        {message.text && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(message.text ?? "");
+                              setCopiedMessageId(message.id);
+                              setTimeout(() => setCopiedMessageId(null), 1500);
+                            }}
+                            aria-label="Copy message"
+                            className={`rounded p-0.5 leading-none transition-opacity ${
+                              outgoing ? "hover:bg-white/15" : "hover:bg-surface-well"
+                            } ${copiedMessageId === message.id ? "opacity-100" : "opacity-0 group-hover:opacity-70"} cursor-pointer`}
+                          >
+                            {copiedMessageId === message.id ? (
+                              <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M9 9h10v10H9V9zM5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1"
+                                />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                        <span>{formatTime(message.createdAt)}</span>
+                        {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Fragment>
             );
