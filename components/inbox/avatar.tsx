@@ -12,6 +12,7 @@ interface AvatarProps {
   size?: "sm" | "md" | "lg";
   className?: string;
   showChannelBadge?: boolean;
+  isChannel?: boolean;
 }
 
 // Sophisticated Geist subtle dark/light tones for fallbacks
@@ -37,7 +38,8 @@ function getInitials(name: string): string {
   if (/^\d+$/.test(name)) {
     return "#" + name.slice(-2);
   }
-  const parts = name.trim().split(/\s+/);
+  const clean = name.replace(/^#+/, "").trim();
+  const parts = clean.split(/\s+/);
   if (parts.length === 1) {
     return parts[0].slice(0, 2).toUpperCase();
   }
@@ -51,12 +53,13 @@ export default function Avatar({
   size = "md",
   className = "",
   showChannelBadge = true,
+  isChannel,
 }: AvatarProps) {
   const [imgError, setImgError] = useState(false);
 
   const sizeClasses = {
     sm: "w-8 h-8 text-[11px]",
-    md: "w-9 h-9 text-[12px]",
+    md: "w-9 h-9 text-[12.5px]",
     lg: "w-11 h-11 text-[14px]",
   }[size];
 
@@ -66,9 +69,30 @@ export default function Avatar({
     lg: "w-4 h-4 bottom-0 right-0",
   }[size];
 
+  const channelLike = isChannel ?? name.startsWith("#");
   const initials = getInitials(name);
   const fallbackBg = getInitialBg(name || "default");
   const hasValidImage = avatarUrl && !imgError;
+
+  if (channelLike) {
+    return (
+      <div className={`relative shrink-0 select-none ${className}`}>
+        <div
+          className={`${sizeClasses} relative flex items-center justify-center rounded-[8px] border border-[#4A154B]/20 dark:border-[#E01E5A]/20 bg-[#4A154B]/10 dark:bg-[#E01E5A]/10 text-[#4A154B] dark:text-[#E01E5A] font-mono font-bold shadow-2xs`}
+        >
+          <span>#</span>
+        </div>
+        {showChannelBadge && channel && (
+          <div
+            className={`absolute ${badgeSizeClasses} flex items-center justify-center rounded-full ring-2 ring-[var(--canvas)] ${channelMeta(channel).tile} text-white`}
+            title={channelMeta(channel).label}
+          >
+            <ChannelIcon channel={channel} className="h-[62%] w-[62%]" />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`relative shrink-0 select-none ${className}`}>

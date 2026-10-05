@@ -142,16 +142,23 @@ export default function ConversationList({
         )}
       </div>
 
-      <ul className="min-h-0 flex-1 divide-y divide-hairline overflow-y-auto">
+      <ul className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1 space-y-0.5">
         {rows.length === 0 ? (
-          <li className="p-6 text-center text-[12px] text-mute">
-            {searching ? `No messages match “${query}”` : "No conversations here"}
+          <li className="p-8 text-center text-[12.5px] text-mute flex flex-col items-center justify-center gap-2">
+            <span className="text-2xl">💬</span>
+            <p>{searching ? `No messages match “${query}”` : "No conversations found"}</p>
           </li>
         ) : (
           rows.map((row) => {
             const conversation = row.conversation;
             const selected = conversation.id === selectedId;
-            const hasRealName = conversation.contactName !== conversation.contactExternalId;
+            const isChannel =
+              conversation.contactName.startsWith("#") ||
+              (conversation.channel === "slack" &&
+                (conversation.contactExternalId.startsWith("C") ||
+                  conversation.contactExternalId.startsWith("G")));
+            const hasRealName =
+              !isChannel && conversation.contactName !== conversation.contactExternalId;
             const unread = conversation.unreadCount > 0;
             const channelInfo = channelMeta(conversation.channel);
 
@@ -161,10 +168,10 @@ export default function ConversationList({
                   type="button"
                   onClick={() => onSelect(conversation.id)}
                   aria-current={selected}
-                  className={`group relative flex w-full items-center gap-3 px-3 py-2.5 sm:px-3.5 sm:py-3 text-left transition-colors active:bg-surface-well ${
+                  className={`group relative flex w-full items-start gap-3 rounded-[8px] p-2.5 text-left transition-all cursor-pointer ${
                     selected
-                      ? "bg-canvas-elevated shadow-[inset_2px_0_0_var(--ink)]"
-                      : "hover:bg-surface-well"
+                      ? "bg-canvas-elevated shadow-2xs ring-1 ring-hairline border-l-[3px] border-l-ink"
+                      : "hover:bg-surface-well/70 border-l-[3px] border-l-transparent"
                   }`}
                 >
                   <Avatar
@@ -172,45 +179,56 @@ export default function ConversationList({
                     avatarUrl={conversation.avatarUrl}
                     channel={conversation.channel}
                     size="md"
+                    isChannel={isChannel}
                   />
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        {/* Owning page/handle: the brand-tinted chip is what tells
-                            two pages of the same channel apart. */}
-                        {conversation.accountName && (
-                          <span
-                            title={`${channelInfo.label} · ${conversation.accountName}`}
-                            className={`max-w-[92px] shrink-0 truncate rounded-[4px] px-1.5 py-px font-mono text-[9.5px] font-medium ${channelInfo.soft}`}
-                          >
-                            {conversation.accountName}
-                          </span>
-                        )}
+                    {/* Header: Name + Badge + Timestamp */}
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex min-w-0 items-center gap-1.5 flex-1">
                         <span
                           className={`truncate text-[13px] tracking-[-0.01em] ${
-                            selected || unread ? "font-semibold text-ink" : "font-medium text-ink"
+                            isChannel
+                              ? "font-semibold font-mono text-ink"
+                              : selected || unread
+                              ? "font-semibold text-ink"
+                              : "font-medium text-ink"
                           }`}
                         >
                           {conversation.contactName}
                         </span>
+
+                        {isChannel ? (
+                          <span
+                            className="shrink-0 rounded-[4px] bg-[#4A154B]/10 text-[#4A154B] dark:bg-[#E01E5A]/10 dark:text-[#E01E5A] px-1.5 py-0.2 font-mono text-[9px] font-semibold uppercase tracking-wider"
+                          >
+                            Channel
+                          </span>
+                        ) : conversation.accountName ? (
+                          <span
+                            title={`${channelInfo.label} · ${conversation.accountName}`}
+                            className={`shrink-0 max-w-[85px] truncate rounded-[4px] px-1.5 py-0.2 font-mono text-[9px] font-medium ${channelInfo.soft}`}
+                          >
+                            {conversation.accountName}
+                          </span>
+                        ) : null}
                       </div>
+
                       <span className="shrink-0 font-mono text-[10px] tabular-nums text-mute">
                         {formatRelative(row.createdAt)}
                       </span>
                     </div>
 
-                    {(hasRealName || conversation.assignee) && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {hasRealName && (
-                          <p className="truncate font-mono text-[10px] text-mute">
-                            {conversation.contactExternalId}
-                          </p>
-                        )}
+                    {/* Subtitle: Handle/ID for Direct Messages */}
+                    {!isChannel && hasRealName && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="truncate font-mono text-[10.5px] text-mute">
+                          {conversation.contactExternalId}
+                        </span>
                         {conversation.assignee && (
                           <span
                             title={`Assigned to ${conversation.assignee}`}
-                            className="shrink-0 rounded-full bg-surface-well px-1.5 py-px font-mono text-[9.5px] text-mute"
+                            className="shrink-0 rounded-full bg-surface-well px-1.5 py-px font-mono text-[9px] text-mute border border-hairline"
                           >
                             {conversation.assignee}
                           </span>
@@ -218,27 +236,30 @@ export default function ConversationList({
                       </div>
                     )}
 
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                    {/* Preview Snippet + Unread Pill */}
+                    <div className="mt-1 flex items-center justify-between gap-2">
                       <span
-                        className={`truncate text-[12px] leading-snug ${
-                          unread ? "font-medium text-ink" : "text-body"
+                        className={`truncate text-[12px] leading-snug flex-1 ${
+                          unread ? "font-medium text-ink" : "text-mute group-hover:text-body"
                         }`}
                       >
                         {searching ? row.snippet : previewLabel(row.snippet)}
                       </span>
+
                       {unread && (
-                        <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-on-primary">
+                        <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[10px] font-bold text-on-primary shadow-2xs animate-pulse">
                           {conversation.unreadCount}
                         </span>
                       )}
                     </div>
 
+                    {/* Tags */}
                     {conversation.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
+                      <div className="mt-1.5 flex flex-wrap gap-1">
                         {conversation.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="rounded-full border border-hairline px-1.5 py-px font-mono text-[9.5px] text-mute"
+                            className="rounded-[4px] border border-hairline bg-surface-well px-1.5 py-0.2 font-mono text-[9px] text-mute"
                           >
                             {tag}
                           </span>
