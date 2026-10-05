@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SettingsPayload } from "@/core/types";
 
+import { WhatsAppTemplateManager } from "./whatsapp-template-manager";
+
 interface WhatsappSettingsProps {
   data: SettingsPayload;
   isWhatsAppConnected: boolean;
@@ -219,6 +221,9 @@ export function WhatsappSettings({
           )}
         </div>
       </div>
+
+      {/* WhatsApp Message Template Manager Component */}
+      <WhatsAppTemplateManager />
 
       {/* Quick Setup Guide Card */}
       <div className="rounded-xl border border-hairline bg-surface-well/40 p-4 text-[12.5px] text-body">

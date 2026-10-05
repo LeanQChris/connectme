@@ -10,6 +10,7 @@ import { QuickRepliesTray } from "./quick-replies-tray";
 import { AttachmentPreview } from "./attachment-preview";
 import { AiCopilotBar } from "./ai-copilot-bar";
 import { AiRewriteMenu } from "./ai-rewrite-menu";
+import { WhatsAppTemplatePickerModal } from "./whatsapp-template-picker-modal";
 
 export interface ReplyPayload {
   text: string;
@@ -47,6 +48,9 @@ const ReplyBox = memo(function ReplyBox({
 }: ReplyBoxProps) {
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [showAiRewrite, setShowAiRewrite] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const isWhatsApp = channel?.toLowerCase() === "whatsapp";
+
   const {
     text,
     setText,
@@ -74,17 +78,37 @@ const ReplyBox = memo(function ReplyBox({
   if (disabled && !onNote) {
     return (
       <div className="border-t border-hairline bg-canvas px-4 py-3">
-        <div className="flex items-center gap-2 text-[12px] text-warning font-medium">
-          <svg className="h-4 w-4 shrink-0 fill-current" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <span>
-            24-hour reply window expired. Meta policy requires the customer to message first before you can send free-form replies.
-          </span>
+        {conversationId && isWhatsApp && (
+          <WhatsAppTemplatePickerModal
+            conversationId={conversationId}
+            contactName={contactName}
+            isOpen={showTemplateModal}
+            onClose={() => setShowTemplateModal(false)}
+          />
+        )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3.5 text-[12.5px] text-body">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">⏳</span>
+            <div>
+              <span className="font-semibold text-ink block">
+                24-Hour WhatsApp Reply Window Expired
+              </span>
+              <span className="text-mute text-[12px]">
+                Meta requires sending an approved WhatsApp Template to reconnect with this customer.
+              </span>
+            </div>
+          </div>
+          {isWhatsApp && conversationId && (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => setShowTemplateModal(true)}
+              className="h-8 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-medium cursor-pointer shadow-xs"
+            >
+              📋 Send WhatsApp Template
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -214,6 +238,16 @@ const ReplyBox = memo(function ReplyBox({
           </button>
         )}
 
+        {/* WhatsApp Template Modal */}
+        {conversationId && isWhatsApp && (
+          <WhatsAppTemplatePickerModal
+            conversationId={conversationId}
+            contactName={contactName}
+            isOpen={showTemplateModal}
+            onClose={() => setShowTemplateModal(false)}
+          />
+        )}
+
         {/* AI Rewrite / Tone Button */}
         {!noteMode && (
           <button
@@ -230,6 +264,19 @@ const ReplyBox = memo(function ReplyBox({
             }`}
           >
             <span className="text-sm">✨</span>
+          </button>
+        )}
+
+        {/* WhatsApp Template Picker Button */}
+        {isWhatsApp && conversationId && !noteMode && (
+          <button
+            type="button"
+            title="Send an approved WhatsApp Template"
+            aria-label="WhatsApp Template"
+            onClick={() => setShowTemplateModal(true)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-emerald-600 dark:text-emerald-400 transition-colors hover:bg-emerald-500/10 active:bg-emerald-500/20 cursor-pointer"
+          >
+            <span className="text-sm">📋</span>
           </button>
         )}
 
