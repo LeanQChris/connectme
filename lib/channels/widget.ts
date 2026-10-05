@@ -26,14 +26,33 @@ export const widgetAdapter: ChannelAdapter = {
     return { externalId };
   },
 
-  async sendMedia({ tenant, contact, mediaUrl, type, text }): Promise<SendResult> {
-    const externalId = await enqueueWidgetMessage({
-      userId: tenant.userId,
-      sid: contact.externalId,
-      text: text || null,
-      mediaUrl,
-      type,
-    });
-    return { externalId };
+  async sendMedia({ tenant, contact, media, text }): Promise<SendResult[]> {
+    const results: SendResult[] = [];
+
+    // The widget has no burst concept: every attachment is its own queued item so
+    // the browser renders them in order.
+    if (media.length === 0) {
+      const externalId = await enqueueWidgetMessage({
+        userId: tenant.userId,
+        sid: contact.externalId,
+        text: text || null,
+        type: "text",
+      });
+      return [{ externalId }];
+    }
+
+    for (const item of media) {
+      const externalId = await enqueueWidgetMessage({
+        userId: tenant.userId,
+        sid: contact.externalId,
+        text: text || null,
+        media: [item],
+        type: item.type,
+      });
+      text = "";
+      results.push({ externalId });
+    }
+
+    return results;
   },
 };

@@ -34,12 +34,27 @@ export async function sendDiscordMessage(
   return { messageId: data.id };
 }
 
-export async function sendDiscordAttachment(
+/** Discord's multipart upload limit: 10 files (25MB each) per message. */
+const DISCORD_MAX_FILES = 10;
+
+export interface DiscordUpload {
+  url: string;
+  filename: string;
+  bytes: Uint8Array;
+}
+
+/**
+ * Posts one or more files as real attachments.
+ *
+ * Discord takes a single multipart body: `payload_json` plus `files[n]`. Images
+ * only used to go out as an embed, which meant anything else arrived as a bare
+ * link; this sends the bytes instead.
+ */
+export async function sendDiscordFiles(
   token: string,
   channelId: string,
-  mediaUrl: string,
-  type: "image" | "audio" | "video" | "document",
-  caption?: string,
+  text: string,
+  files: DiscordUpload[],
 ): Promise<{ messageId: string }> {
   if (!token) {
     throw new ChannelNotConfiguredError(
@@ -47,34 +62,33 @@ export async function sendDiscordAttachment(
     );
   }
 
-  // Discord allows sending embeds with image URLs or uploading files
-  if (type === "image") {
-    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bot ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        content: caption || undefined,
-        embeds: [
-          {
-            image: { url: mediaUrl },
-          },
-        ],
-      }),
-    });
-
-    const data = (await response.json()) as DiscordMessage & { message?: string };
-    if (!response.ok || !data.id) {
-      throw new Error(data.message || `Failed to send Discord image: HTTP ${response.status}`);
-    }
-    return { messageId: data.id };
+  const payload: Record<string, unknown> = {};
+  if (text) payload.content = text;
+  if (files.length === 1) {
+    payload.attachments = [{ id: 0, filename: files[0].filename }];
   }
 
-  // For documents, audio, or video: send message with attachment link
-  const content = caption ? `${caption}\n${mediaUrl}` : mediaUrl;
-  return sendDiscordMessage(token, channelId, content);
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify(payload));
+  files.slice(0, DISCORD_MAX_FILES).forEach((file, index) => {
+    form.append(`files[${index}]`, new Blob([file.bytes as BlobPart]), file.filename);
+  });
+
+  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bot ${token}` },
+    body: form,
+  });
+
+  const data = (await response.json().catch(() => null)) as
+    | (DiscordMessage & { message?: string })
+    | null;
+
+  if (!response.ok || !data?.id) {
+    throw new Error(data?.message || `Failed to send Discord files: HTTP ${response.status}`);
+  }
+
+  return { messageId: data.id };
 }
 
 export async function fetchDiscordUserProfile(

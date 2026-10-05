@@ -1,5 +1,6 @@
 import { ChannelNotConfiguredError } from "../meta/client";
-import { sendSlackAttachment, sendSlackMessage } from "../slack/client";
+import { fetchAttachmentBytes } from "../attachments";
+import { sendSlackFiles, sendSlackMessage } from "../slack/client";
 import type { ChannelAdapter, SendResult, Tenant } from "./types";
 
 export const slackAdapter: ChannelAdapter = {
@@ -24,20 +25,16 @@ export const slackAdapter: ChannelAdapter = {
     return { externalId: messageId };
   },
 
-  async sendMedia({ tenant, contact, mediaUrl, type, text }): Promise<SendResult> {
-    if (!tenant.slackBotToken) {
+  async sendMedia({ tenant, contact, media, text }): Promise<SendResult[]> {
+    const token = tenant.slackBotToken;
+    if (!token) {
       throw new ChannelNotConfiguredError(
         "Slack is not connected. Add your bot token in Settings.",
       );
     }
 
-    const { messageId } = await sendSlackAttachment(
-      tenant.slackBotToken,
-      contact.externalId,
-      mediaUrl,
-      type,
-      text || undefined,
-    );
-    return { externalId: messageId };
+    const files = await Promise.all(media.map((item) => fetchAttachmentBytes(item)));
+    const { messageId } = await sendSlackFiles(token, contact.externalId, text, files);
+    return [{ externalId: messageId }];
   },
 };

@@ -1,5 +1,5 @@
 import { recordInbound } from "../store";
-import type { MessageType } from "../types";
+import type { MediaKind, MessageMedia, MessageType } from "../types";
 import { fetchTelegramUserProfile, getTelegramFileUrl } from "./client";
 import type { TelegramUpdate } from "./types";
 
@@ -39,47 +39,57 @@ export async function handleTelegramUpdate(
 
   let text: string | null = message.text || message.caption || null;
   let type: MessageType = "text";
-  let mediaUrl: string | null = null;
+  const media: MessageMedia[] = [];
 
-  if (message.photo && message.photo.length > 0) {
+  const push = async (fileId: string, kind: MediaKind, name: string | null) => {
+    const url = await getTelegramFileUrl(token, fileId);
+    if (!url) return;
+    media.push({ url, type: kind, mimeType: mimeForKind(kind), name, size: null });
+  };
+
+  if (message.photo?.length) {
     type = "image";
-    const largestPhoto = message.photo[message.photo.length - 1];
-    mediaUrl = await getTelegramFileUrl(token, largestPhoto.file_id);
-    if (!text) text = message.caption || null;
+    const largest = message.photo[message.photo.length - 1];
+    await push(largest.file_id, "image", null);
   } else if (message.animation) {
     type = "video";
-    mediaUrl = await getTelegramFileUrl(token, message.animation.file_id);
-    if (!text) text = message.caption || null;
+    await push(message.animation.file_id, "video", null);
   } else if (message.sticker) {
-    type = "image";
-    mediaUrl = await getTelegramFileUrl(token, message.sticker.file_id);
+    // Stickers stay stickers so the UI can render them at their own size.
+    type = "sticker";
+    await push(message.sticker.file_id, "sticker", null);
     if (!text) text = message.sticker.emoji ? `Sticker ${message.sticker.emoji}` : "🎨 Sticker";
   } else if (message.video_note) {
     type = "video";
-    mediaUrl = await getTelegramFileUrl(token, message.video_note.file_id);
+    await push(message.video_note.file_id, "video", null);
     if (!text) text = "📹 Video note";
   } else if (message.voice) {
     type = "audio";
-    mediaUrl = await getTelegramFileUrl(token, message.voice.file_id);
+    await push(message.voice.file_id, "audio", null);
     if (!text) text = "🎤 Voice message";
   } else if (message.audio) {
     type = "audio";
-    mediaUrl = await getTelegramFileUrl(token, message.audio.file_id);
-    if (!text) text = message.caption || message.audio.title || message.audio.file_name || null;
+    await push(
+      message.audio.file_id,
+      "audio",
+      message.audio.file_name ?? message.audio.title ?? null,
+    );
+    if (!text) text = message.caption ?? null;
   } else if (message.video) {
     type = "video";
-    mediaUrl = await getTelegramFileUrl(token, message.video.file_id);
-    if (!text) text = message.caption || null;
+    await push(message.video.file_id, "video", message.video.file_name ?? null);
   } else if (message.document) {
     type = "document";
-    mediaUrl = await getTelegramFileUrl(token, message.document.file_id);
-    if (!text) text = message.document.file_name || message.caption || null;
+    await push(message.document.file_id, "document", message.document.file_name ?? null);
+    if (!text) text = message.document.file_name ?? message.caption ?? null;
   } else if (message.location) {
-    type = "text";
-    text = `📍 Location: https://maps.google.com/?q=${message.location.latitude},${message.location.longitude}`;
+    type = "location";
+    text = `📍 https://maps.google.com/?q=${message.location.latitude},${message.location.longitude}`;
   } else if (message.contact) {
     type = "text";
-    const contactName = [message.contact.first_name, message.contact.last_name].filter(Boolean).join(" ");
+    const contactName = [message.contact.first_name, message.contact.last_name]
+      .filter(Boolean)
+      .join(" ");
     text = `👤 Contact: ${contactName} (${message.contact.phone_number})`;
   } else if (message.poll) {
     type = "text";
@@ -87,9 +97,7 @@ export async function handleTelegramUpdate(
   } else if (message.dice) {
     type = "text";
     text = `${message.dice.emoji} (${message.dice.value})`;
-  } else if (message.text) {
-    type = "text";
-  } else {
+  } else if (!message.text) {
     type = "other";
   }
 
@@ -102,7 +110,7 @@ export async function handleTelegramUpdate(
       senderName,
       senderAvatarUrl,
       text,
-      mediaUrl,
+      media,
       type,
       createdAt: new Date(message.date * 1000),
     });
@@ -114,5 +122,20 @@ export async function handleTelegramUpdate(
     }
   } catch (error) {
     console.error("[webhook] failed to store telegram message:", error);
+  }
+}
+
+function mimeForKind(kind: MediaKind): string {
+  switch (kind) {
+    case "image":
+      return "image/jpeg";
+    case "sticker":
+      return "image/webp";
+    case "video":
+      return "video/mp4";
+    case "audio":
+      return "audio/ogg";
+    default:
+      return "application/octet-stream";
   }
 }

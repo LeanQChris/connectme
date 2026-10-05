@@ -35,31 +35,41 @@ export const messengerAdapter: ChannelAdapter = {
     return { externalId: payload?.message_id ?? null };
   },
 
-  async sendMedia({ tenant, contact, mediaUrl, type, text }): Promise<SendResult> {
+  async sendMedia({ tenant, contact, media, text }): Promise<SendResult[]> {
     const accessToken = tenant.pageAccessToken;
     if (!accessToken) {
       throw new ChannelNotConfiguredError("Messenger is not configured.");
     }
 
-    const attachmentType =
-      type === "image" ? "image" : type === "audio" ? "audio" : type === "video" ? "video" : "file";
+    // One attachment per message on Messenger, so a multi-attachment reply is
+    // sent as a burst. Only the first carries text alongside it.
+    const results: SendResult[] = [];
+    let caption = text;
 
-    const payload = (await postGraphJson(
-      graphUrl(tenant.graphVersion, "me/messages"),
-      accessToken,
-      {
-        recipient: { id: contact.externalId },
-        messaging_type: "RESPONSE",
-        message: {
-          attachment: {
-            type: attachmentType,
-            payload: { url: mediaUrl, is_reusable: true },
+    for (const item of media) {
+      const attachmentType =
+        item.type === "image" ? "image" : item.type === "audio" ? "audio" : item.type === "video" ? "video" : "file";
+
+      const payload = (await postGraphJson(
+        graphUrl(tenant.graphVersion, "me/messages"),
+        accessToken,
+        {
+          recipient: { id: contact.externalId },
+          messaging_type: "RESPONSE",
+          message: {
+            attachment: {
+              type: attachmentType,
+              payload: { url: item.url, is_reusable: true },
+            },
+            ...(caption ? { text: caption } : {}),
           },
-          ...(text ? { text } : {}),
         },
-      },
-    )) as MessengerSendResponse;
+      )) as MessengerSendResponse;
 
-    return { externalId: payload?.message_id ?? null };
+      results.push({ externalId: payload?.message_id ?? null });
+      caption = "";
+    }
+
+    return results;
   },
 };

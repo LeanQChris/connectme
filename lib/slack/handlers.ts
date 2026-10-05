@@ -1,7 +1,14 @@
 import { recordInbound } from "../store";
-import type { MessageType } from "../types";
+import type { MediaKind, MessageMedia, MessageType } from "../types";
 import { fetchSlackChannelName, fetchSlackUserProfile } from "./client";
 import type { SlackMessageEvent } from "./types";
+
+function kindForMime(mime: string): MediaKind {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "document";
+}
 
 export async function handleSlackMessage(
   token: string,
@@ -55,27 +62,24 @@ export async function handleSlackMessage(
 
   let text: string | null = event.text || null;
   let type: MessageType = "text";
-  let mediaUrl: string | null = null;
+  const media: MessageMedia[] = [];
 
-  // Handle uploaded files
-  const firstFile = event.files?.[0];
-  if (firstFile) {
-    const mime = (firstFile.mimetype || "").toLowerCase();
-    mediaUrl = firstFile.url_private_download || firstFile.url_private || firstFile.thumb_1024 || null;
+  // A Slack message can carry several files; private URLs go through the proxy.
+  for (const file of event.files ?? []) {
+    const url = file.url_private_download || file.url_private || file.thumb_1024 || null;
+    if (!url) continue;
+    media.push({
+      url,
+      type: kindForMime(file.mimetype || ""),
+      mimeType: file.mimetype || "application/octet-stream",
+      name: file.name ?? null,
+      size: file.size ?? null,
+    });
+  }
 
-    if (mime.startsWith("image/")) {
-      type = "image";
-    } else if (mime.startsWith("video/")) {
-      type = "video";
-    } else if (mime.startsWith("audio/")) {
-      type = "audio";
-    } else {
-      type = "document";
-    }
-
-    if (!text && firstFile.name) {
-      text = firstFile.name;
-    }
+  if (media.length > 0) {
+    type = media[0].type;
+    if (!text) text = media[0].name;
   }
 
   // Enrich Slack user mentions (<@U12345> -> <@U12345|Real Name>)
@@ -128,7 +132,7 @@ export async function handleSlackMessage(
       senderName: contactName,
       senderAvatarUrl,
       text,
-      mediaUrl,
+      media,
       type,
       createdAt: new Date(Number.parseFloat(messageId) * 1000 || Date.now()),
     });

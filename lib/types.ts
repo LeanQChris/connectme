@@ -23,9 +23,30 @@ export const MESSAGE_TYPES = [
   "audio",
   "video",
   "document",
+  "sticker",
+  "location",
   "other",
 ] as const;
 export type MessageType = (typeof MESSAGE_TYPES)[number];
+
+/** Kinds that can be sent as an attachment. */
+export const MEDIA_KINDS = ["image", "audio", "video", "document", "sticker"] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+export function isMediaKind(value: unknown): value is MediaKind {
+  return MEDIA_KINDS.includes(value as MediaKind);
+}
+
+/** One attachment on a message. A message may carry several. */
+export interface MessageMedia {
+  /** Absolute or app-relative URL; the UI proxies private provider URLs. */
+  url: string;
+  type: MediaKind;
+  mimeType: string;
+  /** Original filename, used by the file card and provider uploads. */
+  name: string | null;
+  size: number | null;
+}
 
 export const MESSAGE_STATUSES = [
   "received",
@@ -76,8 +97,10 @@ export interface Message {
   direction: Direction;
   type: MessageType;
   text: string | null;
-  mediaUrl?: string | null;
+  media: MessageMedia[];
   externalId: string | null;
+  /** Every platform id when one message became several on the far side. */
+  externalIds: string[];
   channel: Channel;
   status: MessageStatus;
   error: string | null;
@@ -130,7 +153,7 @@ export interface SearchHit {
 /** An uploaded file served back from /api/media. */
 export interface UploadedMedia {
   url: string;
-  type: MessageType;
+  type: MediaKind;
   mimeType: string;
   name: string;
   size: number;
@@ -218,7 +241,7 @@ export interface WidgetOutboxItem {
   /** Widget session id; also the contact's externalId. */
   sid: string;
   text: string | null;
-  mediaUrl: string | null;
+  media: MessageMedia[];
   type: MessageType;
   createdAt: string;
   /** Set once the visitor's browser has picked the item up. */

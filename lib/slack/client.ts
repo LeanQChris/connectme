@@ -41,62 +41,96 @@ export async function sendSlackMessage(
   return { messageId: data.ts };
 }
 
+export interface SlackUpload {
+  url: string;
+  filename: string;
+  bytes: Uint8Array;
+}
+
 /**
- * Sends a message with an attached media URL or block preview to Slack.
+ * Slack's three-step external upload: ask for a URL, POST the bytes to it, then
+ * close the file out into the channel. One ticket per file, all completed in a
+ * single call. Replaces posting a bare link, which is all this used to do for
+ * anything that was not an image.
  */
-export async function sendSlackAttachment(
+export async function sendSlackFiles(
   token: string,
   channelId: string,
-  mediaUrl: string,
-  type: "image" | "audio" | "video" | "document",
-  caption?: string,
+  text: string,
+  files: SlackUpload[],
   threadTs?: string,
 ): Promise<{ messageId: string }> {
   if (!token) {
     throw new ChannelNotConfiguredError(
-      "Slack is not configured. Add your bot token in Settings.",
+      "Slack is not connected. Add your bot token in Settings.",
     );
   }
 
-  if (type === "image") {
-    const response = await fetch("https://slack.com/api/chat.postMessage", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json; charset=utf-8",
-      },
-      body: JSON.stringify({
-        channel: channelId,
-        text: caption || "Image attachment",
-        thread_ts: threadTs || undefined,
-        blocks: [
-          ...(caption
-            ? [
-                {
-                  type: "section",
-                  text: { type: "mrkdwn", text: caption },
-                },
-              ]
-            : []),
-          {
-            type: "image",
-            image_url: mediaUrl,
-            alt_text: caption || "Image attachment",
-          },
-        ],
-      }),
-    });
+  const uploaded: Array<{ id: string; title: string }> = [];
 
-    const data = (await response.json()) as { ok: boolean; ts?: string; error?: string };
-    if (!response.ok || !data.ok || !data.ts) {
-      throw new Error(data.error || `Failed to send Slack image: HTTP ${response.status}`);
+  for (const file of files) {
+    const ticket = await slackApi<{ upload_url: string; file_id: string }>(
+      token,
+      "files.getUploadURLExternal",
+      {
+        filename: file.filename,
+        length: file.bytes.byteLength,
+        alt: text || file.filename,
+      },
+    );
+
+    const response = await fetch(ticket.upload_url, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: new Blob([file.bytes as BlobPart]),
+    });
+    if (!response.ok) {
+      throw new Error(`Slack file upload failed: HTTP ${response.status}`);
     }
-    return { messageId: data.ts };
+
+    uploaded.push({ id: ticket.file_id, title: file.filename });
   }
 
-  // Audio / Video / Document fallback with link
-  const content = caption ? `${caption}\n${mediaUrl}` : mediaUrl;
-  return sendSlackMessage(token, channelId, content, threadTs);
+  const completion = await slackApi<{ files: Array<{ id: string }> }>(
+    token,
+    "files.completeUploadExternal",
+    {
+      files: uploaded,
+      channel_id: channelId,
+      initial_comment: text || undefined,
+      thread_ts: threadTs || undefined,
+    },
+  );
+
+  // The upload lands in the channel as its own message; its file id is the id we
+  // store, since Slack's message timestamps are not returned by this endpoint.
+  const fileId = completion.files[0]?.id;
+  if (!fileId) throw new Error("Slack did not return the uploaded file id");
+  return { messageId: fileId };
+}
+
+async function slackApi<T>(
+  token: string,
+  method: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const response = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = (await response.json().catch(() => null)) as
+    | ({ ok: boolean; error?: string } & T)
+    | null;
+
+  if (!response.ok || !data?.ok) {
+    throw new Error(data?.error || `Slack ${method} failed: HTTP ${response.status}`);
+  }
+  return data as T;
 }
 
 /**

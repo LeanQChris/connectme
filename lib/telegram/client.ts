@@ -115,6 +115,53 @@ export async function sendTelegramAttachment(
   return { messageId: String(data.result.message_id) };
 }
 
+/**
+ * Sends 2-10 photos or videos as one album, which is how Telegram represents a
+ * multi-attachment message. Anything outside that range is sent one by one.
+ */
+export async function sendTelegramMediaGroup(
+  token: string,
+  chatId: string | number,
+  items: Array<{ type: "image" | "video" | "document"; url: string }>,
+  caption?: string,
+): Promise<{ messageId: string }> {
+  if (!token) {
+    throw new ChannelNotConfiguredError("Telegram is not configured.");
+  }
+
+  const mixed = items.some((i) => i.type !== items[0].type);
+  if (items.length < 2 || items.length > 10 || mixed) {
+    throw new Error("Media group needs 2-10 items of one kind");
+  }
+
+  const field = items[0].type === "image" ? "photo" : items[0].type === "video" ? "video" : "document";
+  const media = items.map((item, index) => ({
+    type: field,
+    media: item.url,
+    ...(caption && index === 0 ? { caption } : {}),
+  }));
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMediaGroup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: String(chatId), media }),
+  });
+
+  const data = (await response.json().catch(() => null)) as {
+    ok?: boolean;
+    description?: string;
+    result?: Array<{ message_id: number }>;
+  } | null;
+
+  if (!data?.ok || !data.result?.length) {
+    throw new Error(
+      formatTelegramError(data?.description || "Failed to send Telegram album"),
+    );
+  }
+
+  return { messageId: String(data.result[0].message_id) };
+}
+
 export async function getTelegramFileUrl(
   token: string,
   fileId: string,

@@ -35,28 +35,43 @@ export const instagramAdapter: ChannelAdapter = {
     return { externalId: payload?.message_id ?? null };
   },
 
-  async sendMedia({ tenant, contact, mediaUrl, type }): Promise<SendResult> {
+  async sendMedia({ tenant, contact, media, text }): Promise<SendResult[]> {
     const accessToken = tenant.pageAccessToken;
     if (!accessToken) {
       throw new ChannelNotConfiguredError("Instagram is not configured.");
     }
-    // Instagram messaging only accepts image and audio attachments.
-    const attachmentType = type === "audio" ? "AUDIO" : "IMAGE";
-    if (type !== "image" && type !== "audio") {
+
+    // Instagram messaging accepts images and audio only — a platform limit, not
+    // a choice. Anything else in the batch is skipped rather than failing the
+    // whole reply.
+    const supported = media.filter((m) => m.type === "image" || m.type === "audio");
+    if (supported.length === 0) {
       throw new Error("Instagram only supports image and audio attachments.");
     }
 
-    const payload = (await postGraphJson(
-      graphUrl(tenant.graphVersion, "me/messages"),
-      accessToken,
-      {
-        recipient: { id: contact.externalId },
-        message: {
-          attachment: { type: attachmentType, payload: { url: mediaUrl } },
-        },
-      },
-    )) as InstagramSendResponse;
+    const results: SendResult[] = [];
+    let caption = text;
 
-    return { externalId: payload?.message_id ?? null };
+    for (const item of supported) {
+      const payload = (await postGraphJson(
+        graphUrl(tenant.graphVersion, "me/messages"),
+        accessToken,
+        {
+          recipient: { id: contact.externalId },
+          message: {
+            attachment: {
+              type: item.type === "audio" ? "AUDIO" : "IMAGE",
+              payload: { url: item.url },
+            },
+            ...(caption ? { text: caption } : {}),
+          },
+        },
+      )) as InstagramSendResponse;
+
+      results.push({ externalId: payload?.message_id ?? null });
+      caption = "";
+    }
+
+    return results;
   },
 };

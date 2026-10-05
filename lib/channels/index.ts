@@ -8,7 +8,8 @@ import type { ChannelAdapter, Tenant } from "./types";
 import { whatsappAdapter } from "./whatsapp";
 import { widgetAdapter } from "./widget";
 
-export type { ChannelAdapter, SendResult, Tenant } from "./types";
+export type { ChannelAdapter, OutboundMedia, SendResult, Tenant } from "./types";
+export { canSendMedia, supportedMediaKinds } from "./types";
 export { ChannelNotConfiguredError, MetaSendError } from "../meta/client";
 
 /**

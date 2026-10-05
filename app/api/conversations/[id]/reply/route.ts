@@ -1,19 +1,67 @@
 import type { Tenant } from "@/lib/channels";
-import { ChannelNotConfiguredError, getChannel, MetaSendError } from "@/lib/channels";
+import {
+  canSendMedia,
+  ChannelNotConfiguredError,
+  getChannel,
+  MetaSendError,
+  supportedMediaKinds,
+} from "@/lib/channels";
 import { getConversation, recordOutbound } from "@/lib/store";
 import { requireUserId, tenantSecrets } from "@/lib/tenant";
-import type { MessageType } from "@/lib/types";
+import { isMediaKind, MAX_UPLOAD_BYTES, type MessageMedia, type MessageType } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 const MAX_TEXT_LENGTH = 4096;
-
-const ATTACHMENT_TYPES = ["image", "audio", "video", "document"] as const;
-type AttachmentType = (typeof ATTACHMENT_TYPES)[number];
+/** Ten is the lowest per-platform cap we support (Telegram album, Discord files). */
+const MAX_MEDIA_PER_MESSAGE = 10;
 
 const WINDOW_CLOSED_MESSAGE =
   "The 24-hour reply window is closed. WhatsApp only allows free-form replies inside it; " +
   "outside it an approved template message is required.";
+
+interface ParsedMedia {
+  media: MessageMedia[];
+  rejected: string[];
+}
+
+/** Keeps only attachments this channel can actually deliver, reporting the rest. */
+function parseMedia(raw: unknown, channel: string, origin: string): ParsedMedia {
+  if (!Array.isArray(raw)) return { media: [], rejected: [] };
+  if (raw.length > MAX_MEDIA_PER_MESSAGE) {
+    throw new Error(`At most ${MAX_MEDIA_PER_MESSAGE} attachments per message`);
+  }
+
+  const media: MessageMedia[] = [];
+  const rejected: string[] = [];
+
+  for (const entry of raw) {
+    const item = entry as Partial<MessageMedia>;
+    if (!item || typeof item.url !== "string" || !item.url.trim()) continue;
+
+    if (!isMediaKind(item.type)) {
+      rejected.push(String(item.name ?? item.url));
+      continue;
+    }
+    if (!canSendMedia(channel as Parameters<typeof canSendMedia>[0], item.type)) {
+      rejected.push(String(item.name ?? item.url));
+      continue;
+    }
+    if (item.size !== null && item.size !== undefined && item.size > MAX_UPLOAD_BYTES) {
+      throw new Error("Attachment is larger than the upload limit");
+    }
+
+    media.push({
+      url: new URL(item.url, origin).toString(),
+      type: item.type,
+      mimeType: typeof item.mimeType === "string" && item.mimeType ? item.mimeType : "application/octet-stream",
+      name: typeof item.name === "string" && item.name ? item.name.slice(0, 200) : null,
+      size: typeof item.size === "number" ? item.size : null,
+    });
+  }
+
+  return { media, rejected };
+}
 
 export async function POST(
   request: Request,
@@ -24,7 +72,7 @@ export async function POST(
 
   const { id } = await context.params;
 
-  let payload: { text?: unknown; mediaUrl?: unknown; mimeType?: unknown; type?: unknown };
+  let payload: { text?: unknown; media?: unknown };
   try {
     payload = (await request.json()) as typeof payload;
   } catch {
@@ -32,21 +80,6 @@ export async function POST(
   }
 
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
-  const mediaPath = typeof payload.mediaUrl === "string" ? payload.mediaUrl.trim() : "";
-  const mimeType = typeof payload.mimeType === "string" ? payload.mimeType : "application/octet-stream";
-  const declaredType = ATTACHMENT_TYPES.includes(payload.type as AttachmentType)
-    ? (payload.type as AttachmentType)
-    : null;
-
-  if (!text && !mediaPath) {
-    return Response.json({ error: "Message text or an attachment is required" }, { status: 400 });
-  }
-  if (text.length > MAX_TEXT_LENGTH) {
-    return Response.json(
-      { error: `Message is too long (maximum ${MAX_TEXT_LENGTH} characters)` },
-      { status: 400 },
-    );
-  }
 
   const baseSecrets = await tenantSecrets(auth.userId);
   const { getAccountAccessToken } = await import("@/lib/tenant");
@@ -76,48 +109,80 @@ export async function POST(
     );
   }
 
-  // Channels fetch media themselves, so hand them an absolute URL.
-  const mediaUrl = mediaPath ? new URL(mediaPath, request.url).toString() : null;
-  const sendMedia = Boolean(mediaUrl);
+  // Channels fetch attachments themselves, so hand them absolute URLs.
+  let media: MessageMedia[] = [];
+  let rejected: string[] = [];
+  try {
+    ({ media, rejected } = parseMedia(payload.media, conversation.channel, request.url));
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Invalid attachment" },
+      { status: 400 },
+    );
+  }
 
-  if (sendMedia && !adapter.sendMedia) {
+  if (!text && media.length === 0) {
+    return Response.json({ error: "Message text or an attachment is required" }, { status: 400 });
+  }
+  if (text.length > MAX_TEXT_LENGTH) {
+    return Response.json(
+      { error: `Message is too long (maximum ${MAX_TEXT_LENGTH} characters)` },
+      { status: 400 },
+    );
+  }
+  if (media.length > 0 && !adapter.sendMedia) {
     return Response.json(
       { error: `${conversation.channel} does not support attachments` },
       { status: 400 },
     );
   }
 
+  // A message is typed by its content: an attachment decides the type, else text.
+  const primary = media.find((m) => m.type !== "sticker") ?? media[0];
+  const type: MessageType = media.length > 0 ? (primary?.type ?? "text") : "text";
+
   const outbound = {
     userId: auth.userId,
     channel: conversation.channel,
     contactExternalId: conversation.contactExternalId,
     text,
-    mediaUrl,
-    type: (declaredType ?? "text") as MessageType,
+    media,
+    type,
     createdAt: new Date(),
   };
 
   try {
-    const result = sendMedia
+    const results = media.length
       ? await adapter.sendMedia!({
           tenant,
           contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
           text,
-          mediaUrl: mediaUrl!,
-          mimeType,
-          type: (declaredType ?? "document") as AttachmentType,
+          media,
         })
-      : await adapter.sendText({
-          tenant,
-          contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
-          text,
-        });
+      : [
+          await adapter.sendText({
+            tenant,
+            contact: { channel: conversation.channel, externalId: conversation.contactExternalId },
+            text,
+          }),
+        ];
+
+    const externalIds = results.map((r) => r.externalId).filter((id): id is string => Boolean(id));
     const message = await recordOutbound({
       ...outbound,
-      externalId: result.externalId,
+      externalId: externalIds[0] ?? null,
+      externalIds,
       status: "sent",
     });
-    return Response.json({ message }, { status: 201 });
+
+    return Response.json(
+      {
+        message,
+        skipped: rejected,
+        supportedTypes: supportedMediaKinds(conversation.channel),
+      },
+      { status: 201 },
+    );
   } catch (error) {
     const reason =
       error instanceof MetaSendError || error instanceof Error
@@ -128,6 +193,7 @@ export async function POST(
     const message = await recordOutbound({
       ...outbound,
       externalId: null,
+      externalIds: [],
       status: "failed",
       error: reason,
     });

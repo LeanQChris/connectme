@@ -1,7 +1,14 @@
 import { recordInbound } from "../store";
-import type { MessageType } from "../types";
+import type { MediaKind, MessageMedia, MessageType } from "../types";
 import { fetchDiscordChannelName, fetchDiscordUserProfile } from "./client";
 import type { DiscordMessage } from "./types";
+
+function kindForMime(mime: string): MediaKind {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "document";
+}
 
 export async function handleDiscordMessage(
   token: string,
@@ -40,40 +47,40 @@ export async function handleDiscordMessage(
 
   let text: string | null = message.content || null;
   let type: MessageType = "text";
-  let mediaUrl: string | null = null;
+  const media: MessageMedia[] = [];
 
-  // Check attachments
-  const firstAttachment = message.attachments?.[0];
-  if (firstAttachment) {
-    const mime = (firstAttachment.content_type || "").toLowerCase();
-    mediaUrl = firstAttachment.url;
+  // Discord puts every file on one message in `attachments`; all of them are kept.
+  for (const attachment of message.attachments ?? []) {
+    const kind = kindForMime(attachment.content_type || "");
+    media.push({
+      url: attachment.url,
+      type: kind,
+      mimeType: attachment.content_type || "application/octet-stream",
+      name: attachment.filename ?? null,
+      size: attachment.size ?? null,
+    });
+  }
 
-    if (mime.startsWith("image/")) {
-      type = "image";
-    } else if (mime.startsWith("video/")) {
-      type = "video";
-    } else if (mime.startsWith("audio/")) {
-      type = "audio";
-    } else {
-      type = "document";
+  if (media.length === 0 && message.embeds?.length) {
+    // Link previews arrive as embeds; pull the media out of the first one.
+    const embed = message.embeds[0];
+    const url = embed.image?.url ?? embed.video?.url ?? null;
+    if (url) {
+      const kind = embed.video?.url ? "video" : "image";
+      media.push({
+        url,
+        type: kind,
+        mimeType: kind === "video" ? "video/mp4" : "image/png",
+        name: null,
+        size: null,
+      });
     }
+    if (!text) text = embed.description || embed.title || null;
+  }
 
-    if (!text) {
-      text = firstAttachment.filename || null;
-    }
-  } else if (message.embeds && message.embeds.length > 0) {
-    const firstEmbed = message.embeds[0];
-    if (firstEmbed.image?.url) {
-      type = "image";
-      mediaUrl = firstEmbed.image.url;
-    } else if (firstEmbed.video?.url) {
-      type = "video";
-      mediaUrl = firstEmbed.video.url;
-    }
-
-    if (!text) {
-      text = firstEmbed.description || firstEmbed.title || null;
-    }
+  if (media.length > 0) {
+    type = media.find((m) => m.type !== "sticker")?.type ?? media[0].type;
+    if (!text) text = media[0].name;
   }
 
   try {
@@ -85,7 +92,7 @@ export async function handleDiscordMessage(
       senderName: contactName,
       senderAvatarUrl,
       text,
-      mediaUrl,
+      media,
       type,
       createdAt: new Date(message.timestamp || Date.now()),
     });

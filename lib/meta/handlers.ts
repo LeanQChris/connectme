@@ -4,7 +4,7 @@
  */
 
 import { recordInbound, recordOutbound, updateOutboundStatus } from "../store";
-import type { MessageStatus, MessageType } from "../types";
+import { isMediaKind, type MediaKind, type MessageMedia, type MessageStatus, type MessageType } from "../types";
 import type {
   InstagramWebhookBody,
   PageWebhookBody,
@@ -32,6 +32,39 @@ const MESSAGE_TYPE_MAP: Record<string, MessageType> = {
 function mapType(raw: string | undefined): MessageType {
   if (!raw) return "other";
   return MESSAGE_TYPE_MAP[raw] ?? "other";
+}
+
+/** Wraps a single platform attachment URL in the stored media shape. */
+function asMedia(
+  url: string | null | undefined,
+  type: MessageType,
+  name: string | null = null,
+): MessageMedia[] {
+  if (!url) return [];
+  return [
+    {
+      url,
+      type: isMediaKind(type) ? type : "document",
+      mimeType: mimeForKind(isMediaKind(type) ? type : "document"),
+      name,
+      size: null,
+    },
+  ];
+}
+
+function mimeForKind(kind: MediaKind): string {
+  switch (kind) {
+    case "image":
+      return "image/jpeg";
+    case "sticker":
+      return "image/webp";
+    case "video":
+      return "video/mp4";
+    case "audio":
+      return "audio/mpeg";
+    default:
+      return "application/octet-stream";
+  }
 }
 
 /** Placeholder body for media, since media is not stored yet. */
@@ -85,38 +118,39 @@ export async function handleWhatsApp(
 
         let type: MessageType = "text";
         let text: string | null = null;
-        let mediaUrl: string | null = null;
+        const media: MessageMedia[] = [];
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rawMsg = message as Record<string, any>;
+
+        // Meta media is fetched through /api/media, which adds the tenant token.
+        const attach = (kind: MediaKind, id: string | undefined, name: string | null) => {
+          if (!id) return;
+          media.push({ url: `/api/media?id=${id}`, type: kind, mimeType: mimeForKind(kind), name, size: null });
+        };
 
         if (rawType === "text") {
           type = "text";
           text = message.text?.body ?? "";
         } else if (rawType === "image") {
           type = "image";
-          const imgId = rawMsg.image?.id;
-          if (imgId) mediaUrl = `/api/media?id=${imgId}`;
+          attach("image", rawMsg.image?.id, null);
           text = rawMsg.image?.caption || null;
         } else if (rawType === "video") {
           type = "video";
-          const vidId = rawMsg.video?.id;
-          if (vidId) mediaUrl = `/api/media?id=${vidId}`;
+          attach("video", rawMsg.video?.id, null);
           text = rawMsg.video?.caption || null;
         } else if (rawType === "audio" || rawType === "voice") {
           type = "audio";
-          const audioId = rawMsg.audio?.id || rawMsg.voice?.id;
-          if (audioId) mediaUrl = `/api/media?id=${audioId}`;
+          attach("audio", rawMsg.audio?.id || rawMsg.voice?.id, null);
           text = null;
         } else if (rawType === "document") {
           type = "document";
-          const docId = rawMsg.document?.id;
-          if (docId) mediaUrl = `/api/media?id=${docId}`;
+          attach("document", rawMsg.document?.id, rawMsg.document?.filename ?? null);
           text = rawMsg.document?.filename || rawMsg.document?.caption || "Document";
         } else if (rawType === "sticker") {
-          type = "image";
-          const stickerId = rawMsg.sticker?.id;
-          if (stickerId) mediaUrl = `/api/media?id=${stickerId}`;
+          type = "sticker";
+          attach("sticker", rawMsg.sticker?.id, null);
           text = null;
         } else if (rawType === "interactive") {
           type = "text";
@@ -130,7 +164,7 @@ export async function handleWhatsApp(
           type = "text";
           text = rawMsg.button?.text || rawMsg.button?.payload || "[Button response]";
         } else if (rawType === "location") {
-          type = "text";
+          type = "location";
           text = rawMsg.location?.name
             ? `📍 ${rawMsg.location.name} (${rawMsg.location.address || ""})`
             : rawMsg.location?.latitude
@@ -158,7 +192,7 @@ export async function handleWhatsApp(
             senderExternalId: message.from,
             senderName: names.get(message.from) ?? null,
             text,
-            mediaUrl,
+            media,
             type,
             createdAt: unixSecondsToDate(message.timestamp),
           });
@@ -243,6 +277,7 @@ export async function handleMessenger(
       if (message.is_echo) {
         const contactId = event.recipient?.id;
         if (!contactId) continue;
+        const echoType = message.attachments?.[0] ? mapType(message.attachments[0].type) : "text";
         try {
           await recordOutbound({
             userId: tenant.userId,
@@ -250,8 +285,8 @@ export async function handleMessenger(
             contactExternalId: contactId,
             externalId: mid,
             text: message.text || "[Attachment]",
-            mediaUrl: message.attachments?.[0]?.payload?.url ?? null,
-            type: message.attachments?.[0] ? mapType(message.attachments[0].type) : "text",
+            media: asMedia(message.attachments?.[0]?.payload?.url ?? null, echoType),
+            type: echoType,
             status: "delivered",
             createdAt: new Date(timestamp),
           });
@@ -367,7 +402,7 @@ export async function handleMessenger(
               senderName,
               senderAvatarUrl,
               text: attText,
-              mediaUrl: attMediaUrl,
+              media: asMedia(attMediaUrl, attType, att.title ?? null),
               type: attType,
               createdAt: new Date(timestamp + i),
             });
@@ -387,7 +422,7 @@ export async function handleMessenger(
             senderName,
             senderAvatarUrl,
             text: message.text ?? null,
-            mediaUrl: null,
+            media: [],
             type: "text",
             createdAt: new Date(timestamp),
           });
@@ -433,7 +468,10 @@ export async function handleInstagram(
             contactExternalId: contactId,
             externalId: mid,
             text: message.text || "[Attachment]",
-            mediaUrl: message.attachments?.[0]?.payload?.url ?? null,
+            media: asMedia(
+              message.attachments?.[0]?.payload?.url ?? null,
+              message.attachments?.[0] ? mapType(message.attachments[0].type) : "text",
+            ),
             type: message.attachments?.[0] ? mapType(message.attachments[0].type) : "text",
             status: "delivered",
             createdAt: new Date(timestamp),
@@ -488,7 +526,7 @@ export async function handleInstagram(
               senderName,
               senderAvatarUrl,
               text: text || placeholder(type),
-              mediaUrl,
+              media: asMedia(mediaUrl, type, att.title ?? null),
               type,
               createdAt: new Date(timestamp + i),
             });
@@ -508,7 +546,7 @@ export async function handleInstagram(
             senderName,
             senderAvatarUrl,
             text: message.text ?? null,
-            mediaUrl: null,
+            media: [],
             type: "text",
             createdAt: new Date(timestamp),
           });

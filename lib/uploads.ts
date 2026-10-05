@@ -10,13 +10,13 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { MAX_UPLOAD_BYTES, type MessageType, type UploadedMedia } from "./types";
+import { MAX_UPLOAD_BYTES, type MediaKind, type UploadedMedia } from "./types";
 
 const DIR = path.join(process.cwd(), "data", "uploads");
 
 const SAFE_NAME = /^[0-9a-f-]{36}\.[a-z0-9]{1,8}$/;
 
-export function kindForMime(mimeType: string): MessageType {
+export function kindForMime(mimeType: string): MediaKind {
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("audio/")) return "audio";
   if (mimeType.startsWith("video/")) return "video";

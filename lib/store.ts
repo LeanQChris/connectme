@@ -26,6 +26,7 @@ import type {
   ConversationStatus,
   Message,
   CredentialRecord,
+  MessageMedia,
   MessageStatus,
   MessageType,
   SearchHit,
@@ -33,6 +34,7 @@ import type {
   WidgetOutboxItem,
 } from "./types";
 import { replyWindow } from "./window";
+import { isMediaKind } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "inbox.json");
@@ -97,6 +99,31 @@ export function normalizeExternalId(channel: Channel, externalId: string): strin
     return digits || externalId.trim();
   }
   return externalId.trim();
+}
+
+/**
+ * Fills in the message fields older records predate: `media` was a single
+ * `mediaUrl`, and `externalIds` did not exist.
+ */
+function normalizeMessage(message: Message): Message {
+  if (!Array.isArray(message.media)) {
+    const legacy = (message as Message & { mediaUrl?: string | null }).mediaUrl ?? null;
+    message.media = legacy
+      ? [
+          {
+            url: legacy,
+            type: isMediaKind(message.type) ? message.type : "document",
+            mimeType: "application/octet-stream",
+            name: null,
+            size: null,
+          },
+        ]
+      : [];
+  }
+  if (!Array.isArray(message.externalIds)) {
+    message.externalIds = message.externalId ? [message.externalId] : [];
+  }
+  return message;
 }
 
 /**
@@ -217,16 +244,17 @@ function normalize(data: Partial<StoreData>): StoreData {
   const uniqueMessages: Message[] = [];
   const seenExtIds = new Set<string>();
   for (const msg of merged.messages) {
+    const normalized = normalizeMessage(msg);
     if (msg.externalId) {
       const extKey = `${msg.conversationId}:${msg.externalId}`;
       if (seenExtIds.has(extKey)) continue;
       seenExtIds.add(extKey);
     }
     // Only collapse duplicate OUTBOUND text messages (e.g. echo webhooks matching sent replies)
-    if (msg.direction === "out" && msg.text && !msg.mediaUrl) {
+    if (msg.direction === "out" && msg.text && !msg.media.length) {
       const isDup = uniqueMessages.some((prev) => {
         if (prev.conversationId !== msg.conversationId || prev.direction !== "out") return false;
-        if (prev.text !== msg.text || prev.mediaUrl) return false;
+        if (prev.text !== msg.text || prev.media.length) return false;
         const t1 = new Date(prev.createdAt).getTime();
         const t2 = new Date(msg.createdAt).getTime();
         return Math.abs(t1 - t2) < 15_000;
@@ -235,9 +263,9 @@ function normalize(data: Partial<StoreData>): StoreData {
     }
 
     // Filter out WhatsApp unsupported system container events that have no media
-    if (msg.text === "[unsupported]" && !msg.mediaUrl) continue;
+    if (msg.text === "[unsupported]" && !msg.media.length) continue;
 
-    uniqueMessages.push(msg);
+    uniqueMessages.push(normalized);
   }
   merged.messages = uniqueMessages;
 
@@ -388,7 +416,7 @@ export interface InboundInput {
   senderName?: string | null;
   senderAvatarUrl?: string | null;
   text: string | null;
-  mediaUrl?: string | null;
+  media?: MessageMedia[];
   type: MessageType;
   createdAt: Date;
 }
@@ -398,8 +426,10 @@ export interface OutboundInput {
   channel: Channel;
   contactExternalId: string;
   externalId: string | null;
+  /** Every platform id, when one message became several on the far side. */
+  externalIds?: string[];
   text: string;
-  mediaUrl?: string | null;
+  media?: MessageMedia[];
   type: MessageType;
   status: MessageStatus;
   error?: string | null;
@@ -502,8 +532,9 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
       direction: "in",
       type: input.type,
       text: input.text,
-      mediaUrl: input.mediaUrl ?? null,
+      media: input.media ?? [],
       externalId: input.externalId,
+      externalIds: input.externalId ? [input.externalId] : [],
       channel: input.channel,
       status: "received",
       error: null,
@@ -650,8 +681,9 @@ export async function recordOutbound(input: OutboundInput): Promise<Message | nu
       direction: "out",
       type: input.type,
       text: input.text,
-      mediaUrl: input.mediaUrl ?? null,
+      media: input.media ?? [],
       externalId: input.externalId,
+      externalIds: input.externalIds ?? (input.externalId ? [input.externalId] : []),
       channel: input.channel,
       status: input.status,
       error: input.error ?? null,
@@ -677,7 +709,7 @@ export async function updateOutboundStatus(
       (m) =>
         owned.has(m.conversationId) &&
         m.channel === channel &&
-        m.externalId === externalId &&
+        (m.externalId === externalId || m.externalIds.includes(externalId)) &&
         m.direction === "out",
     );
     if (!message) return false;
@@ -854,7 +886,7 @@ async function backfillMessages(
     (m) =>
       m.channel === "messenger" &&
       m.externalId &&
-      (!m.mediaUrl || m.text === "[attachment]" || m.type !== "text"),
+      (!m.media.length || m.text === "[attachment]" || m.type !== "text"),
   );
   if (missing.length === 0) return false;
 
@@ -867,8 +899,16 @@ async function backfillMessages(
           pageAccessToken,
           graphVersion,
         );
-        if (attach.mediaUrl && message.mediaUrl !== attach.mediaUrl) {
-          message.mediaUrl = attach.mediaUrl;
+        if (attach.mediaUrl && message.media.length === 0) {
+          message.media = [
+            {
+              url: attach.mediaUrl,
+              type: isMediaKind(attach.type) ? attach.type : "document",
+              mimeType: "application/octet-stream",
+              name: null,
+              size: null,
+            },
+          ];
           message.type = attach.type;
           if (attach.text) message.text = attach.text;
           else if (message.text === "[attachment]") message.text = null;
@@ -1017,8 +1057,9 @@ export async function recordNote(
       direction: "note",
       type: "text",
       text,
-      mediaUrl: null,
+      media: [],
       externalId: null,
+      externalIds: [],
       channel: contact.channel,
       status: "received",
       error: null,
@@ -1094,7 +1135,7 @@ export async function enqueueWidgetMessage(input: {
   userId: string;
   sid: string;
   text: string | null;
-  mediaUrl?: string | null;
+  media?: MessageMedia[];
   type: MessageType;
 }): Promise<string> {
   return tx((data) => {
@@ -1104,7 +1145,7 @@ export async function enqueueWidgetMessage(input: {
       userId: input.userId,
       sid: input.sid,
       text: input.text,
-      mediaUrl: input.mediaUrl ?? null,
+      media: input.media ?? [],
       type: input.type,
       createdAt: new Date().toISOString(),
       deliveredAt: null,

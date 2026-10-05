@@ -6,7 +6,7 @@ import type {
   ConversationStatus,
   ConversationSummary,
   Message,
-  MessageType,
+  MessageMedia,
   SearchHit,
   SettingsPayload,
 } from "@/lib/types";
@@ -206,9 +206,7 @@ export function useMessageSearch(query: string) {
 
 export interface ReplyPayload {
   text: string;
-  mediaUrl?: string | null;
-  mimeType?: string;
-  type?: MessageType;
+  media?: MessageMedia[];
 }
 
 export function useSendReply(conversationId: string | null) {
@@ -228,7 +226,7 @@ export function useSendReply(conversationId: string | null) {
     },
 
     // When mutate is called:
-    onMutate: async ({ text, mediaUrl = null, type = "text" }: ReplyPayload) => {
+    onMutate: async ({ text, media = [] }: ReplyPayload) => {
       if (!conversationId) return;
 
       // Cancel outgoing refetches
@@ -251,10 +249,11 @@ export function useSendReply(conversationId: string | null) {
           id: optimisticId,
           conversationId,
           direction: "out",
-          type,
+          type: media[0]?.type ?? "text",
           text,
-          mediaUrl,
+          media,
           externalId: null,
+          externalIds: [],
           channel: previousDetail.conversation.channel,
           status: "sent",
           error: null,
@@ -306,7 +305,9 @@ export function useSendReply(conversationId: string | null) {
               direction: "out",
               type: "text",
               text: payload.text,
+              media: [],
               externalId: null,
+              externalIds: [],
               channel: context.previousDetail.conversation.channel,
               status: "failed",
               error: errorMsg,

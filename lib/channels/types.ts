@@ -1,4 +1,11 @@
-import type { Channel, Contact, MessageType, ProviderSecrets } from "../types";
+import type {
+  Channel,
+  Contact,
+  MediaKind,
+  MessageMedia,
+  MessageType,
+  ProviderSecrets,
+} from "../types";
 
 export { ChannelNotConfiguredError, MetaSendError } from "../meta/client";
 
@@ -20,11 +27,14 @@ export interface SendTextInput {
   type?: MessageType;
 }
 
+/**
+ * One attachment on its way out. `url` is absolute by this point, because every
+ * provider fetches it itself.
+ */
+export type OutboundMedia = MessageMedia;
+
 export interface SendMediaInput extends SendTextInput {
-  /** Absolute or app-relative URL the channel can fetch. */
-  mediaUrl: string;
-  mimeType: string;
-  type: Extract<MessageType, "image" | "audio" | "video" | "document">;
+  media: OutboundMedia[];
 }
 
 /**
@@ -37,5 +47,30 @@ export interface ChannelAdapter {
   isConfigured(tenant: Tenant): boolean;
   sendText(input: SendTextInput): Promise<SendResult>;
   /** Absent when the channel cannot accept attachments. */
-  sendMedia?(input: SendMediaInput): Promise<SendResult>;
+  sendMedia?(input: SendMediaInput): Promise<SendResult[]>;
+}
+
+/**
+ * What each platform will actually accept.
+ *
+ * Instagram messaging is the only hard platform limit here: images and audio
+ * only. Everything else refuses silently or delivers as a link, so the composer
+ * hides the kinds a channel cannot take rather than failing at send time.
+ */
+const SUPPORT: Record<Channel, MediaKind[]> = {
+  whatsapp: ["image", "audio", "video", "document"],
+  messenger: ["image", "audio", "video", "document"],
+  instagram: ["image", "audio"],
+  telegram: ["image", "audio", "video", "document", "sticker"],
+  discord: ["image", "audio", "video", "document"],
+  slack: ["image", "audio", "video", "document"],
+  widget: ["image", "audio", "video", "document"],
+};
+
+export function supportedMediaKinds(channel: Channel): MediaKind[] {
+  return SUPPORT[channel] ?? [];
+}
+
+export function canSendMedia(channel: Channel, kind: MediaKind): boolean {
+  return SUPPORT[channel]?.includes(kind) ?? false;
 }
