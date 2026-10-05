@@ -100,7 +100,13 @@ export interface PageMessagingEvent {
 
 export interface PageWebhookBody extends WebhookBody {
   object: "page";
-  entry?: Array<{ id?: string; time?: number; messaging?: PageMessagingEvent[] }>;
+  entry?: Array<{
+    id?: string;
+    time?: number;
+    messaging?: PageMessagingEvent[];
+    standby?: PageMessagingEvent[];
+    changes?: Array<{ field?: string; value?: PageMessagingEvent | unknown }>;
+  }>;
 }
 
 /* ------------------------------- Instagram ------------------------------ */
@@ -111,5 +117,7 @@ export interface InstagramWebhookBody extends WebhookBody {
     id?: string;
     time?: number;
     messaging?: PageMessagingEvent[];
+    standby?: PageMessagingEvent[];
+    changes?: Array<{ field?: string; value?: PageMessagingEvent | unknown }>;
   }>;
 }

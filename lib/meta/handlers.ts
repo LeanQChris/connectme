@@ -3,7 +3,7 @@
  * throws for a malformed event: a single bad entry must not stop the others.
  */
 
-import { recordInbound, updateOutboundStatus } from "../store";
+import { recordInbound, recordOutbound, updateOutboundStatus } from "../store";
 import type { MessageStatus, MessageType } from "../types";
 import type {
   InstagramWebhookBody,
@@ -192,6 +192,31 @@ export async function handleWhatsApp(
 
 import { fetchInstagramUserProfile, fetchMessengerMessageAttachment, fetchMessengerUserProfile } from "./client";
 import { getAccountAccessToken } from "../tenant";
+import type { PageMessagingEvent } from "./types";
+
+function extractMessagingEvents(entry: unknown): PageMessagingEvent[] {
+  const events: PageMessagingEvent[] = [];
+  const rec = entry as {
+    messaging?: PageMessagingEvent[];
+    standby?: PageMessagingEvent[];
+    changes?: Array<{ field?: string; value?: PageMessagingEvent }>;
+  };
+
+  if (Array.isArray(rec?.messaging)) {
+    events.push(...rec.messaging);
+  }
+  if (Array.isArray(rec?.standby)) {
+    events.push(...rec.standby);
+  }
+  if (Array.isArray(rec?.changes)) {
+    for (const change of rec.changes) {
+      if ((change?.field === "messages" || change?.field === "messaging") && change?.value) {
+        events.push(change.value);
+      }
+    }
+  }
+  return events;
+}
 
 export async function handleMessenger(
   tenant: TenantContext,
@@ -200,22 +225,43 @@ export async function handleMessenger(
   for (const entry of body.entry ?? []) {
     // Resolve the exact Page Access Token for this specific page
     const pageToken = (await getAccountAccessToken(tenant.userId, entry?.id)) || tenant.pageAccessToken;
+    const events = extractMessagingEvents(entry);
 
-    for (const event of entry?.messaging ?? []) {
+    for (const event of events) {
       const message = event?.message;
       if (!message) continue;
 
-      // Echos are the Page's own outgoing messages. We already store those.
-      if (message.is_echo) continue;
+      const mid = message.mid || `mid_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now();
 
-      const senderId = event.sender?.id;
-      const mid = message.mid;
-      if (!senderId || !mid) {
-        console.warn("[webhook] messenger event without sender/mid, skipped");
+      // If message is an echo (outbound message sent from Page / Meta Business Suite)
+      if (message.is_echo) {
+        const contactId = event.recipient?.id;
+        if (!contactId) continue;
+        try {
+          await recordOutbound({
+            userId: tenant.userId,
+            channel: "messenger",
+            contactExternalId: contactId,
+            externalId: mid,
+            text: message.text || "[Attachment]",
+            mediaUrl: message.attachments?.[0]?.payload?.url ?? null,
+            type: message.attachments?.[0] ? mapType(message.attachments[0].type) : "text",
+            status: "delivered",
+            createdAt: new Date(timestamp),
+          });
+        } catch (error) {
+          console.error("[webhook] failed to store messenger outbound echo:", error);
+        }
         continue;
       }
 
-      const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now();
+      const senderId = event.sender?.id;
+      if (!senderId) {
+        console.warn("[webhook] messenger event without sender, skipped");
+        continue;
+      }
+
       const firstAttachment = message.attachments?.[0];
       let mediaUrl: string | null = null;
       let type: MessageType = "text";
@@ -280,16 +326,16 @@ export async function handleMessenger(
         for (let i = 0; i < attachments.length; i++) {
           const att = attachments[i];
           const attachType = att.type;
-          let type: MessageType = "other";
-          if (attachType === "image") type = "image";
-          else if (attachType === "audio") type = "audio";
-          else if (attachType === "video") type = "video";
-          else if (attachType === "file") type = "document";
+          let attType: MessageType = "other";
+          if (attachType === "image") attType = "image";
+          else if (attachType === "audio") attType = "audio";
+          else if (attachType === "video") attType = "video";
+          else if (attachType === "file") attType = "document";
 
-          let mediaUrl = att.payload?.url ?? null;
-          let text = i === 0 ? (message.text || att.title || att.payload?.title || null) : (att.title || att.payload?.title || null);
+          let attMediaUrl = att.payload?.url ?? null;
+          const attText = i === 0 ? (message.text || att.title || att.payload?.title || null) : (att.title || att.payload?.title || null);
 
-          if (!mediaUrl) {
+          if (!attMediaUrl) {
             try {
               const attachData = await fetchMessengerMessageAttachment(
                 mid,
@@ -297,9 +343,8 @@ export async function handleMessenger(
                 tenant.graphVersion,
               );
               if (attachData.mediaUrl) {
-                mediaUrl = attachData.mediaUrl;
-                type = attachData.type;
-                if (!text && attachData.text) text = attachData.text;
+                attMediaUrl = attachData.mediaUrl;
+                attType = attachData.type;
               }
             } catch {
               // ignore
@@ -316,12 +361,12 @@ export async function handleMessenger(
               senderExternalId: senderId,
               senderName,
               senderAvatarUrl,
-              text,
-              mediaUrl,
-              type,
+              text: attText,
+              mediaUrl: attMediaUrl,
+              type: attType,
               createdAt: new Date(timestamp + i),
             });
-            if (inserted) console.log(`[webhook] messenger attachment ${i + 1}/${attachments.length} (${type}) from ${senderName ?? senderId}`);
+            if (inserted) console.log(`[webhook] messenger attachment ${i + 1}/${attachments.length} (${attType}) from ${senderName ?? senderId}`);
           } catch (error) {
             console.error("[webhook] failed to store messenger message:", error);
           }
@@ -354,8 +399,7 @@ export async function handleMessenger(
  * Instagram Messaging (classic, Facebook Login).
  *
  * Same payload shape as Messenger: `sender.id` is the Instagram-scoped id of
- * the customer, and `is_echo` marks our own outgoing messages. Attachments come
- * with their payload URL inline, so no extra Graph call is needed.
+ * the customer. Supports messaging, standby, changes, and attachments.
  */
 export async function handleInstagram(
   tenant: TenantContext,
@@ -364,21 +408,43 @@ export async function handleInstagram(
   for (const entry of body.entry ?? []) {
     // Resolve the exact access token for this specific Instagram account / Page
     const pageToken = (await getAccountAccessToken(tenant.userId, entry?.id)) || tenant.pageAccessToken;
+    const events = extractMessagingEvents(entry);
 
-    for (const event of entry?.messaging ?? []) {
+    for (const event of events) {
       const message = event?.message;
       if (!message) continue;
 
-      if (message.is_echo) continue;
+      const mid = message.mid || `ig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now();
 
-      const senderId = event.sender?.id;
-      const mid = message.mid;
-      if (!senderId || !mid) {
-        console.warn("[webhook] instagram event without sender/mid, skipped");
+      // If message is an echo (outbound message sent from Instagram app / Meta Business Suite)
+      if (message.is_echo) {
+        const contactId = event.recipient?.id;
+        if (!contactId) continue;
+        try {
+          await recordOutbound({
+            userId: tenant.userId,
+            channel: "instagram",
+            contactExternalId: contactId,
+            externalId: mid,
+            text: message.text || "[Attachment]",
+            mediaUrl: message.attachments?.[0]?.payload?.url ?? null,
+            type: message.attachments?.[0] ? mapType(message.attachments[0].type) : "text",
+            status: "delivered",
+            createdAt: new Date(timestamp),
+          });
+          console.log(`[webhook] instagram echo (outbound) recorded for ${contactId}`);
+        } catch (error) {
+          console.error("[webhook] failed to store instagram outbound echo:", error);
+        }
         continue;
       }
 
-      const timestamp = typeof event.timestamp === "number" ? event.timestamp : Date.now();
+      const senderId = event.sender?.id;
+      if (!senderId) {
+        console.warn("[webhook] instagram event without sender, skipped");
+        continue;
+      }
 
       // Fetch user profile name and profile picture from Instagram Graph API
       let senderName: string | null = null;
@@ -390,7 +456,7 @@ export async function handleInstagram(
             pageToken,
             tenant.graphVersion,
           );
-          senderName = profile.name;
+          senderName = profile.name || (profile.username ? `@${profile.username}` : null);
           senderAvatarUrl = profile.avatarUrl;
         } catch (err) {
           console.warn("[webhook] could not fetch instagram profile:", err);

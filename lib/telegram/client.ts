@@ -46,13 +46,28 @@ export async function sendTelegramMessage(
     };
 
     if (!retryData.ok || !retryData.result) {
-      throw new Error(retryData.description || data.description || "Failed to send Telegram message");
+      const raw = retryData.description || data.description || "Failed to send Telegram message";
+      throw new Error(formatTelegramError(raw));
     }
 
     return { messageId: String(retryData.result.message_id) };
   }
 
   return { messageId: String(data.result.message_id) };
+}
+
+function formatTelegramError(rawError: string): string {
+  const lower = rawError.toLowerCase();
+  if (lower.includes("chat not found")) {
+    return "Telegram Error: Chat not found. Telegram bots cannot message personal @usernames directly. The user must first message or /start your bot on Telegram.";
+  }
+  if (lower.includes("bot was blocked")) {
+    return "Telegram Error: The user has blocked your Telegram bot.";
+  }
+  if (lower.includes("user is deactivated")) {
+    return "Telegram Error: The Telegram user account is deactivated.";
+  }
+  return rawError;
 }
 
 /**
@@ -93,7 +108,8 @@ export async function sendTelegramAttachment(
   };
 
   if (!data.ok || !data.result) {
-    throw new Error(data.description || "Failed to send Telegram attachment");
+    const raw = data.description || "Failed to send Telegram attachment";
+    throw new Error(formatTelegramError(raw));
   }
 
   return { messageId: String(data.result.message_id) };

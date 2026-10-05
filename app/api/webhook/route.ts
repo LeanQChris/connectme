@@ -81,10 +81,27 @@ export async function POST(request: Request): Promise<Response> {
       case "whatsapp_business_account":
         await handleWhatsApp(tenant, parsed as WhatsAppWebhookBody);
         break;
-      case "page":
-        await handleMessenger(tenant, parsed as PageWebhookBody);
+      case "page": {
+        const pageBody = parsed as PageWebhookBody;
+        // Check if any entry in page object is an Instagram business account
+        const igAccounts = new Set(
+          (record.accounts ?? [])
+            .filter((a) => a.channel === "instagram")
+            .map((a) => a.externalId),
+        );
+        const igEntries = (pageBody.entry ?? []).filter((e) => e?.id && igAccounts.has(e.id));
+        const pageEntries = (pageBody.entry ?? []).filter((e) => !e?.id || !igAccounts.has(e.id));
+
+        if (igEntries.length > 0) {
+          await handleInstagram(tenant, { object: "instagram", entry: igEntries });
+        }
+        if (pageEntries.length > 0) {
+          await handleMessenger(tenant, { object: "page", entry: pageEntries });
+        }
         break;
+      }
       case "instagram":
+      case "instagram_graph_api":
         await handleInstagram(tenant, parsed as InstagramWebhookBody);
         break;
       default:
