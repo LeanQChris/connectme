@@ -300,7 +300,7 @@ function MessageAttachment({
   if (type === "image") {
     if (!mediaUrl) {
       return (
-        <div className="flex items-center gap-2.5 rounded-[8px] bg-surface-well p-2.5 text-[12px] border border-hairline">
+        <div className="flex items-center gap-2.5 rounded-[12px] bg-surface-well p-3 text-[12px] border border-hairline">
           <span className="text-xl">🖼️</span>
           <div>
             <p className="font-medium text-ink">Photo Attachment</p>
@@ -310,21 +310,21 @@ function MessageAttachment({
       );
     }
     return (
-      <div className="group/media relative block overflow-hidden rounded-[10px] cursor-pointer bg-black/10">
+      <div className="group/media relative block overflow-hidden rounded-[12px] cursor-pointer bg-black/5 dark:bg-white/5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={mediaUrl}
           alt="Attachment"
           onClick={() => onOpenImage(mediaUrl)}
-          className="max-h-80 w-full object-cover transition-transform duration-200 group-hover/media:scale-[1.02]"
+          className="max-h-[360px] w-auto max-w-full rounded-[12px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
           loading="lazy"
         />
         <div
           onClick={() => onOpenImage(mediaUrl)}
-          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/media:bg-black/25"
+          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
         >
-          <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-sm">
-            <span>View Full Size</span>
+          <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
+            <span>View full size</span>
             <span>↗</span>
           </span>
         </div>
@@ -745,10 +745,10 @@ export default function Thread({
                     )}
 
                     <div
-                      className={`group relative max-w-[85%] sm:max-w-[75%] p-1.5 ${
+                      className={`group relative max-w-[85%] sm:max-w-[75%] p-2 ${
                         outgoing
-                          ? "rounded-[16px] rounded-br-[4px] bg-primary/10 border border-primary/20"
-                          : "rounded-[16px] rounded-bl-[4px] bg-canvas-elevated border border-hairline"
+                          ? "rounded-[18px] rounded-br-[6px] bg-primary/10 border border-primary/20 shadow-xs"
+                          : "rounded-[18px] rounded-bl-[6px] bg-canvas-elevated border border-hairline shadow-xs"
                       }`}
                     >
                       <ImageGallery
@@ -763,10 +763,10 @@ export default function Thread({
                       {/* Metadata footer */}
                       <div
                         className={`mt-1.5 flex items-center justify-end gap-1.5 px-1 font-mono text-[10px] tabular-nums select-none ${
-                          outgoing ? "opacity-70 text-ink" : "text-mute opacity-70"
+                          outgoing ? "opacity-75 text-ink" : "text-mute opacity-75"
                         }`}
                       >
-                        <span className="text-[9.5px] font-sans font-medium opacity-80">
+                        <span className="text-[10px] font-sans font-medium">
                           📷 {galleryImages.length} photos
                         </span>
                         <span>·</span>

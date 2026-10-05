@@ -219,13 +219,16 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
 
       {/* Quick Replies Tray */}
       {QUICK_REPLIES.length > 0 && !text && !noteMode && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        <div className="mb-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 select-none">
+          <span className="shrink-0 font-mono text-[10px] uppercase font-semibold text-mute tracking-wider pl-0.5">
+            ⚡ Quick
+          </span>
           {QUICK_REPLIES.map((preset) => (
             <button
               key={preset}
               type="button"
               onClick={() => setText(preset)}
-              className="max-w-[22ch] truncate rounded-full border border-hairline bg-canvas-elevated px-2.5 py-1 text-[11.5px] text-body transition-colors hover:border-hairline-strong hover:text-ink active:bg-surface-well"
+              className="shrink-0 max-w-[28ch] truncate rounded-full border border-hairline bg-canvas-elevated px-3 py-1 text-[11.5px] text-body transition-all hover:border-hairline-strong hover:bg-surface-well hover:text-ink active:scale-95 shadow-2xs"
               title={preset}
             >
               {preset}
@@ -236,14 +239,14 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
 
       {/* Attachment Preview Card */}
       {attachment && (
-        <div className="mb-2 flex items-center gap-2.5 rounded-[8px] border border-hairline bg-canvas-elevated p-2 text-[12px] shadow-2xs">
+        <div className="mb-2.5 flex items-center gap-2.5 rounded-[10px] border border-hairline bg-canvas-elevated p-2 text-[12px] shadow-2xs">
           {attachment.type === "image" ? (
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[6px] border border-hairline bg-surface-well">
+            <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[8px] border border-hairline bg-surface-well">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={attachment.url} alt="Preview" className="h-full w-full object-cover" />
             </div>
           ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-surface-well text-ink">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-hairline bg-surface-well text-ink">
               {attachment.type === "video" ? (
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -269,7 +272,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             type="button"
             onClick={() => setAttachment(null)}
             aria-label="Remove attachment"
-            className="flex h-7 w-7 items-center justify-center rounded-[4px] text-mute transition-colors hover:bg-surface-well hover:text-ink"
+            className="flex h-7 w-7 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink"
           >
             ✕
           </button>
@@ -278,8 +281,8 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
 
       {/* Main Input Box */}
       <div
-        className={`flex items-end gap-1.5 rounded-[8px] border bg-canvas-elevated p-1.5 shadow-2xs transition-colors ${
-          noteMode ? "border-warning/60" : "border-hairline focus-within:border-ink"
+        className={`flex items-end gap-1.5 rounded-[12px] border bg-canvas-elevated p-1.5 shadow-2xs transition-all ${
+          noteMode ? "border-amber-500/60 ring-1 ring-amber-500/20" : "border-hairline focus-within:border-ink/50 focus-within:ring-1 focus-within:ring-ink/20"
         }`}
       >
         <input
@@ -302,7 +305,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             aria-label="Attach a file"
             disabled={uploading}
             onClick={() => fileRef.current?.click()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well disabled:opacity-40"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well disabled:opacity-40"
           >
             <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -322,7 +325,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             title="Add emoji"
             aria-label="Add emoji"
             onClick={() => setShowEmojiPicker((prev) => !prev)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well"
           >
             <span className="text-base leading-none">😀</span>
           </button>
@@ -353,8 +356,8 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
           type="button"
           onClick={() => void submit()}
           disabled={pending || uploading || (!text.trim() && !attachment)}
-          className={`flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[6px] px-3 sm:px-3.5 text-[12.5px] sm:text-[13px] font-medium transition-opacity hover:opacity-90 active:opacity-95 disabled:cursor-not-allowed disabled:opacity-30 ${
-            noteMode ? "bg-warning text-ink" : "bg-primary text-on-primary"
+          className={`flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] px-3.5 text-[12.5px] sm:text-[13px] font-medium transition-all hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 shadow-2xs ${
+            noteMode ? "bg-amber-500 text-neutral-950 font-semibold" : "bg-primary text-on-primary"
           }`}
         >
           {pending || uploading ? (
@@ -363,7 +366,7 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             <div className="flex items-center gap-1.5">
               <span>{noteMode ? "Save Note" : "Send"}</span>
               {!noteMode && (
-                <svg className="h-3 w-3 fill-current" viewBox="0 0 24 24">
+                <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                 </svg>
               )}
@@ -373,24 +376,24 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
       </div>
 
       {/* Footer bar: quick emojis and mode toggle */}
-      <div className="mt-1.5 flex items-center justify-between gap-3 px-1 text-[11px] text-mute">
+      <div className="mt-2 flex items-center justify-between gap-3 px-1 text-[11px] text-mute select-none">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
           {!noteMode && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               {QUICK_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => insertEmoji(emoji)}
-                  className="rounded px-1 text-[13px] transition-transform hover:scale-125 active:scale-95"
+                  className="rounded px-1.5 py-0.5 text-[13px] transition-transform hover:scale-125 active:scale-95 hover:bg-surface-well"
                 >
                   {emoji}
                 </button>
               ))}
             </div>
           )}
-          <span className="hidden sm:inline font-mono text-[10.5px] ml-1">
-            Enter to {noteMode ? "save note" : "send"} · Shift+Enter for new line
+          <span className="hidden sm:inline font-mono text-[10.5px] text-mute ml-1 opacity-80">
+            ↵ to {noteMode ? "save note" : "send"} · Shift+↵ for new line
           </span>
         </div>
 
@@ -398,10 +401,10 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
           <button
             type="button"
             onClick={() => setMode(mode === "note" ? "reply" : "note")}
-            className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors shrink-0 ${
+            className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors shrink-0 shadow-2xs ${
               noteMode
-                ? "border-warning/60 bg-warning/10 text-ink"
-                : "border-hairline text-mute hover:text-ink"
+                ? "border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                : "border-hairline text-mute hover:border-hairline-strong hover:text-ink"
             }`}
           >
             <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">

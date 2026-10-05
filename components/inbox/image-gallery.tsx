@@ -26,21 +26,21 @@ export default function ImageGallery({
   if (count === 1) {
     const img = images[0];
     return (
-      <div className="group/media relative block overflow-hidden rounded-[12px] cursor-pointer bg-black/10">
+      <div className="group/media relative block overflow-hidden rounded-[14px] cursor-pointer bg-black/5 dark:bg-white/5 border border-hairline shadow-2xs">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={img.url}
           alt={img.text || "Photo attachment"}
           onClick={() => onOpenLightbox(0)}
-          className="max-h-80 w-full object-cover transition-transform duration-200 group-hover/media:scale-[1.01]"
+          className="max-h-[380px] w-auto max-w-full rounded-[14px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
           loading="lazy"
         />
         <div
           onClick={() => onOpenLightbox(0)}
-          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/media:bg-black/25"
+          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20 rounded-[14px]"
         >
-          <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-sm">
-            <span>View Full Size</span>
+          <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
+            <span>View full size</span>
             <span>↗</span>
           </span>
         </div>
@@ -50,21 +50,27 @@ export default function ImageGallery({
 
   if (count === 2) {
     return (
-      <div className="grid grid-cols-2 gap-1.5 overflow-hidden rounded-[12px] max-w-[420px]">
+      <div className="grid grid-cols-2 gap-2 overflow-hidden rounded-[14px] max-w-[400px]">
         {images.map((img, idx) => (
           <div
             key={img.id}
             onClick={() => onOpenLightbox(idx)}
-            className="group/img relative aspect-square overflow-hidden rounded-[8px] bg-black/10 cursor-pointer"
+            className="group/img relative aspect-[4/3] overflow-hidden rounded-[10px] bg-black/5 dark:bg-white/5 border border-hairline cursor-pointer shadow-2xs"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={img.url}
               alt="Photo"
-              className="h-full w-full object-cover transition-transform duration-200 group-hover/img:scale-105"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
               loading="lazy"
             />
-            <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20" />
+            <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20 flex items-center justify-center">
+              <span className="rounded-full bg-black/60 p-1.5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity backdrop-blur-sm">
+                <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                </svg>
+              </span>
+            </div>
           </div>
         ))}
       </div>
@@ -73,34 +79,46 @@ export default function ImageGallery({
 
   if (count === 3) {
     return (
-      <div className="grid grid-cols-2 gap-1.5 overflow-hidden rounded-[12px] max-w-[420px]">
+      <div className="grid grid-cols-2 gap-2 overflow-hidden rounded-[14px] max-w-[400px]">
         <div
           onClick={() => onOpenLightbox(0)}
-          className="group/img relative col-span-2 h-44 overflow-hidden rounded-[8px] bg-black/10 cursor-pointer"
+          className="group/img relative col-span-2 h-44 overflow-hidden rounded-[10px] bg-black/5 dark:bg-white/5 border border-hairline cursor-pointer shadow-2xs"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={images[0].url}
             alt="Featured photo"
-            className="h-full w-full object-cover transition-transform duration-200 group-hover/img:scale-105"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20" />
+          <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20 flex items-center justify-center">
+            <span className="rounded-full bg-black/60 p-1.5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity backdrop-blur-sm">
+              <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+              </svg>
+            </span>
+          </div>
         </div>
         {images.slice(1).map((img, idx) => (
           <div
             key={img.id}
             onClick={() => onOpenLightbox(idx + 1)}
-            className="group/img relative aspect-square overflow-hidden rounded-[8px] bg-black/10 cursor-pointer"
+            className="group/img relative aspect-[4/3] overflow-hidden rounded-[10px] bg-black/5 dark:bg-white/5 border border-hairline cursor-pointer shadow-2xs"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={img.url}
               alt="Photo"
-              className="h-full w-full object-cover transition-transform duration-200 group-hover/img:scale-105"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
               loading="lazy"
             />
-            <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20" />
+            <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20 flex items-center justify-center">
+              <span className="rounded-full bg-black/60 p-1.5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity backdrop-blur-sm">
+                <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                </svg>
+              </span>
+            </div>
           </div>
         ))}
       </div>
@@ -112,30 +130,36 @@ export default function ImageGallery({
   const remainingCount = count - 4;
 
   return (
-    <div className="grid grid-cols-2 gap-1.5 overflow-hidden rounded-[12px] max-w-[420px]">
+    <div className="grid grid-cols-2 gap-2 overflow-hidden rounded-[14px] max-w-[400px]">
       {displayImages.map((img, idx) => {
         const isLastAndHasMore = idx === 3 && remainingCount > 0;
         return (
           <div
             key={img.id}
             onClick={() => onOpenLightbox(idx)}
-            className="group/img relative aspect-square overflow-hidden rounded-[8px] bg-black/10 cursor-pointer"
+            className="group/img relative aspect-square overflow-hidden rounded-[10px] bg-black/5 dark:bg-white/5 border border-hairline cursor-pointer shadow-2xs"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={img.url}
               alt="Photo"
-              className="h-full w-full object-cover transition-transform duration-200 group-hover/img:scale-105"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
               loading="lazy"
             />
             {isLastAndHasMore ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[2px] transition-colors group-hover/img:bg-black/70">
-                <span className="text-[20px] font-bold text-white tracking-wide">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/65 backdrop-blur-[3px] transition-colors group-hover/img:bg-black/75">
+                <span className="text-[20px] font-bold text-white tracking-wider drop-shadow-sm">
                   +{remainingCount}
                 </span>
               </div>
             ) : (
-              <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20" />
+              <div className="absolute inset-0 bg-black/0 transition-colors group-hover/img:bg-black/20 flex items-center justify-center">
+                <span className="rounded-full bg-black/60 p-1.5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity backdrop-blur-sm">
+                  <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                  </svg>
+                </span>
+              </div>
             )}
           </div>
         );
