@@ -222,14 +222,17 @@ function normalize(data: Partial<StoreData>): StoreData {
       if (seenExtIds.has(extKey)) continue;
       seenExtIds.add(extKey);
     }
-    const isDup = uniqueMessages.some((prev) => {
-      if (prev.conversationId !== msg.conversationId || prev.direction !== msg.direction) return false;
-      if (prev.text !== msg.text) return false;
-      const t1 = new Date(prev.createdAt).getTime();
-      const t2 = new Date(msg.createdAt).getTime();
-      return Math.abs(t1 - t2) < 15_000;
-    });
-    if (isDup) continue;
+    // Only collapse duplicate OUTBOUND text messages (e.g. echo webhooks matching sent replies)
+    if (msg.direction === "out" && msg.text && !msg.mediaUrl) {
+      const isDup = uniqueMessages.some((prev) => {
+        if (prev.conversationId !== msg.conversationId || prev.direction !== "out") return false;
+        if (prev.text !== msg.text || prev.mediaUrl) return false;
+        const t1 = new Date(prev.createdAt).getTime();
+        const t2 = new Date(msg.createdAt).getTime();
+        return Math.abs(t1 - t2) < 15_000;
+      });
+      if (isDup) continue;
+    }
 
     // Filter out WhatsApp unsupported system container events that have no media
     if (msg.text === "[unsupported]" && !msg.mediaUrl) continue;
