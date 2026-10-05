@@ -422,6 +422,117 @@ export async function updateOutboundStatus(
   });
 }
 
+async function resolveContactProfile(
+  contact: Contact,
+  userCreds: CredentialRecord | undefined,
+  tenant: { pageAccessToken: string; graphVersion: string },
+  matchedToken?: string,
+): Promise<boolean> {
+  const isMissingOrUnresolvedName =
+    !contact.name ||
+    contact.name === contact.externalId ||
+    /^\d+$/.test(contact.name.trim()) ||
+    (contact.channel === "slack" &&
+      (contact.name.startsWith("#C") ||
+        contact.name.startsWith("#G") ||
+        contact.name.startsWith("#D") ||
+        contact.name.startsWith("C0") ||
+        contact.name.startsWith("D0") ||
+        contact.name.startsWith("G0") ||
+        contact.name.startsWith("U0") ||
+        contact.name.startsWith("Slack User") ||
+        contact.name.startsWith("User ")));
+
+  if (!isMissingOrUnresolvedName && contact.avatarUrl) {
+    return false;
+  }
+
+  let changed = false;
+
+  if (contact.channel === "messenger") {
+    const token = matchedToken || tenant.pageAccessToken;
+    if (token) {
+      try {
+        const profile = await fetchMessengerUserProfile(
+          contact.externalId,
+          token,
+          tenant.graphVersion,
+        );
+        if (profile.name && contact.name !== profile.name) {
+          contact.name = profile.name;
+          changed = true;
+        }
+        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
+          contact.avatarUrl = profile.avatarUrl;
+          changed = true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  } else if (contact.channel === "instagram") {
+    const token = matchedToken || tenant.pageAccessToken;
+    if (token) {
+      try {
+        const profile = await fetchInstagramUserProfile(
+          contact.externalId,
+          token,
+          tenant.graphVersion,
+        );
+        if (profile.name && contact.name !== profile.name) {
+          contact.name = profile.name;
+          changed = true;
+        }
+        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
+          contact.avatarUrl = profile.avatarUrl;
+          changed = true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  } else if (contact.channel === "slack") {
+    let slackToken = matchedToken;
+    if (!slackToken && userCreds?.encrypted) {
+      try {
+        const { decryptSecrets } = await import("./secrets");
+        const decrypted = decryptSecrets(userCreds.encrypted);
+        slackToken = decrypted?.slackBotToken;
+      } catch {
+        // ignore
+      }
+    }
+    if (slackToken) {
+      try {
+        const { fetchSlackChannelName, fetchSlackUserProfile } = await import("./slack/client");
+        if (contact.externalId.startsWith("U")) {
+          const profile = await fetchSlackUserProfile(slackToken, contact.externalId);
+          if (profile?.name && !profile.name.startsWith("User ") && contact.name !== profile.name) {
+            contact.name = profile.name;
+            if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
+              contact.avatarUrl = profile.avatarUrl;
+            }
+            changed = true;
+          }
+        } else {
+          const cName = await fetchSlackChannelName(slackToken, contact.externalId);
+          if (cName) {
+            const formattedName = contact.externalId.startsWith("D") ? cName : `#${cName}`;
+            if (contact.name !== formattedName) {
+              contact.name = formattedName;
+              changed = true;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return changed;
+}
+
 export async function listConversations(
   userId: string,
   tenant: { pageAccessToken: string; graphVersion: string },
@@ -433,58 +544,14 @@ export async function listConversations(
   // Resolve profiles for any contact missing a real name or avatar
   const userCreds = data.credentials.find((c) => c.userId === userId);
   for (const contact of data.contacts.filter((c) => c.userId === userId)) {
-    const isMissingOrNumericName =
-      !contact.name ||
-      contact.name === contact.externalId ||
-      /^\d+$/.test(contact.name.trim());
-
-    if (!isMissingOrNumericName && contact.avatarUrl) continue;
-
     const conv = data.conversations.find((c) => c.contactId === contact.id && c.userId === userId);
     const matchedAcc = conv?.accountId
       ? userCreds?.accounts?.find((a) => a.id === conv.accountId || a.externalId === conv.accountId)
       : undefined;
     const token = matchedAcc?.token || tenant.pageAccessToken;
 
-    if (!token) continue;
-
-    if (contact.channel === "messenger") {
-      try {
-        const profile = await fetchMessengerUserProfile(
-          contact.externalId,
-          token,
-          tenant.graphVersion,
-        );
-        if (profile.name && contact.name !== profile.name) {
-          contact.name = profile.name;
-          updatedAny = true;
-        }
-        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
-          contact.avatarUrl = profile.avatarUrl;
-          updatedAny = true;
-        }
-      } catch {
-        // ignore
-      }
-    } else if (contact.channel === "instagram") {
-      try {
-        const profile = await fetchInstagramUserProfile(
-          contact.externalId,
-          token,
-          tenant.graphVersion,
-        );
-        if (profile.name && contact.name !== profile.name) {
-          contact.name = profile.name;
-          updatedAny = true;
-        }
-        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
-          contact.avatarUrl = profile.avatarUrl;
-          updatedAny = true;
-        }
-      } catch {
-        // ignore
-      }
-    }
+    const resolved = await resolveContactProfile(contact, userCreds, tenant, token);
+    if (resolved) updatedAny = true;
   }
 
   if (updatedAny) {
@@ -547,31 +614,15 @@ export async function getConversation(
   const contact = data.contacts.find((c) => c.id === conversation.contactId);
   let updatedAny = false;
 
-  if (contact && contact.channel === "messenger") {
-    const isMissingOrNumericName =
-      !contact.name ||
-      contact.name === contact.externalId ||
-      /^\d+$/.test(contact.name.trim());
+  if (contact) {
+    const userCreds = data.credentials.find((c) => c.userId === userId);
+    const matchedAcc = conversation.accountId
+      ? userCreds?.accounts?.find((a) => a.id === conversation.accountId || a.externalId === conversation.accountId)
+      : undefined;
+    const token = matchedAcc?.token || tenant.pageAccessToken;
 
-    if ((isMissingOrNumericName || !contact.avatarUrl) && tenant.pageAccessToken) {
-      try {
-        const profile = await fetchMessengerUserProfile(
-          contact.externalId,
-          tenant.pageAccessToken,
-          tenant.graphVersion,
-        );
-        if (profile.name && contact.name !== profile.name) {
-          contact.name = profile.name;
-          updatedAny = true;
-        }
-        if (profile.avatarUrl && contact.avatarUrl !== profile.avatarUrl) {
-          contact.avatarUrl = profile.avatarUrl;
-          updatedAny = true;
-        }
-      } catch {
-        // ignore
-      }
-    }
+    const resolved = await resolveContactProfile(contact, userCreds, tenant, token);
+    if (resolved) updatedAny = true;
   }
 
   const messages = data.messages

@@ -41,14 +41,14 @@ export async function handleSlackMessage(
   try {
     const channelName = await fetchSlackChannelName(token, channelId);
     if (channelName) {
-      // Resolved from API — real channel name
-      contactName = `#${channelName}`;
+      // Resolved from API — real channel name or DM user name
+      contactName = channelId.startsWith("D") ? channelName : `#${channelName}`;
     } else if (event.channel_type === "im" || channelId.startsWith("D")) {
       // Direct message — use sender name
       contactName = senderName;
     } else if (channelId.startsWith("C")) {
-      // Public channel — couldn't resolve name (missing channels:read scope?)
-      contactName = `#${channelId}`;
+      // Public channel fallback
+      contactName = senderName && !senderName.startsWith("Slack User") ? `${senderName} (#${channelId})` : `#${channelId}`;
     } else if (channelId.startsWith("G")) {
       // Private group/channel
       contactName = `🔒 Private Group`;

@@ -168,7 +168,7 @@ export async function fetchSlackUserProfile(
 }
 
 /**
- * Fetches the display name of a Slack channel.
+ * Fetches the display name of a Slack channel or DM.
  */
 export async function fetchSlackChannelName(
   token: string,
@@ -185,25 +185,71 @@ export async function fetchSlackChannelName(
       },
     );
 
-    if (!response.ok) return null;
+    if (response.ok) {
+      const data = (await response.json()) as {
+        ok: boolean;
+        error?: string;
+        channel?: { name?: string; is_im?: boolean; is_mpim?: boolean; user?: string };
+      };
 
-    const data = (await response.json()) as {
-      ok: boolean;
-      channel?: { name?: string; is_im?: boolean };
-    };
+      if (data.ok && data.channel) {
+        // Direct Message (IM) - resolve recipient user profile
+        if (data.channel.is_im && data.channel.user) {
+          const profile = await fetchSlackUserProfile(token, data.channel.user);
+          if (profile?.name) {
+            slackChannelCache.set(channelId, profile.name);
+            return profile.name;
+          }
+          return null;
+        }
 
-    if (!data.ok || !data.channel) return null;
-
-    if (data.channel.is_im) {
-      return null;
+        const name = data.channel.name?.trim() || null;
+        if (name) {
+          slackChannelCache.set(channelId, name);
+          return name;
+        }
+      } else if (data.error) {
+        console.warn(`[slack] conversations.info for ${channelId} returned error:`, data.error);
+      }
     }
-
-    const name = data.channel.name?.trim() || null;
-    if (name) slackChannelCache.set(channelId, name);
-    return name;
-  } catch {
-    return null;
+  } catch (err) {
+    console.warn(`[slack] conversations.info fetch error for ${channelId}:`, err);
   }
+
+  // Fallback: list all public and private channels in the workspace to populate cache
+  try {
+    const listRes = await fetch(
+      "https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=1000",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    if (listRes.ok) {
+      const listData = (await listRes.json()) as {
+        ok: boolean;
+        error?: string;
+        channels?: Array<{ id: string; name?: string }>;
+      };
+
+      if (listData.ok && Array.isArray(listData.channels)) {
+        for (const ch of listData.channels) {
+          if (ch.id && ch.name) {
+            slackChannelCache.set(ch.id, ch.name.trim());
+          }
+        }
+        if (slackChannelCache.has(channelId)) {
+          return slackChannelCache.get(channelId)!;
+        }
+      } else if (listData.error) {
+        console.warn("[slack] conversations.list fallback error:", listData.error);
+      }
+    }
+  } catch (err) {
+    console.warn("[slack] conversations.list fallback failed:", err);
+  }
+
+  return null;
 }
 
 /**
