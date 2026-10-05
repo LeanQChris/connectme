@@ -7,3 +7,4 @@ export * from "./conversation.entity";
 export * from "./message.entity";
 export * from "./scheduled-post.entity";
 export * from "./scheduled-message.entity";
+export * from "./whatsapp-template.entity";

@@ -79,6 +79,12 @@ export class TenantCredential {
   @Column({ type: "varchar", nullable: true, default: "priority" })
   aiRoutingStrategy?: string | null;
 
+  @Column({ type: "boolean", default: false })
+  aiAutoReplyEnabled!: boolean;
+
+  @Column({ type: "text", nullable: true })
+  aiAutoReplyPrompt?: string | null;
+
   @UpdateDateColumn({ type: "timestamp with time zone" })
   updatedAt!: Date;
 

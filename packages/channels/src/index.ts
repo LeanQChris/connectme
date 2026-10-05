@@ -4,6 +4,7 @@ export * from "./post-publisher.interface";
 export * from "./http";
 export * from "./meta/graph";
 export * from "./meta/graph-pagination";
+export * from "./meta/media";
 export * from "./meta/whatsapp.client";
 export * from "./meta/messenger.client";
 export * from "./meta/instagram.client";

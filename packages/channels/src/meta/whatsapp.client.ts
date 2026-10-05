@@ -101,4 +101,94 @@ export class WhatsAppClient implements IChannelClient {
 
     return { externalId: json?.messages?.[0]?.id ?? null };
   }
+
+  async sendTemplateMessage(
+    phoneNumberId: string,
+    token: string,
+    to: string,
+    templateName: string,
+    languageCode: string = "en_US",
+    headerVariables?: string[],
+    bodyVariables?: string[],
+    buttonPayload?: string,
+  ): Promise<ChannelSendResult> {
+    const components: Array<Record<string, unknown>> = [];
+
+    if (headerVariables && headerVariables.length > 0) {
+      components.push({
+        type: "header",
+        parameters: headerVariables.map((v) => ({ type: "text", text: v })),
+      });
+    }
+
+    if (bodyVariables && bodyVariables.length > 0) {
+      components.push({
+        type: "body",
+        parameters: bodyVariables.map((v) => ({ type: "text", text: v })),
+      });
+    }
+
+    if (buttonPayload) {
+      components.push({
+        type: "button",
+        sub_type: "quick_reply",
+        index: "0",
+        parameters: [{ type: "payload", payload: buttonPayload }],
+      });
+    }
+
+    const templatePayload: Record<string, unknown> = {
+      name: templateName,
+      language: { code: languageCode },
+    };
+
+    if (components.length > 0) {
+      templatePayload.components = components;
+    }
+
+    return this.post(phoneNumberId, token, {
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: templatePayload,
+    });
+  }
+
+  async fetchTemplates(
+    wabaIdOrPhoneId: string,
+    token: string,
+  ): Promise<Array<Record<string, unknown>>> {
+    // If phone ID is provided, resolve WABA ID first
+    let targetWabaId = wabaIdOrPhoneId;
+    try {
+      const phoneRes = await fetchWithTimeout(
+        graphUrl(`${wabaIdOrPhoneId}?fields=whatsapp_business_account`),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const phoneJson: any = await phoneRes.json().catch(() => ({}));
+      if (phoneJson?.whatsapp_business_account?.id) {
+        targetWabaId = phoneJson.whatsapp_business_account.id;
+      }
+    } catch {
+      // If direct call fails or is already a WABA ID, fallback to targetWabaId
+    }
+
+    const url = graphUrl(
+      `${targetWabaId}/message_templates?fields=name,status,category,language,components&limit=100`,
+    );
+
+    const res = await fetchWithTimeout(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const json: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      this.logger.warn(`Failed to fetch WhatsApp templates: ${JSON.stringify(json)}`);
+      return [];
+    }
+
+    return Array.isArray(json?.data) ? json.data : [];
+  }
 }
