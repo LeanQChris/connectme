@@ -20,9 +20,11 @@ import { channelMeta } from "./channel-badge";
 import ChannelRail from "./channel-rail";
 import ConversationList from "./conversation-list";
 import type { ReplyPayload } from "./reply-box";
+import SoundToggle from "./sound-toggle";
 import ThemeToggle from "./theme-toggle";
 import Thread from "./thread";
 import Logo from "@/components/logo";
+import { soundNotifier } from "@/lib/audio-chime";
 
 const ARCHIVED = "archived";
 
@@ -97,6 +99,20 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     }
     return unread;
   }, [all]);
+
+  // Dynamic Browser Tab Title & Audio Notification Chime
+  const prevUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    const currentUnread = counts.total ?? 0;
+    if (typeof document !== "undefined") {
+      document.title = currentUnread > 0 ? `(${currentUnread}) ConnectMe · Inbox` : "ConnectMe · Inbox";
+    }
+
+    if (prevUnreadRef.current !== null && currentUnread > prevUnreadRef.current) {
+      soundNotifier.playChime();
+    }
+    prevUnreadRef.current = currentUnread;
+  }, [counts.total]);
 
   // Keyboard triage: j/k walk the list, Enter opens, a archives, Esc goes back.
   const visibleRef = useRef(visible);
@@ -202,6 +218,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <SoundToggle />
           <ThemeToggle />
 
           <Link

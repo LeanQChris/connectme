@@ -13,6 +13,7 @@ import { channelMeta } from "./channel-badge";
 import { formatTime } from "./format";
 import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
 
+import ImageGallery, { Lightbox } from "./image-gallery";
 import ReplyBox, { type ReplyPayload } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
 
@@ -42,6 +43,81 @@ function formatDuration(ms: number): string {
   if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
   const hours = ms / 3_600_000;
   return hours < 24 ? `${hours.toFixed(1)}h` : `${Math.round(hours / 24)}d`;
+}
+
+interface SingleItem {
+  type: "single";
+  message: Message;
+  id: string;
+  createdAt: string;
+  direction: "in" | "out" | "note";
+  status: MessageStatus;
+}
+
+interface ImageGroupItem {
+  type: "image_group";
+  messages: Message[];
+  id: string;
+  createdAt: string;
+  direction: "in" | "out";
+  status: MessageStatus;
+}
+
+type ClusterItem = SingleItem | ImageGroupItem;
+
+function clusterMessages(messages: Message[]): ClusterItem[] {
+  const result: ClusterItem[] = [];
+  let i = 0;
+
+  while (i < messages.length) {
+    const msg = messages[i];
+
+    if (msg.type === "image" && msg.mediaUrl && msg.direction !== "note") {
+      const group: Message[] = [msg];
+      let j = i + 1;
+
+      while (j < messages.length) {
+        const next = messages[j];
+        if (
+          next.type === "image" &&
+          next.mediaUrl &&
+          next.direction === msg.direction &&
+          (!next.text || next.text.startsWith("[")) &&
+          Math.abs(new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime()) < 180000
+        ) {
+          group.push(next);
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      if (group.length > 1) {
+        result.push({
+          type: "image_group",
+          messages: group,
+          id: group.map((m) => m.id).join("_"),
+          createdAt: group[group.length - 1].createdAt,
+          direction: msg.direction as "in" | "out",
+          status: group[group.length - 1].status,
+        });
+        i = j;
+        continue;
+      }
+    }
+
+    result.push({
+      type: "single",
+      message: msg,
+      id: msg.id,
+      createdAt: msg.createdAt,
+      direction: msg.direction,
+      status: msg.status,
+    });
+    i++;
+  }
+
+  return result;
 }
 
 const TEAM = ["unassigned", "ana", "ben", "chloe", "dev"];
@@ -365,9 +441,14 @@ export default function Thread({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxImages, setLightboxImages] = useState<
+    { id: string; url: string; text?: string | null; createdAt: string }[] | null
+  >(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0);
   const windowOpen = conversation.window.open;
   const archived = conversation.status === "closed";
+
+  const clusteredItems = useMemo(() => clusterMessages(messages), [messages]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -408,28 +489,14 @@ export default function Thread({
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col bg-canvas">
-      {/* Lightbox Modal for Images */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
-          onClick={() => setLightboxImage(null)}
-        >
-          <button
-            type="button"
-            onClick={() => setLightboxImage(null)}
-            className="absolute right-5 top-5 rounded-full bg-white/20 p-2 text-white transition-colors hover:bg-white/40"
-            aria-label="Close image"
-          >
-            ✕
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={lightboxImage}
-            alt="Full size preview"
-            className="max-h-[90vh] max-w-[90vw] rounded-[8px] object-contain shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+      {/* Enhanced Lightbox Modal for Images */}
+      {lightboxImages && (
+        <Lightbox
+          images={lightboxImages}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxImages(null)}
+          onNavigate={(idx) => setLightboxIndex(idx)}
+        />
       )}
 
       {/* Thread Header */}
@@ -533,7 +600,7 @@ export default function Thread({
             type="button"
             onClick={() => onArchive(archived ? "open" : "closed")}
             title={archived ? "Restore to inbox" : "Archive conversation"}
-            className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2 sm:px-2.5 text-[12px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink active:scale-95"
+            className="flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-hairline bg-canvas-elevated px-2 sm:px-2.5 text-[12px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink active:scale-95 cursor-pointer"
           >
             <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -569,7 +636,7 @@ export default function Thread({
 
       {/* Messages Stream */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-        {messages.length === 0 ? (
+        {clusteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] border border-hairline bg-canvas-elevated text-body shadow-2xs">
               <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
@@ -580,35 +647,30 @@ export default function Thread({
             <p className="mt-0.5 text-[12px] text-mute">Send a reply below to start the conversation.</p>
           </div>
         ) : (
-          messages.map((message, i) => {
-            const isNote = message.direction === "note";
-            const outgoing = message.direction === "out";
-            const status = STATUS_GLYPH[message.status];
-            const prev = messages[i - 1];
-            const next = messages[i + 1];
-            const day = formatDateDivider(message.createdAt);
-            const showDivider = !prev || formatDateDivider(prev.createdAt) !== day;
-            const runStart = showDivider || !prev || prev.direction !== message.direction;
-            // Avatar only under the last bubble of an inbound run.
-            const showAvatar = !outgoing && !isNote && (!next || next.direction !== message.direction);
-            const hasMedia = Boolean(message.mediaUrl);
-            const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
-            const caption =
-              message.text && (message.type === "image" || message.type === "video" || !hasMedia);
+          clusteredItems.map((item, i) => {
+            const isGroup = item.type === "image_group";
+            const message = item.type === "single" ? item.message : item.messages[0];
+            const isNote = item.direction === "note";
+            const outgoing = item.direction === "out";
+            const status = STATUS_GLYPH[item.status];
+            const prev = clusteredItems[i - 1];
+            const next = clusteredItems[i + 1];
+            const day = formatDateDivider(item.createdAt);
+            const prevCreatedAt = prev?.createdAt;
+            const showDivider = !prevCreatedAt || formatDateDivider(prevCreatedAt) !== day;
+            const runStart = showDivider || !prev || prev.direction !== item.direction;
+            const showAvatar = !outgoing && !isNote && (!next || next.direction !== item.direction);
             const unreadCount =
-              message.id === unreadBoundary
+              item.id === unreadBoundary
                 ? messages.filter(
                     (m) => m.direction === "in" && m.createdAt > (conversation.lastReadAt ?? ""),
                   ).length
                 : 0;
 
             if (isNote) {
-              // Notes are team-only, so they break the message rhythm entirely:
-              // a hairline-ruled band that spans the column, dashed to say
-              // "never sent". No bubble, no avatar, no tick column.
               return (
                 <div
-                  key={message.id}
+                  key={item.id}
                   className={`flex items-stretch gap-2.5 sm:gap-3 ${
                     runStart ? "mt-4" : "mt-1.5"
                   }`}
@@ -632,7 +694,7 @@ export default function Thread({
                         className="h-px flex-1 bg-hairline opacity-0 transition-opacity group-hover:opacity-100"
                       />
                       <span className="shrink-0 font-mono text-[10px] tabular-nums text-mute opacity-70 transition-opacity group-hover:opacity-100">
-                        {formatTime(message.createdAt)}
+                        {formatTime(item.createdAt)}
                       </span>
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-body select-text">
@@ -643,8 +705,88 @@ export default function Thread({
               );
             }
 
+            // Image Group / Photo Album Collage
+            if (isGroup) {
+              const galleryImages = item.messages.map((m) => ({
+                id: m.id,
+                url: m.mediaUrl!,
+                text: m.text,
+                createdAt: m.createdAt,
+              }));
+
+              return (
+                <Fragment key={item.id}>
+                  {showDivider && (
+                    <div className="my-5 flex items-center justify-center first:mt-0">
+                      <span className="rounded-full border border-hairline bg-canvas-elevated px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mute shadow-2xs">
+                        {day}
+                      </span>
+                    </div>
+                  )}
+
+                  <div
+                    className={`flex items-end gap-2 ${outgoing ? "justify-end" : "justify-start"} ${
+                      runStart ? "mt-4" : "mt-1"
+                    }`}
+                  >
+                    {!outgoing && (
+                      <div className="w-8 shrink-0 self-end">
+                        {showAvatar && (
+                          <Avatar
+                            name={conversation.contactName}
+                            avatarUrl={conversation.avatarUrl}
+                            channel={conversation.channel}
+                            size="sm"
+                            showChannelBadge={false}
+                            className="shadow-2xs"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    <div
+                      className={`group relative max-w-[85%] sm:max-w-[75%] p-1.5 ${
+                        outgoing
+                          ? "rounded-[16px] rounded-br-[4px] bg-primary/10 border border-primary/20"
+                          : "rounded-[16px] rounded-bl-[4px] bg-canvas-elevated border border-hairline"
+                      }`}
+                    >
+                      <ImageGallery
+                        images={galleryImages}
+                        outgoing={outgoing}
+                        onOpenLightbox={(idx) => {
+                          setLightboxImages(galleryImages);
+                          setLightboxIndex(idx);
+                        }}
+                      />
+
+                      {/* Metadata footer */}
+                      <div
+                        className={`mt-1.5 flex items-center justify-end gap-1.5 px-1 font-mono text-[10px] tabular-nums select-none ${
+                          outgoing ? "opacity-70 text-ink" : "text-mute opacity-70"
+                        }`}
+                      >
+                        <span className="text-[9.5px] font-sans font-medium opacity-80">
+                          📷 {galleryImages.length} photos
+                        </span>
+                        <span>·</span>
+                        <span>{formatTime(item.createdAt)}</span>
+                        {outgoing && status.text ? <span className={status.color}>{status.text}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+                </Fragment>
+              );
+            }
+
+            // Single Message
+            const hasMedia = Boolean(message.mediaUrl);
+            const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
+            const caption =
+              message.text && (message.type === "image" || message.type === "video" || !hasMedia);
+
             return (
-              <Fragment key={message.id}>
+              <Fragment key={item.id}>
                 {showDivider && (
                   <div className="my-5 flex items-center justify-center first:mt-0">
                     <span className="rounded-full border border-hairline bg-canvas-elevated px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mute shadow-2xs">
@@ -701,7 +843,10 @@ export default function Thread({
                     {message.type !== "text" && (
                       <MessageAttachment
                         message={message}
-                        onOpenImage={(url) => setLightboxImage(url)}
+                        onOpenImage={(url) => {
+                          setLightboxImages([{ id: message.id, url, text: message.text, createdAt: message.createdAt }]);
+                          setLightboxIndex(0);
+                        }}
                       />
                     )}
 
@@ -741,7 +886,7 @@ export default function Thread({
                       </div>
                     ) : null}
 
-                    {/* Metadata: quiet until hover, ticks only on outgoing. */}
+                    {/* Metadata footer */}
                     <div
                       className={`mt-1 flex items-center justify-end gap-1.5 font-mono text-[10px] tabular-nums select-none ${
                         outgoing ? "opacity-60" : "text-mute opacity-70"
@@ -761,7 +906,7 @@ export default function Thread({
                           aria-label="Copy message"
                           className={`rounded p-0.5 leading-none transition-opacity ${
                             outgoing ? "hover:bg-white/15" : "hover:bg-surface-well"
-                          } ${copiedMessageId === message.id ? "opacity-100" : "opacity-0 group-hover:opacity-70"}`}
+                          } ${copiedMessageId === message.id ? "opacity-100" : "opacity-0 group-hover:opacity-70"} cursor-pointer`}
                         >
                           {copiedMessageId === message.id ? (
                             <svg className="h-3 w-3 stroke-current" fill="none" viewBox="0 0 24 24">
