@@ -85,9 +85,20 @@ const kv = (() => {
   };
 })();
 
+export function normalizeExternalId(channel: Channel, externalId: string): string {
+  if (!externalId) return "";
+  if (channel === "whatsapp") {
+    // Strip leading '+' and any whitespace, dashes, or parentheses
+    const digits = externalId.replace(/[^0-9]/g, "");
+    return digits || externalId.trim();
+  }
+  return externalId.trim();
+}
+
 /**
- * One-time migration for stores written before multi-tenancy: records had no
- * owner, so they are attached to the earliest account that exists.
+ * One-time migration & data consistency normalization:
+ * - Multi-tenancy migration: records without owner attached to earliest account.
+ * - WhatsApp phone normalization & conversation deduplication.
  */
 function normalize(data: Partial<StoreData>): StoreData {
   const merged: StoreData = {
@@ -99,14 +110,91 @@ function normalize(data: Partial<StoreData>): StoreData {
   };
 
   const owner = [...merged.users].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]?.userId;
-  if (!owner) return merged;
+  if (owner) {
+    for (const contact of merged.contacts) {
+      if (!contact.userId) contact.userId = owner;
+    }
+    for (const conversation of merged.conversations) {
+      if (!conversation.userId) conversation.userId = owner;
+      if (!Array.isArray(conversation.tags)) conversation.tags = [];
+    }
+  }
+
+  // Normalize all contact external IDs (e.g. clean WhatsApp digits)
+  for (const contact of merged.contacts) {
+    contact.externalId = normalizeExternalId(contact.channel, contact.externalId);
+  }
+
+  // 1. Deduplicate contacts with the same userId + channel + normalized externalId
+  const contactMap = new Map<string, Contact>();
+  const contactRedirect = new Map<string, string>(); // duplicateContactId -> primaryContactId
+  const uniqueContacts: Contact[] = [];
 
   for (const contact of merged.contacts) {
-    if (!contact.userId) contact.userId = owner;
+    const key = `${contact.userId || "default"}:${contactKey(contact.channel, contact.externalId)}`;
+    const existing = contactMap.get(key);
+    if (!existing) {
+      contactMap.set(key, contact);
+      uniqueContacts.push(contact);
+    } else {
+      // Merge duplicate contact info into existing primary
+      contactRedirect.set(contact.id, existing.id);
+      if ((!existing.name || existing.name === existing.externalId) && contact.name && contact.name !== contact.externalId) {
+        existing.name = contact.name;
+      }
+      if (!existing.avatarUrl && contact.avatarUrl) {
+        existing.avatarUrl = contact.avatarUrl;
+      }
+    }
   }
-  for (const conversation of merged.conversations) {
-    if (!conversation.userId) conversation.userId = owner;
-    if (!Array.isArray(conversation.tags)) conversation.tags = [];
+  merged.contacts = uniqueContacts;
+
+  // 2. Remap contactId in conversations to primary contact
+  for (const conv of merged.conversations) {
+    if (contactRedirect.has(conv.contactId)) {
+      conv.contactId = contactRedirect.get(conv.contactId)!;
+    }
+  }
+
+  // 3. Deduplicate conversations with the same userId + contactId
+  const convMap = new Map<string, Conversation>();
+  const convRedirect = new Map<string, string>(); // duplicateConvId -> primaryConvId
+  const uniqueConversations: Conversation[] = [];
+
+  for (const conv of merged.conversations) {
+    const key = `${conv.userId || "default"}:${conv.contactId}`;
+    const existing = convMap.get(key);
+    if (!existing) {
+      convMap.set(key, conv);
+      uniqueConversations.push(conv);
+    } else {
+      // Merge duplicate conversation into existing primary
+      convRedirect.set(conv.id, existing.id);
+      if (conv.lastMessageAt && (!existing.lastMessageAt || conv.lastMessageAt > existing.lastMessageAt)) {
+        existing.lastMessageAt = conv.lastMessageAt;
+      }
+      if (conv.lastInboundAt && (!existing.lastInboundAt || conv.lastInboundAt > existing.lastInboundAt)) {
+        existing.lastInboundAt = conv.lastInboundAt;
+      }
+      if (conv.lastReadAt && (!existing.lastReadAt || conv.lastReadAt > existing.lastReadAt)) {
+        existing.lastReadAt = conv.lastReadAt;
+      }
+      existing.unreadCount = (existing.unreadCount || 0) + (conv.unreadCount || 0);
+      if (!existing.accountId && conv.accountId) existing.accountId = conv.accountId;
+      if (!existing.accountName && conv.accountName) existing.accountName = conv.accountName;
+      if (conv.status === "open") existing.status = "open";
+      if (Array.isArray(conv.tags) && conv.tags.length > 0) {
+        existing.tags = Array.from(new Set([...(existing.tags || []), ...conv.tags]));
+      }
+    }
+  }
+  merged.conversations = uniqueConversations;
+
+  // 4. Remap conversationId in messages to primary conversation
+  for (const msg of merged.messages) {
+    if (convRedirect.has(msg.conversationId)) {
+      msg.conversationId = convRedirect.get(msg.conversationId)!;
+    }
   }
 
   return merged;
@@ -156,7 +244,7 @@ function tx<T>(fn: (data: StoreData) => T): Promise<T> {
 }
 
 function contactKey(channel: Channel, externalId: string): string {
-  return `${channel}:${externalId}`;
+  return `${channel}:${normalizeExternalId(channel, externalId)}`;
 }
 
 /** Every read and write below is scoped by owner; a wrong userId finds nothing. */
@@ -293,7 +381,8 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
     const accountId = account?.id ?? input.accountId ?? null;
     const accountName = input.accountName ?? account?.name ?? null;
 
-    const key = contactKey(input.channel, input.senderExternalId);
+    const normalizedSenderId = normalizeExternalId(input.channel, input.senderExternalId);
+    const key = contactKey(input.channel, normalizedSenderId);
     let contact = data.contacts.find(
       (c) => c.userId === input.userId && contactKey(c.channel, c.externalId) === key,
     );
@@ -302,17 +391,17 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
         id: randomUUID(),
         userId: input.userId,
         channel: input.channel,
-        externalId: input.senderExternalId,
+        externalId: normalizedSenderId,
         name: input.senderName?.trim() || null,
         avatarUrl: input.senderAvatarUrl ?? null,
         createdAt: input.createdAt.toISOString(),
       };
       data.contacts.push(contact);
     } else {
-      if (input.senderName?.trim()) {
+      if (input.senderName?.trim() && (!contact.name || contact.name === contact.externalId)) {
         contact.name = input.senderName.trim();
       }
-      if (input.senderAvatarUrl) {
+      if (input.senderAvatarUrl && !contact.avatarUrl) {
         contact.avatarUrl = input.senderAvatarUrl;
       }
     }
@@ -379,7 +468,8 @@ export async function findOrCreateConversation(
   input: CreateConversationInput,
 ): Promise<ConversationSummary> {
   return tx((data) => {
-    const key = contactKey(input.channel, input.contactExternalId);
+    const normalizedContactId = normalizeExternalId(input.channel, input.contactExternalId);
+    const key = contactKey(input.channel, normalizedContactId);
     let contact = data.contacts.find(
       (c) => c.userId === input.userId && contactKey(c.channel, c.externalId) === key,
     );
@@ -389,17 +479,17 @@ export async function findOrCreateConversation(
         id: randomUUID(),
         userId: input.userId,
         channel: input.channel,
-        externalId: input.contactExternalId,
+        externalId: normalizedContactId,
         name: input.contactName?.trim() || null,
         avatarUrl: input.contactAvatarUrl ?? null,
         createdAt: new Date().toISOString(),
       };
       data.contacts.push(contact);
     } else {
-      if (input.contactName?.trim()) {
+      if (input.contactName?.trim() && (!contact.name || contact.name === contact.externalId)) {
         contact.name = input.contactName.trim();
       }
-      if (input.contactAvatarUrl) {
+      if (input.contactAvatarUrl && !contact.avatarUrl) {
         contact.avatarUrl = input.contactAvatarUrl;
       }
     }
@@ -443,11 +533,12 @@ export async function findOrCreateConversation(
 
 export async function recordOutbound(input: OutboundInput): Promise<Message | null> {
   return tx((data) => {
+    const normalizedContactId = normalizeExternalId(input.channel, input.contactExternalId);
     const contact = data.contacts.find(
       (c) =>
         c.userId === input.userId &&
         c.channel === input.channel &&
-        c.externalId === input.contactExternalId,
+        normalizeExternalId(c.channel, c.externalId) === normalizedContactId,
     );
     if (!contact) return null;
     const conversation = data.conversations.find(
@@ -923,4 +1014,26 @@ export async function credentialsByRoutingId(field: {
 
     return false;
   });
+}
+
+/**
+ * Returns any Slack channels or groups known to the store for a given user.
+ */
+export async function listKnownSlackChannels(
+  userId: string,
+): Promise<Array<{ id: string; name?: string }>> {
+  const data = await read();
+  const map = new Map<string, string | undefined>();
+  for (const contact of data.contacts) {
+    if (contact.userId === userId && contact.channel === "slack") {
+      if (contact.externalId.startsWith("C") || contact.externalId.startsWith("G")) {
+        const cleanName =
+          contact.name && !contact.name.startsWith("C0") && !contact.name.startsWith("G0")
+            ? contact.name.replace(/^#/, "")
+            : undefined;
+        map.set(contact.externalId, cleanName);
+      }
+    }
+  }
+  return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
 }

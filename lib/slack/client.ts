@@ -354,19 +354,61 @@ export interface SlackDirectory {
 /**
  * Fetches all workspace users and channels for the new conversation picker.
  */
-export async function fetchSlackDirectory(rawToken: string): Promise<SlackDirectory> {
+export async function fetchSlackDirectory(
+  rawToken: string,
+  knownChannels?: Array<{ id: string; name?: string }>,
+): Promise<SlackDirectory> {
   const token = rawToken.trim();
   const users: SlackDirectoryUser[] = [];
   const channels: SlackDirectoryChannel[] = [];
   const seenChannelIds = new Set<string>();
 
+  const addChannel = (
+    id: string,
+    name: string,
+    isPrivate: boolean = false,
+    topic?: string,
+    numMembers?: number,
+  ) => {
+    const cleanId = id.trim();
+    const cleanName = name.trim().replace(/^#/, "");
+    if (!cleanId || !cleanName || seenChannelIds.has(cleanId)) return;
+    seenChannelIds.add(cleanId);
+    slackChannelCache.set(cleanId, cleanName);
+    channels.push({
+      id: cleanId,
+      name: cleanName,
+      isPrivate,
+      topic: topic || undefined,
+      numMembers,
+    });
+  };
+
   // 1. Fetch Users
   try {
-    const usersRes = await fetch("https://slack.com/api/users.list?limit=500", {
+    const usersRes = await fetch("https://slack.com/api/users.list?limit=1000", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (usersRes.ok) {
-      const usersData = await usersRes.json();
+      const usersData = (await usersRes.json()) as {
+        ok: boolean;
+        error?: string;
+        members?: Array<{
+          id: string;
+          name?: string;
+          deleted?: boolean;
+          is_bot?: boolean;
+          real_name?: string;
+          profile?: {
+            display_name?: string;
+            real_name?: string;
+            image_72?: string;
+            image_192?: string;
+            image_512?: string;
+            title?: string;
+          };
+        }>;
+      };
       if (usersData.ok && Array.isArray(usersData.members)) {
         for (const m of usersData.members) {
           // Skip deleted users and USLACKBOT
@@ -393,66 +435,165 @@ export async function fetchSlackDirectory(rawToken: string): Promise<SlackDirect
             isBot: Boolean(m.is_bot),
           });
         }
+      } else {
+        console.warn("[slack] users.list directory fetch returned:", usersData);
       }
     }
   } catch (err) {
     console.warn("[slack] users.list directory fetch failed:", err);
   }
 
-  // 2. Fetch Bot Member Channels (users.conversations)
-  try {
-    const userConvsRes = await fetch(
-      "https://slack.com/api/users.conversations?types=public_channel,private_channel&limit=500",
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (userConvsRes.ok) {
-      const data = await userConvsRes.json();
-      if (data.ok && Array.isArray(data.channels)) {
-        for (const c of data.channels) {
-          if (c.id && c.name && !seenChannelIds.has(c.id)) {
-            seenChannelIds.add(c.id);
-            slackChannelCache.set(c.id, c.name.trim());
-            channels.push({
-              id: c.id,
-              name: c.name.trim(),
-              isPrivate: Boolean(c.is_private),
-              topic: c.topic?.value || c.purpose?.value || undefined,
-              numMembers: c.num_members,
-            });
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("[slack] users.conversations directory fetch failed:", err);
-  }
-
-  // 3. Fetch Public Channels (conversations.list)
+  // 2. Fetch Public Channels (conversations.list with public_channel)
   try {
     const listRes = await fetch(
-      "https://slack.com/api/conversations.list?types=public_channel&limit=500",
+      "https://slack.com/api/conversations.list?types=public_channel&exclude_archived=true&limit=1000",
       { headers: { Authorization: `Bearer ${token}` } },
     );
     if (listRes.ok) {
-      const listData = await listRes.json();
+      const listData = (await listRes.json()) as {
+        ok: boolean;
+        error?: string;
+        channels?: Array<{
+          id: string;
+          name?: string;
+          is_private?: boolean;
+          topic?: { value?: string };
+          purpose?: { value?: string };
+          num_members?: number;
+        }>;
+      };
       if (listData.ok && Array.isArray(listData.channels)) {
         for (const c of listData.channels) {
-          if (c.id && c.name && !seenChannelIds.has(c.id)) {
-            seenChannelIds.add(c.id);
-            slackChannelCache.set(c.id, c.name.trim());
-            channels.push({
-              id: c.id,
-              name: c.name.trim(),
-              isPrivate: false,
-              topic: c.topic?.value || c.purpose?.value || undefined,
-              numMembers: c.num_members,
-            });
+          if (c.id && c.name) {
+            addChannel(c.id, c.name, Boolean(c.is_private), c.topic?.value || c.purpose?.value, c.num_members);
           }
         }
+      } else {
+        console.warn("[slack] conversations.list?types=public_channel returned:", listData);
       }
     }
   } catch (err) {
     console.warn("[slack] conversations.list directory fetch failed:", err);
+  }
+
+  // 3. Fallback conversations.list (default parameters)
+  try {
+    const listRes2 = await fetch(
+      "https://slack.com/api/conversations.list?exclude_archived=true&limit=1000",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (listRes2.ok) {
+      const listData2 = (await listRes2.json()) as {
+        ok: boolean;
+        channels?: Array<{
+          id: string;
+          name?: string;
+          is_private?: boolean;
+          topic?: { value?: string };
+          purpose?: { value?: string };
+          num_members?: number;
+        }>;
+      };
+      if (listData2.ok && Array.isArray(listData2.channels)) {
+        for (const c of listData2.channels) {
+          if (c.id && c.name) {
+            addChannel(c.id, c.name, Boolean(c.is_private), c.topic?.value || c.purpose?.value, c.num_members);
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 4. Fetch Bot Member Public Channels (users.conversations public)
+  try {
+    const userConvsRes = await fetch(
+      "https://slack.com/api/users.conversations?types=public_channel&exclude_archived=true&limit=1000",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (userConvsRes.ok) {
+      const data = (await userConvsRes.json()) as {
+        ok: boolean;
+        error?: string;
+        channels?: Array<{
+          id: string;
+          name?: string;
+          is_private?: boolean;
+          topic?: { value?: string };
+          purpose?: { value?: string };
+          num_members?: number;
+        }>;
+      };
+      if (data.ok && Array.isArray(data.channels)) {
+        for (const c of data.channels) {
+          if (c.id && c.name) {
+            addChannel(c.id, c.name, Boolean(c.is_private), c.topic?.value || c.purpose?.value, c.num_members);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[slack] users.conversations (public) directory fetch failed:", err);
+  }
+
+  // 5. Fetch Bot Member Private Channels (users.conversations private)
+  try {
+    const userPrivRes = await fetch(
+      "https://slack.com/api/users.conversations?types=private_channel&exclude_archived=true&limit=1000",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (userPrivRes.ok) {
+      const data = (await userPrivRes.json()) as {
+        ok: boolean;
+        channels?: Array<{
+          id: string;
+          name?: string;
+          is_private?: boolean;
+          topic?: { value?: string };
+          purpose?: { value?: string };
+          num_members?: number;
+        }>;
+      };
+      if (data.ok && Array.isArray(data.channels)) {
+        for (const c of data.channels) {
+          if (c.id && c.name) {
+            addChannel(c.id, c.name, true, c.topic?.value || c.purpose?.value, c.num_members);
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 6. Check any known channels passed in
+  if (knownChannels && Array.isArray(knownChannels)) {
+    for (const kc of knownChannels) {
+      if (!seenChannelIds.has(kc.id)) {
+        let name = kc.name;
+        if (!name) {
+          name = (await fetchSlackChannelName(token, kc.id)) || undefined;
+        }
+        if (name) {
+          addChannel(kc.id, name);
+        }
+      }
+    }
+  }
+
+  // 7. Check cached channels
+  for (const [cachedId, cachedName] of slackChannelCache.entries()) {
+    if (
+      (cachedId.startsWith("C") || cachedId.startsWith("G")) &&
+      !seenChannelIds.has(cachedId) &&
+      cachedName &&
+      !cachedName.startsWith("C0") &&
+      !cachedName.startsWith("G0") &&
+      !cachedName.startsWith("User ")
+    ) {
+      addChannel(cachedId, cachedName);
+    }
   }
 
   // Sort channels alphabetically
