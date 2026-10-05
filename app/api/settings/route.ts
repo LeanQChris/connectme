@@ -15,6 +15,8 @@ const KEYS = [
   "telegramBotToken",
   "discordBotToken",
   "discordPublicKey",
+  "slackBotToken",
+  "slackSigningSecret",
   "graphVersion",
 ] as const;
 
