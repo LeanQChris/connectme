@@ -168,15 +168,17 @@ export async function fetchSlackUserProfile(
 }
 
 /**
- * Fetches the display name of a Slack channel or DM.
+ * Fetches the display name of a Slack channel or DM using multiple Slack APIs.
  */
 export async function fetchSlackChannelName(
-  token: string,
+  rawToken: string,
   channelId: string,
 ): Promise<string | null> {
+  const token = rawToken.trim();
   const cached = slackChannelCache.get(channelId);
   if (cached) return cached;
 
+  // 1. Try conversations.info directly
   try {
     const response = await fetch(
       `https://slack.com/api/conversations.info?channel=${encodeURIComponent(channelId)}`,
@@ -208,18 +210,66 @@ export async function fetchSlackChannelName(
           slackChannelCache.set(channelId, name);
           return name;
         }
-      } else if (data.error) {
-        console.warn(`[slack] conversations.info for ${channelId} returned error:`, data.error);
+      } else if (data.error === "not_in_channel") {
+        // Attempt to auto-join public channel
+        try {
+          const joinRes = await fetch("https://slack.com/api/conversations.join", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json; charset=utf-8",
+            },
+            body: JSON.stringify({ channel: channelId }),
+          });
+          const joinData = (await joinRes.json()) as { ok: boolean; channel?: { name?: string } };
+          if (joinData.ok && joinData.channel?.name) {
+            const joinedName = joinData.channel.name.trim();
+            slackChannelCache.set(channelId, joinedName);
+            return joinedName;
+          }
+        } catch {
+          // ignore
+        }
       }
     }
   } catch (err) {
     console.warn(`[slack] conversations.info fetch error for ${channelId}:`, err);
   }
 
-  // Fallback: list all public and private channels in the workspace to populate cache
+  // 2. Try users.conversations (all channels & groups the bot is a member of)
+  try {
+    const usersConvsRes = await fetch(
+      "https://slack.com/api/users.conversations?types=public_channel,private_channel,mpim,im&limit=1000",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    if (usersConvsRes.ok) {
+      const usersData = (await usersConvsRes.json()) as {
+        ok: boolean;
+        channels?: Array<{ id: string; name?: string; is_im?: boolean; user?: string }>;
+      };
+
+      if (usersData.ok && Array.isArray(usersData.channels)) {
+        for (const ch of usersData.channels) {
+          if (ch.id && ch.name) {
+            slackChannelCache.set(ch.id, ch.name.trim());
+          }
+        }
+        if (slackChannelCache.has(channelId)) {
+          return slackChannelCache.get(channelId)!;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[slack] users.conversations fallback error:", err);
+  }
+
+  // 3. Fallback: list all public channels in the workspace
   try {
     const listRes = await fetch(
-      "https://slack.com/api/conversations.list?types=public_channel,private_channel&limit=1000",
+      "https://slack.com/api/conversations.list?types=public_channel&limit=1000",
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -241,8 +291,6 @@ export async function fetchSlackChannelName(
         if (slackChannelCache.has(channelId)) {
           return slackChannelCache.get(channelId)!;
         }
-      } else if (listData.error) {
-        console.warn("[slack] conversations.list fallback error:", listData.error);
       }
     }
   } catch (err) {

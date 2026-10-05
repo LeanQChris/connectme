@@ -440,6 +440,9 @@ async function resolveContactProfile(
         contact.name.startsWith("D0") ||
         contact.name.startsWith("G0") ||
         contact.name.startsWith("U0") ||
+        contact.name.includes("(#C") ||
+        contact.name.includes("(#D") ||
+        contact.name.includes("(#G") ||
         contact.name.startsWith("Slack User") ||
         contact.name.startsWith("User ")));
 
@@ -493,13 +496,16 @@ async function resolveContactProfile(
     }
   } else if (contact.channel === "slack") {
     let slackToken = matchedToken;
-    if (!slackToken && userCreds?.encrypted) {
-      try {
-        const { decryptSecrets } = await import("./secrets");
-        const decrypted = decryptSecrets(userCreds.encrypted);
-        slackToken = decrypted?.slackBotToken;
-      } catch {
-        // ignore
+    if (!slackToken) {
+      const targetCred = userCreds || (await listCredentials()).find((c) => Boolean(c.encrypted));
+      if (targetCred?.encrypted) {
+        try {
+          const { decryptSecrets } = await import("./secrets");
+          const decrypted = decryptSecrets(targetCred.encrypted);
+          slackToken = decrypted?.slackBotToken;
+        } catch {
+          // ignore
+        }
       }
     }
     if (slackToken) {
