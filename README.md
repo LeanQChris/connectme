@@ -304,6 +304,64 @@ To migrate, implement the functions in `lib/store.ts` using Prisma queries while
 
 ---
 
+## 🚧 Remaining Work
+
+### Blocking: `npx tsc --noEmit` currently fails
+
+The multi-attachment refactor moved `Message.mediaUrl` (single) to `Message.media` (array) and added the `sticker` and `location` message types. The server side is done; the thread UI was not converted.
+
+`components/inbox/thread.tsx` still reads `message.mediaUrl` and has ~14 type errors. Until it is converted the app does not typecheck or build.
+
+Mechanical fix so it compiles again — read the first attachment:
+
+```ts
+const first = message.media[0];
+const firstUrl = first?.url ?? null;
+```
+
+Affected spots: `clusterMessages` (line ~81, ~89), the media-group builder (~675), and the render branches for image, audio, video and file cards (~734–930).
+
+### Then: multi-attachment UI
+
+1. **`components/inbox/thread.tsx`** — render every entry in `message.media`:
+   - images → existing `ImageGallery` (already array-based)
+   - audio/video → one `<audio>`/`<video>` player per attachment
+   - documents and anything else → one `FileCard` per attachment, using `media[i].name` for the label
+   - `sticker` → image at its natural size, no card chrome
+   - `location` → map link from `message.text`
+   - `clusterMessages` should stop grouping separate single-image messages once one message can hold a gallery
+2. **`components/inbox/reply-box.tsx`** — hold a list instead of one `attachment`, allow up to 10, show chips with remove buttons, filter by `supportedMediaKinds(channel)` so Instagram never offers video or files.
+3. **`components/inbox/conversation-list.tsx`** — the preview still reads `lastMessage` text only; give attachment-only messages a "📎 filename" style preview.
+4. **Reply API response** — `POST /api/conversations/[id]/reply` now returns `{ message, skipped, supportedTypes }`. Surface `skipped` ("2 files skipped: Instagram only supports image and audio") as a toast.
+
+### Then: website widget attachments
+
+- `app/api/widget/upload/route.ts` — public route, session-token authenticated, saves through `saveUpload` so it lands in `data/uploads`. Reuse the `allowWidgetMessage` limiter.
+- `app/api/widget/message/route.ts` — accept `media: MessageMedia[]` alongside `text`. Validate every URL matches `/api/media?file=` so a visitor cannot make the agent's browser fetch arbitrary hosts.
+- `public/widget.js` — file input plus previews in the panel, upload before posting the message.
+- Media only renders when the visitor's tab is open; no receipts, same as text.
+
+### Provider gaps that are platform limits, not bugs
+
+- **Instagram** accepts images and audio only. Unsupported kinds are skipped by the adapter and reported back in `skipped` rather than failing the reply.
+- **Telegram stickers outbound** are sent as images; Telegram albums only work for 2–10 items of one kind, otherwise individual sends.
+- **Discord and Slack file uploads** are new (`files.getUploadURLExternal` / multipart `payload_json`) and compile clean but have not been exercised against the live APIs.
+- **Slack** returns the uploaded file id as `externalId` because `files.completeUploadExternal` does not return a message timestamp.
+- **WhatsApp and Messenger** have no multi-attachment message, so a multi-attachment reply is sent as a burst of messages.
+
+### Other known limits
+
+- Widget has no domain allowlist: anyone can embed the script anywhere. The signed session token protects the tenant's data, not the quota.
+- Widget reply queue is only purged when the visitor polls, so entries for visitors who never return stay forever.
+- Widget rate limiter is in-memory and resets on a cold start. Move it to KV if volume matters.
+- Widget polls every 2.5s per open tab with no backoff.
+- One conversation per browser session; clearing site data starts a new thread.
+- No delivery or read receipts on the widget; status stops at `sent`.
+- Location, contact cards, polls, reactions and typing indicators are still stored as text on most channels (Telegram and WhatsApp render location as a map link with type `location`).
+- Discord and Slack thread replies are flattened into the main conversation.
+
+---
+
 ## 🛡️ License
 
 This project is private and proprietary. Unauthorized copying, distribution, or modification is prohibited.
