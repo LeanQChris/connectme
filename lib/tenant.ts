@@ -232,6 +232,174 @@ export async function removeConnectedAccount(
 }
 
 /**
+ * Automatically inspects saved provider credentials and discovers/synchronizes
+ * connected Facebook pages, Instagram handles, WhatsApp phone details, Telegram, and Discord bots.
+ */
+export async function syncProviderMetadata(userId: string): Promise<ConnectedAccount[]> {
+  const secrets = await tenantSecrets(userId);
+  const graphVersion = secrets.graphVersion || GRAPH_VERSION_FALLBACK;
+  const now = new Date().toISOString();
+  const discovered: ConnectedAccount[] = [];
+
+  // 1. Meta Pages & Instagram (from pageAccessToken or user/system token)
+  if (secrets.pageAccessToken) {
+    try {
+      // First try /me/accounts in case it's a User Access Token or System User Token
+      const accountsRes = await fetch(
+        `https://graph.facebook.com/${graphVersion}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${encodeURIComponent(secrets.pageAccessToken)}`,
+        { cache: "no-store" }
+      );
+      const accountsData = await accountsRes.json().catch(() => null);
+
+      if (accountsRes.ok && Array.isArray(accountsData?.data) && accountsData.data.length > 0) {
+        for (const page of accountsData.data) {
+          discovered.push({
+            id: `meta_page_${page.id}`,
+            provider: "meta",
+            channel: "messenger",
+            name: page.name || `Page ${page.id}`,
+            externalId: page.id,
+            token: page.access_token || secrets.pageAccessToken,
+            connectedAt: now,
+          });
+
+          if (page.instagram_business_account?.id) {
+            const igId = page.instagram_business_account.id;
+            const igName = page.instagram_business_account.username || `${page.name} (Instagram)`;
+            discovered.push({
+              id: `meta_ig_${igId}`,
+              provider: "meta",
+              channel: "instagram",
+              name: igName.startsWith("@") ? igName : `@${igName}`,
+              externalId: igId,
+              token: page.access_token || secrets.pageAccessToken,
+              connectedAt: now,
+            });
+          }
+        }
+      } else {
+        // Otherwise it's a single Page Token, query /me directly
+        const pageRes = await fetch(
+          `https://graph.facebook.com/${graphVersion}/me?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(secrets.pageAccessToken)}`,
+          { cache: "no-store" }
+        );
+        const pageData = await pageRes.json().catch(() => null);
+
+        if (pageRes.ok && pageData?.id) {
+          discovered.push({
+            id: `meta_page_${pageData.id}`,
+            provider: "meta",
+            channel: "messenger",
+            name: pageData.name || `Page ${pageData.id}`,
+            externalId: pageData.id,
+            token: secrets.pageAccessToken,
+            connectedAt: now,
+          });
+
+          if (pageData.instagram_business_account?.id) {
+            const igId = pageData.instagram_business_account.id;
+            const igName = pageData.instagram_business_account.username || `${pageData.name} (Instagram)`;
+            discovered.push({
+              id: `meta_ig_${igId}`,
+              provider: "meta",
+              channel: "instagram",
+              name: igName.startsWith("@") ? igName : `@${igName}`,
+              externalId: igId,
+              token: secrets.pageAccessToken,
+              connectedAt: now,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[sync] Meta discovery failed:", err);
+    }
+  }
+
+  // 2. WhatsApp
+  if (secrets.waPhoneNumberId && secrets.waAccessToken) {
+    try {
+      const waRes = await fetch(
+        `https://graph.facebook.com/${graphVersion}/${secrets.waPhoneNumberId}?fields=display_phone_number,verified_name&access_token=${encodeURIComponent(secrets.waAccessToken)}`,
+        { cache: "no-store" }
+      );
+      const waData = await waRes.json().catch(() => null);
+      if (waRes.ok && waData) {
+        const label = waData.verified_name || waData.display_phone_number || secrets.waPhoneNumberId;
+        discovered.push({
+          id: `wa_${secrets.waPhoneNumberId}`,
+          provider: "whatsapp",
+          channel: "whatsapp",
+          name: label,
+          externalId: secrets.waPhoneNumberId,
+          token: secrets.waAccessToken,
+          connectedAt: now,
+        });
+      }
+    } catch (err) {
+      console.warn("[sync] WhatsApp discovery failed:", err);
+    }
+  }
+
+  // 3. Telegram
+  if (secrets.telegramBotToken) {
+    try {
+      const tgRes = await fetch(
+        `https://api.telegram.org/bot${secrets.telegramBotToken}/getMe`,
+        { cache: "no-store" }
+      );
+      const tgData = await tgRes.json().catch(() => null);
+      if (tgRes.ok && tgData?.ok && tgData.result) {
+        const botName = tgData.result.username ? `@${tgData.result.username}` : tgData.result.first_name || "Telegram Bot";
+        const botId = String(tgData.result.id);
+        discovered.push({
+          id: `tg_${botId}`,
+          provider: "telegram",
+          channel: "telegram",
+          name: botName,
+          externalId: botId,
+          token: secrets.telegramBotToken,
+          connectedAt: now,
+        });
+      }
+    } catch (err) {
+      console.warn("[sync] Telegram discovery failed:", err);
+    }
+  }
+
+  // 4. Discord
+  if (secrets.discordBotToken) {
+    try {
+      const discordRes = await fetch("https://discord.com/api/v10/users/@me", {
+        headers: { Authorization: `Bot ${secrets.discordBotToken.trim()}` },
+        cache: "no-store",
+      });
+      const discordData = await discordRes.json().catch(() => null);
+      if (discordRes.ok && discordData?.id) {
+        const botName = `@${discordData.username}${discordData.global_name ? ` (${discordData.global_name})` : ""}`;
+        discovered.push({
+          id: `discord_${discordData.id}`,
+          provider: "discord",
+          channel: "discord",
+          name: botName,
+          externalId: discordData.id,
+          token: secrets.discordBotToken,
+          connectedAt: now,
+        });
+      }
+    } catch (err) {
+      console.warn("[sync] Discord discovery failed:", err);
+    }
+  }
+
+  if (discovered.length > 0) {
+    await addOrUpdateConnectedAccounts(userId, discovered);
+  }
+
+  return discovered;
+}
+
+/**
  * Finds the tenant behind a Meta webhook and verifies its signature.
  *
  * The ids inside the payload pick the candidate tenant; the HMAC check with that

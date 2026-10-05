@@ -1,6 +1,6 @@
 import { encryptSecrets, telegramBotId } from "@/lib/secrets";
 import { getCredentials, saveCredentials } from "@/lib/store";
-import { requireUserId, settingsPayload, tenantSecrets, tenantSettings } from "@/lib/tenant";
+import { requireUserId, settingsPayload, syncProviderMetadata, tenantSecrets, tenantSettings } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -78,6 +78,15 @@ export async function PUT(request: Request): Promise<Response> {
     updatedAt: new Date().toISOString(),
   });
 
+  // Auto-discover and populate connected account names & handles across all providers
+  await syncProviderMetadata(auth.userId).catch((err) => {
+    console.warn("[settings] Auto-sync provider metadata failed:", err);
+  });
+
   const settings = await tenantSettings(auth.userId);
-  return Response.json({ connected: settings.connected, pageId: settings.pageId });
+  return Response.json({
+    connected: settings.connected,
+    pageId: settings.pageId,
+    accounts: settings.accounts,
+  });
 }

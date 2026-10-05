@@ -149,7 +149,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
           detail: String(body.detail ?? (body.ok ? "Verification successful" : "Verification failed")),
         },
       }));
-      if (body.pageId) await load();
+      if (body.ok) await load();
     } catch {
       setChannelStatus((prev) => ({
         ...prev,

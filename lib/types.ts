@@ -140,7 +140,7 @@ export interface TenantUser {
 /** A connected social messaging account (Facebook Page, Instagram handle, etc.) */
 export interface ConnectedAccount {
   id: string;
-  provider: "meta" | "telegram" | "discord";
+  provider: "meta" | "telegram" | "discord" | "whatsapp";
   channel: Channel;
   name: string;
   externalId: string;

@@ -1,5 +1,5 @@
 import { verifyDiscord, verifyPage, verifyTelegram, verifyWhatsApp } from "@/lib/providers";
-import { requireUserId, tenantSecrets } from "@/lib/tenant";
+import { requireUserId, syncProviderMetadata, tenantSecrets } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -27,15 +27,26 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const secrets = await tenantSecrets(auth.userId);
+  let res;
 
   switch (channel as Channel) {
     case "whatsapp":
-      return Response.json(await verifyWhatsApp(secrets));
+      res = await verifyWhatsApp(secrets);
+      break;
     case "page":
-      return Response.json(await verifyPage(secrets));
+      res = await verifyPage(secrets);
+      break;
     case "discord":
-      return Response.json(await verifyDiscord(secrets));
+      res = await verifyDiscord(secrets);
+      break;
     default:
-      return Response.json(await verifyTelegram(secrets));
+      res = await verifyTelegram(secrets);
+      break;
   }
+
+  if (res.ok) {
+    await syncProviderMetadata(auth.userId).catch(() => null);
+  }
+
+  return Response.json(res);
 }
