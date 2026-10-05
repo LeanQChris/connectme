@@ -342,7 +342,9 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
         isOpen={isNewModalOpen}
         onClose={() => setIsNewModalOpen(false)}
         onSelectConversation={select}
-        teamName={accounts.find((a) => a.channel === "slack")?.name || null}
+        initialChannel={filter}
+        connected={connected}
+        accounts={accounts}
       />
     </div>
   );
