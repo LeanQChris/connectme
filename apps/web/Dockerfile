@@ -48,6 +48,19 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NODE_ENV=production
 
 COPY --from=build-deps /app/node_modules ./node_modules
+# npm nests workspace dependencies it cannot hoist. zod is the live example:
+# the lockfile puts zod@4 at the root and zod@3.25.76 at
+# packages/contracts/node_modules/zod (and apps/api/node_modules/zod). Copying
+# only the root tree discards those, contracts then compiles against the
+# hoisted zod@4 — whose z.record() takes two arguments — and the build dies on
+# z.record(z.unknown()).
+#
+# The runner stage below already copies /app/apps and /app/packages for
+# runtime; this is the build-time half of the same problem. `COPY . .` layers
+# the source over these manifests afterwards, and node_modules is dockerignored
+# so the nested trees survive it.
+COPY --from=build-deps /app/apps ./apps
+COPY --from=build-deps /app/packages ./packages
 COPY . .
 RUN npx turbo run build --filter=@connectme/web --ui=stream
 
