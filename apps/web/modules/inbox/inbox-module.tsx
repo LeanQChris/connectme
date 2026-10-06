@@ -19,6 +19,8 @@ export interface InboxModuleProps {
 
 export default function InboxModule({ initialSelectedId }: InboxModuleProps) {
   const {
+    notice,
+    dismissNotice,
     filter,
     setFilter,
     accountId: activeAccountId,
@@ -49,6 +51,25 @@ export default function InboxModule({ initialSelectedId }: InboxModuleProps) {
 
       {/* Web Notifications Opt-In Banner */}
       <NotificationPromptBanner />
+
+      {/* Transient notice: e.g. attachments a channel refused to send. */}
+      {notice && (
+        <div
+          role="status"
+          className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-[12px] text-warning-deep"
+        >
+          <span aria-hidden>⚠</span>
+          <span className="min-w-0 flex-1">{notice}</span>
+          <button
+            type="button"
+            onClick={dismissNotice}
+            aria-label="Dismiss notice"
+            className="shrink-0 cursor-pointer rounded px-1 leading-none text-warning-deep/70 transition-opacity hover:opacity-100"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* Conversations Sidebar */}

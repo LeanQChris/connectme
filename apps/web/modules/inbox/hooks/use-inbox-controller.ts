@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInboxStore } from "../data/inbox-store";
 import {
   useAddNote,
@@ -26,6 +26,7 @@ interface UseInboxControllerOptions {
 }
 
 export function useInboxController({ initialSelectedId }: UseInboxControllerOptions = {}) {
+  const [notice, setNotice] = useState<string | null>(null);
   const filter = useInboxStore((s) => s.filter);
   const setFilter = useInboxStore((s) => s.setFilter);
   const accountId = useInboxStore((s) => s.accountId);
@@ -42,6 +43,13 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
 
   // Connect to NestJS WebSocket gateway for 0ms live events
   useRealtimeInbox(selectedId);
+
+  // Notices are transient: clear them so a stale warning does not linger.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   // React Query cached hooks
   const { data: all = [], isLoading: loadingList } = useConversations();
@@ -195,9 +203,15 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
 
   const handleSend = useCallback(
     async (payload: ReplyPayload) => {
-      await sendMutation.mutateAsync(payload);
+      const result = await sendMutation.mutateAsync(payload);
+      // The channel may refuse some attachment kinds (e.g. Instagram takes only
+      // images and audio). Report that instead of silently dropping files.
+      if (result?.skipped && result.skipped.length > 0) {
+        setNotice(result.skipped.join(", "));
+      }
+      return result;
     },
-    [sendMutation],
+    [sendMutation, setNotice],
   );
 
   const handleSchedule = useCallback(
@@ -239,6 +253,8 @@ export function useInboxController({ initialSelectedId }: UseInboxControllerOpti
   );
 
   return {
+    notice,
+    dismissNotice: useCallback(() => setNotice(null), []),
     filter,
     setFilter,
     accountId,
