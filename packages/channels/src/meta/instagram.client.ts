@@ -23,11 +23,7 @@ export class InstagramClient implements IChannelClient {
   }
 
   async sendMedia(ctx: ChannelSendContext): Promise<ChannelSendResult> {
-    const items = ctx.media && ctx.media.length > 0
-      ? ctx.media
-      : ctx.mediaUrl
-      ? [{ url: ctx.mediaUrl, type: ctx.type, name: "image", mimeType: ctx.mimeType }]
-      : [];
+    const items = ctx.media && ctx.media.length > 0 ? ctx.media : [];
 
     if (items.length === 0) {
       return this.sendText(ctx);

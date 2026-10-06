@@ -45,8 +45,8 @@ export class Message {
   @Column({ type: "text", nullable: true })
   text?: string | null;
 
-  @Column({ type: "text", nullable: true })
-  mediaUrl?: string | null;
+  // Single-attachment `mediaUrl` was retired in favour of `media[]` below;
+  // see migration 1790988000000-DropMessageMediaUrl.
 
   @Column({ type: "varchar", nullable: true })
   mediaMimeType?: string | null;

@@ -33,11 +33,7 @@ export class WhatsAppClient implements IChannelClient {
       throw new Error("WhatsApp Cloud API credentials not configured.");
     }
 
-    const items = ctx.media && ctx.media.length > 0
-      ? ctx.media
-      : ctx.mediaUrl
-      ? [{ url: ctx.mediaUrl, type: ctx.type, name: "document", mimeType: ctx.mimeType }]
-      : [];
+    const items = ctx.media && ctx.media.length > 0 ? ctx.media : [];
 
     if (items.length === 0) {
       return this.sendText(ctx);

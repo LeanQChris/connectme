@@ -9,11 +9,9 @@ interface MessageAttachmentProps {
 }
 
 export function MessageAttachment({ message, onOpenImage }: MessageAttachmentProps) {
-  const mediaList = message.media && message.media.length > 0
-    ? message.media
-    : message.mediaUrl
-    ? [{ url: message.mediaUrl, type: message.type, name: message.text || "Attachment" }]
-    : [];
+  // `media[]` is canonical; the single-URL mediaUrl field was retired from the
+  // Message contract, so there is no legacy branch to honour here.
+  const mediaList = message.media && message.media.length > 0 ? message.media : [];
 
   if (mediaList.length === 0) return null;
 

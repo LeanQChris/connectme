@@ -10,7 +10,37 @@ import {
   Direction,
   MessageType,
   MessageStatus,
+  MEDIA_KINDS,
+  type MediaKind,
+  type MessageMedia,
 } from "@connectme/contracts";
+
+/**
+ * Rows written before the multi-attachment refactor (or by a channel adapter that
+ * used a free-form kind) may carry a `type` outside MEDIA_KINDS. Coerce those to a
+ * kind the contract accepts instead of leaking an invalid enum to the web.
+ */
+function toMediaKind(kind: string | undefined, fallback: string): MediaKind {
+  const candidate = (kind ?? "").toLowerCase();
+  if ((MEDIA_KINDS as readonly string[]).includes(candidate)) return candidate as MediaKind;
+  const fallbackKind = (fallback ?? "").toLowerCase();
+  if ((MEDIA_KINDS as readonly string[]).includes(fallbackKind)) return fallbackKind as MediaKind;
+  return "file";
+}
+
+function mapStoredMedia(
+  stored: Array<{ url: string; type?: string; name?: string; size?: number; mimeType?: string }> | null | undefined,
+  fallback: string,
+): MessageMedia[] | null {
+  if (!stored || stored.length === 0) return null;
+  return stored.map((item) => ({
+    url: item.url,
+    type: toMediaKind(item.type, fallback),
+    name: item.name ?? null,
+    size: item.size ?? null,
+    mimeType: item.mimeType ?? null,
+  }));
+}
 
 @Injectable()
 export class GetConversationDetailUseCase {
@@ -74,7 +104,7 @@ export class GetConversationDetailUseCase {
         direction: dir,
         type: m.type.toLowerCase() as MessageType,
         text: m.text ?? null,
-        mediaUrl: m.mediaUrl ?? null,
+        media: mapStoredMedia(m.media, m.type),
         mediaMimeType: m.mediaMimeType ?? null,
         mediaSize: m.mediaSize ?? null,
         externalId: m.externalId ?? null,

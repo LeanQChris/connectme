@@ -13,7 +13,7 @@ export interface ChannelSendContext {
   pageAccessToken?: string | null;
   contactExternalId: string;
   text?: string;
-  mediaUrl?: string;
+  /** Canonical attachments. Single-URL callers put their one item here. */
   media?: ChannelMediaItem[];
   mimeType?: string;
   type?: string;

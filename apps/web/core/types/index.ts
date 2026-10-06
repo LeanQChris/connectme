@@ -85,7 +85,6 @@ export interface Message {
   type: MessageType;
   text: string | null;
   media?: MessageMedia[] | null;
-  mediaUrl?: string | null;
   externalId: string | null;
   channel: Channel;
   status: MessageStatus;

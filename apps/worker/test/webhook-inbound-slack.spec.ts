@@ -135,8 +135,10 @@ describe("WebhookInboundProcessor Slack ingestion", () => {
       },
     });
 
-    assert.equal(messageCalls[0].mediaUrl, "https://files.slack.com/x.png");
+    // The conversation message stores media[]; the retired mediaUrl column is gone.
+    assert.equal(messageCalls[0].media[0].url, "https://files.slack.com/x.png");
     assert.equal(messageCalls[0].media.length, 1);
+    // Re-host job data still carries the download source URL.
     assert.equal(followUps[0].mediaUrl, "https://files.slack.com/x.png");
   });
 

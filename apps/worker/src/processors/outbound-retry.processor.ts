@@ -86,12 +86,11 @@ export class OutboundRetryProcessor extends WorkerHost {
       pageAccessToken: conv.account?.accessTokenEnc ?? null,
       contactExternalId: conv.contact.externalId,
       text: msg.text ?? undefined,
-      mediaUrl: msg.mediaUrl ?? undefined,
       media: msg.media ?? undefined,
       type: msg.type,
     };
 
-    const useMedia = Boolean(msg.mediaUrl || (msg.media && msg.media.length > 0));
+    const useMedia = Boolean(msg.media && msg.media.length > 0);
 
     try {
       let externalId: string | null = null;

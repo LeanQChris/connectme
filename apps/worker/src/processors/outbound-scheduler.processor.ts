@@ -33,6 +33,7 @@ import {
 } from "@connectme/channels";
 import { OUTBOUND_SCHEDULER_QUEUE, ScheduledJobData } from "../queue.constants";
 import { RealtimePublisher } from "../realtime/realtime-publisher";
+import { mediaKindFor } from "./media-kind";
 
 const META_WINDOW_MS = 24 * 60 * 60 * 1000;
 const META_WINDOW_CHANNELS = [
@@ -210,7 +211,7 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
       pageAccessToken: conv.account?.accessTokenEnc ?? null,
       contactExternalId: conv.contact.externalId,
       text: row.text ?? undefined,
-      mediaUrl: row.mediaUrl ?? undefined,
+      media: row.mediaUrl ? [{ url: row.mediaUrl, type: row.mediaType ?? undefined }] : undefined,
       type: row.mediaType ?? undefined,
       tag,
     };
@@ -248,13 +249,16 @@ export class OutboundSchedulerProcessor extends WorkerHost implements OnModuleIn
           throw new UnrecoverableError(`Unsupported channel ${conv.channel}.`);
       }
 
+      const mediaType = (row.mediaType?.toUpperCase() as MediaType) || MediaType.TEXT;
       const msg = this.messageRepo.create({
         conversationId: conv.id,
         direction: MessageDirection.OUTBOUND,
         channel: conv.channel,
-        type: (row.mediaType?.toUpperCase() as MediaType) || MediaType.TEXT,
+        type: mediaType,
         text: row.text,
-        mediaUrl: row.mediaUrl,
+        // The scheduled message keeps its own single mediaUrl column; the
+        // conversation message only stores the canonical media[] array.
+        media: row.mediaUrl ? [{ url: row.mediaUrl, type: mediaKindFor(mediaType) }] : null,
         status: MessageStatus.SENT,
         authorName: row.createdBy || "Scheduled",
         externalId,

@@ -170,7 +170,8 @@ export function useScheduleMessage(conversationId: string | null) {
       return schedulingApi.createMessage({
         conversationId,
         text: payload.text || undefined,
-        mediaUrl: payload.mediaUrl ?? undefined,
+        // Scheduled messages are single-attachment by design.
+        mediaUrl: payload.media?.[0]?.url ?? undefined,
         mediaType: payload.type,
         scheduledFor,
       });
@@ -189,7 +190,7 @@ export function useSendReply(conversationId: string | null) {
       if (!conversationId) throw new Error("No conversation selected");
       return inboxApi.sendReply(conversationId, payload);
     },
-    onMutate: async ({ text, mediaUrl = null, type = "text" }: ReplyPayload) => {
+    onMutate: async ({ text, media, type = "text" }: ReplyPayload) => {
       if (!conversationId) return;
 
       await queryClient.cancelQueries({ queryKey: QUERY_KEYS.conversation(conversationId) });
@@ -204,6 +205,8 @@ export function useSendReply(conversationId: string | null) {
 
       const optimisticId = `temp-${Date.now()}`;
       const now = new Date().toISOString();
+      const optimisticPreview =
+        text || (media && media.length > 0 ? `📎 ${media.length} attachment(s)` : text);
 
       if (previousDetail) {
         const optimisticMessage: Message = {
@@ -212,7 +215,16 @@ export function useSendReply(conversationId: string | null) {
           direction: "out",
           type,
           text,
-          mediaUrl,
+          // Mirror the server shape so multi-attachment bubbles render identically.
+          media: media && media.length > 0
+            ? media.map((item) => ({
+                url: item.url,
+                type: item.type,
+                name: item.name ?? null,
+                size: item.size ?? null,
+                mimeType: item.mimeType ?? null,
+              }))
+            : null,
           externalId: null,
           channel: previousDetail.conversation.channel,
           status: "sent",
@@ -224,7 +236,7 @@ export function useSendReply(conversationId: string | null) {
           ...previousDetail,
           conversation: {
             ...previousDetail.conversation,
-            lastMessage: text,
+            lastMessage: optimisticPreview,
             lastMessageAt: now,
           },
           messages: [...previousDetail.messages, optimisticMessage],
@@ -238,7 +250,7 @@ export function useSendReply(conversationId: string | null) {
             conv.id === conversationId
               ? {
                   ...conv,
-                  lastMessage: text,
+                  lastMessage: optimisticPreview,
                   lastMessageAt: now,
                 }
               : conv,

@@ -66,7 +66,6 @@ export interface MessageDto {
   type: MessageType;
   text: string | null;
   media?: MessageMedia[] | null;
-  mediaUrl?: string | null;
   mediaMimeType?: string | null;
   mediaSize?: number | null;
   externalId: string | null;
@@ -84,7 +83,6 @@ export const MessageDtoSchema = z.object({
   type: MessageTypeSchema,
   text: z.string().nullable(),
   media: z.array(MessageMediaSchema).nullable().optional(),
-  mediaUrl: z.string().nullable().optional(),
   mediaMimeType: z.string().nullable().optional(),
   mediaSize: z.number().nullable().optional(),
   externalId: z.string().nullable().optional(),
@@ -99,6 +97,11 @@ export interface SendMessageDto {
   conversationId: string;
   text?: string;
   media?: MessageMedia[];
+  /**
+   * Input-only convenience alias for a single attachment: it is normalised into
+   * `media[]` on the way in and never stored or echoed back — `MessageDto` is
+   * array-only since mediaUrl was retired from the messages table.
+   */
   mediaUrl?: string;
   mediaType?: MessageType;
   author?: string;

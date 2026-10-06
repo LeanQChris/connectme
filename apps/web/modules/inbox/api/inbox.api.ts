@@ -9,11 +9,26 @@ import type {
   SettingsPayload,
 } from "@/core/types";
 
+export interface ReplyMediaInput {
+  url: string;
+  type: MessageType;
+  name?: string | null;
+  size?: number | null;
+  mimeType?: string | null;
+}
+
 export interface ReplyPayload {
   text: string;
-  mediaUrl?: string | null;
+  /** Attachments to send; mediaUrl was retired in favour of this array. */
+  media?: ReplyMediaInput[];
   mimeType?: string;
   type?: MessageType;
+}
+
+export interface ReplyResult {
+  message: Message;
+  /** Attachment kinds the channel refused (e.g. Instagram rejects video and files). */
+  skipped?: string[];
 }
 
 export interface ConversationMetaPatch {
@@ -56,7 +71,7 @@ export const inboxApi = {
   },
 
   sendReply: (conversationId: string, payload: ReplyPayload) => {
-    return httpClient<{ message: Message }>(`/api/conversations/${conversationId}/reply`, {
+    return httpClient<ReplyResult>(`/api/conversations/${conversationId}/reply`, {
       method: "POST",
       body: JSON.stringify(payload),
     });

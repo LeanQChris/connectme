@@ -16,6 +16,7 @@ import {
   downloadWhatsAppMedia,
 } from "@connectme/channels";
 import { MEDIA_REHOST_QUEUE, MediaRehostJobData } from "../queue.constants";
+import { mediaKindFor } from "./media-kind";
 import { S3MediaService } from "../storage/s3-media.service";
 import { RealtimePublisher } from "../realtime/realtime-publisher";
 
@@ -77,7 +78,29 @@ export class MediaRehostProcessor extends WorkerHost {
       mimeType || "application/octet-stream",
     );
 
-    message.mediaUrl = publicUrl;
+    // `mediaUrl` was retired: the canonical location is media[]. Rewrite the
+    // first attachment's url (the one we just re-hosted), or create the entry
+    // when the inbound path had only a provider-side id (WhatsApp).
+    const previous = message.media && message.media.length > 0 ? message.media : null;
+    message.media = previous
+      ? previous.map((item, idx) =>
+          idx === 0
+            ? {
+                ...item,
+                url: publicUrl,
+                mimeType: item.mimeType ?? mimeType ?? undefined,
+                size: item.size ?? bytes.buffer.byteLength,
+              }
+            : item,
+        )
+      : [
+          {
+            url: publicUrl,
+            type: mediaKindFor(message.type),
+            mimeType: mimeType ?? undefined,
+            size: bytes.buffer.byteLength,
+          },
+        ];
     message.mediaMimeType = mimeType;
     message.mediaSize = bytes.buffer.byteLength;
     const updated = await this.messageRepo.save(message);

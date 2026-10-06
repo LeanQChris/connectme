@@ -112,8 +112,6 @@ export class SendReplyUseCase {
       ? [{ url: input.mediaUrl, type: input.mediaType || "file" }]
       : [];
 
-    const primaryMediaUrl = mediaList[0]?.url || input.mediaUrl || null;
-
     // Save preliminary outbound message
     const msg = await this.messageRepo.createMessage(input.tenantId, {
       conversationId: conv.id,
@@ -121,7 +119,6 @@ export class SendReplyUseCase {
       channel: conv.channel,
       type: resolveMediaType(input.mediaType, input.media),
       text: input.text || null,
-      mediaUrl: primaryMediaUrl,
       media: mediaList.length > 0 ? mediaList.map((m) => ({
         url: m.url,
         type: m.type || "file",
@@ -143,7 +140,6 @@ export class SendReplyUseCase {
         pageAccessToken: conv.account?.accessTokenEnc,
         contactExternalId: conv.contact.externalId,
         text: input.text,
-        mediaUrl: primaryMediaUrl ?? undefined,
         media: mediaList,
         mimeType: undefined,
         type: input.mediaType,

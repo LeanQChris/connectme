@@ -15,7 +15,7 @@ interface RealtimeMessage {
   channel?: string;
   type?: string;
   text?: string | null;
-  mediaUrl?: string | null;
+  media?: Message["media"] | null;
   externalId?: string | null;
   status?: string;
   createdAt?: string;
@@ -37,7 +37,7 @@ function toCachedMessage(
           : "in",
     type: (message.type?.toLowerCase() as MessageType) || "text",
     text: message.text ?? null,
-    mediaUrl: message.mediaUrl ?? null,
+    media: message.media ?? null,
     externalId: message.externalId ?? null,
     channel: (message.channel?.toLowerCase() as Message["channel"]) || fallbackChannel,
     status: (message.status?.toLowerCase() as Message["status"]) || "received",
