@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   ConversationStatus,
   ConversationSummary,
@@ -794,7 +794,7 @@ export default function Thread({
               {aiPanel && (
                 <>
                   <p className="font-mono text-[10px] uppercase tracking-wider text-mute">{aiPanel.title}</p>
-                  <p className="mt-0.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-body">{aiPanel.text}</p>
+                  <AiMarkdown text={aiPanel.text} />
                 </>
               )}
               {aiError && <p className="text-[12px] text-error">{aiError}</p>}
@@ -1319,4 +1319,52 @@ export default function Thread({
       </div>
     </section>
   );
+}
+
+/** Minimal markdown renderer for AI panel output: bullets, numbered lists, **bold**, `code`. */
+function AiMarkdown({ text }: { text: string }) {
+  const inline = (s: string, keyPrefix: string) =>
+    s.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={`${keyPrefix}-${i}`} className="font-semibold text-ink">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("`") && part.endsWith("`") && part.length > 1) {
+        return <code key={`${keyPrefix}-${i}`} className="rounded bg-canvas-elevated px-1 font-mono text-[11px] text-ink">{part.slice(1, -1)}</code>;
+      }
+      return <Fragment key={`${keyPrefix}-${i}`}>{part}</Fragment>;
+    });
+
+  const blocks: ReactNode[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+  const flush = () => {
+    if (!list) return;
+    const items = list.items.map((item, i) => <li key={i}>{inline(item, `li-${blocks.length}-${i}`)}</li>);
+    blocks.push(
+      list.ordered ? (
+        <ol key={blocks.length} className="list-decimal space-y-0.5 pl-4">{items}</ol>
+      ) : (
+        <ul key={blocks.length} className="list-disc space-y-0.5 pl-4">{items}</ul>
+      ),
+    );
+    list = null;
+  };
+
+  text.split("\n").forEach((raw, idx) => {
+    const line = raw.trim();
+    const bullet = line.match(/^[-*•]\s+(.*)$/);
+    const numbered = line.match(/^\d+[.)]\s+(.*)$/);
+    if (bullet) {
+      if (!list || list.ordered) { flush(); list = { ordered: false, items: [] }; }
+      list.items.push(bullet[1]);
+    } else if (numbered) {
+      if (!list || !list.ordered) { flush(); list = { ordered: true, items: [] }; }
+      list.items.push(numbered[1]);
+    } else {
+      flush();
+      if (line) blocks.push(<p key={blocks.length}>{inline(line, `p-${idx}`)}</p>);
+    }
+  });
+  flush();
+
+  return <div className="mt-0.5 space-y-1.5 text-[12.5px] leading-relaxed text-body">{blocks}</div>;
 }
