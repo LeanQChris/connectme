@@ -3,13 +3,15 @@
 import { formatTime } from "./format";
 
 export interface LocationPayload {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
+  name?: string;
+  address?: string;
 }
 
 export interface ContactPayload {
   name: string;
-  phone: string;
+  phone?: string;
 }
 
 export interface PollOption {
@@ -24,14 +26,34 @@ export interface PollPayload {
 
 export function parseLocation(text: string | null | undefined): LocationPayload | null {
   if (!text) return null;
-  const match = text.match(/maps\.google\.com\/\?q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-  if (!match) return null;
-  return { latitude: Number(match[1]), longitude: Number(match[2]) };
+
+  const urlMatch = text.match(/maps\.google\.com\/\?q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (urlMatch) {
+    const nameMatch = text.match(/^📍\s*(.+?)\s*\((.*)\)/);
+    return {
+      latitude: Number(urlMatch[1]),
+      longitude: Number(urlMatch[2]),
+      name: nameMatch?.[1],
+      address: nameMatch?.[2] || undefined,
+    };
+  }
+
+  const plainMatch = text.match(/📍\s*Location:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+  if (plainMatch) {
+    return { latitude: Number(plainMatch[1]), longitude: Number(plainMatch[2]) };
+  }
+
+  const nameMatch = text.match(/^📍\s*(.+?)\s*\((.*)\)\s*$/);
+  if (nameMatch) {
+    return { name: nameMatch[1], address: nameMatch[2] || undefined };
+  }
+
+  return null;
 }
 
 export function parseContact(text: string | null | undefined): ContactPayload | null {
   if (!text) return null;
-  const match = text.match(/^👤 Contact:\s*(.+?)\s*\(([^)]+)\)\s*$/);
+  const match = text.match(/^👤 Contact:\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/);
   if (!match) return null;
   return { name: match[1], phone: match[2] };
 }
@@ -80,19 +102,24 @@ export function LocationCard({
   outgoing?: boolean;
   statusGlyph?: string;
 }) {
-  const { latitude, longitude } = location;
-  const mapsUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
+  const { latitude, longitude, name, address } = location;
+  const hasCoords = latitude !== undefined && longitude !== undefined;
+  const mapsUrl = hasCoords
+    ? `https://maps.google.com/?q=${latitude},${longitude}`
+    : `https://maps.google.com/?q=${encodeURIComponent([name, address].filter(Boolean).join(", "))}`;
   return (
     <CardShell outgoing={outgoing}>
-      <div className="relative h-[150px] w-full bg-surface-well">
-        <iframe
-          title="Shared location"
-          src={`https://www.google.com/maps?q=${latitude},${longitude}&z=14&output=embed`}
-          className="absolute inset-0 h-full w-full border-0"
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-        />
-      </div>
+      {hasCoords && (
+        <div className="relative h-[150px] w-full bg-surface-well">
+          <iframe
+            title="Shared location"
+            src={`https://www.google.com/maps?q=${latitude},${longitude}&z=14&output=embed`}
+            className="absolute inset-0 h-full w-full border-0"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+      )}
       <div className="flex items-center gap-3 p-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-red-500/10 text-red-500">
           <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,9 +133,13 @@ export function LocationCard({
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-medium leading-tight">Shared location</p>
+          <p className="truncate text-[12.5px] font-medium leading-tight">
+            {name || "Shared location"}
+          </p>
           <p className="truncate font-mono text-[10.5px] opacity-70">
-            {latitude.toFixed(5)}, {longitude.toFixed(5)}
+            {hasCoords
+              ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+              : address || "Location shared"}
           </p>
         </div>
         <a
@@ -163,8 +194,11 @@ export function ContactCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold">{contact.name}</p>
-          <p className="font-mono text-[11.5px] opacity-70">{contact.phone}</p>
+          <p className="font-mono text-[11.5px] opacity-70">
+            {contact.phone ?? "Contact card"}
+          </p>
         </div>
+        {contact.phone && (
         <a
           href={`tel:${contact.phone.replace(/[^+\d]/g, "")}`}
           title="Call"
@@ -183,6 +217,7 @@ export function ContactCard({
             />
           </svg>
         </a>
+        )}
       </div>
       <div
         className={`flex items-center justify-end gap-1.5 border-t px-3 py-1.5 font-mono text-[10px] tabular-nums ${

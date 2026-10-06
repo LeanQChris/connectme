@@ -750,12 +750,9 @@ export default function Thread({
             const isAudio = message.type === "audio" && firstMediaUrl(message);
             const isVideo = message.type === "video" && firstMediaUrl(message);
             const isDoc = message.type === "document" || (message.type !== "text" && firstMediaUrl(message));
-            const locationPayload =
-              message.type === "location" || message.channel === "telegram"
-                ? parseLocation(message.text)
-                : null;
-            const contactPayload = message.channel === "telegram" ? parseContact(message.text) : null;
-            const pollPayload = message.channel === "telegram" ? parsePoll(message.text) : null;
+            const locationPayload = parseLocation(message.text);
+            const contactPayload = parseContact(message.text);
+            const pollPayload = parsePoll(message.text);
 
             return (
               <Fragment key={item.id}>

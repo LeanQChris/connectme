@@ -165,16 +165,23 @@ export async function handleWhatsApp(
           text = rawMsg.button?.text || rawMsg.button?.payload || "[Button response]";
         } else if (rawType === "location") {
           type = "location";
+          const lat = rawMsg.location?.latitude;
+          const lng = rawMsg.location?.longitude;
+          const coords =
+            lat !== undefined && lng !== undefined ? `\nhttps://maps.google.com/?q=${lat},${lng}` : "";
           text = rawMsg.location?.name
-            ? `📍 ${rawMsg.location.name} (${rawMsg.location.address || ""})`
-            : rawMsg.location?.latitude
-              ? `📍 Location: ${rawMsg.location.latitude}, ${rawMsg.location.longitude}`
+            ? `📍 ${rawMsg.location.name} (${rawMsg.location.address || ""})${coords}`
+            : lat !== undefined
+              ? `📍 Location: ${lat}, ${lng}${coords}`
               : "📍 Location";
         } else if (rawType === "contacts") {
           type = "text";
           const firstContact = rawMsg.contacts?.[0];
+          const phone = firstContact?.phones?.[0]?.phone ?? firstContact?.wa_id;
           text = firstContact?.name?.formatted_name
-            ? `👤 Contact: ${firstContact.name.formatted_name}`
+            ? phone
+              ? `👤 Contact: ${firstContact.name.formatted_name} (${phone})`
+              : `👤 Contact: ${firstContact.name.formatted_name}`
             : "👤 Contact card";
         } else if (rawType === "reaction") {
           type = "text";
