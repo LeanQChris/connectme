@@ -189,15 +189,22 @@ export default function NewConversationModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3.5 bg-canvas">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-hairline bg-surface-well font-bold text-ink shadow-2xs shrink-0">
-              ✏️
+            <span className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-hairline bg-surface-well text-body shadow-2xs shrink-0">
+              <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                  d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
+                />
+              </svg>
             </span>
             <div className="min-w-0">
               <h3 className="text-[14px] font-semibold text-ink truncate">
-                New Conversation
+                New conversation
               </h3>
               <p className="text-[11px] text-mute truncate">
-                Select a channel provider and recipient to start chatting
+                Pick a provider, then a recipient
               </p>
             </div>
           </div>
@@ -207,16 +214,15 @@ export default function NewConversationModal({
             aria-label="Close modal"
             className="flex h-7 w-7 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink cursor-pointer"
           >
-            ✕
+            <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
         {/* Channel Provider Selector */}
-        <div className="border-b border-hairline bg-surface-well/50 p-2.5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-mute mb-1.5 px-1 font-semibold">
-            Select Provider / Platform
-          </div>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="border-b border-hairline bg-canvas px-4 py-3">
+          <div className="flex items-center gap-1 rounded-[8px] border border-hairline bg-surface-well/60 p-1">
             {availableChannels.map((ch) => {
               const meta = channelMeta(ch);
               const isSelected = selectedChannel === ch;
@@ -231,10 +237,10 @@ export default function NewConversationModal({
                     setTargetName("");
                     setManualError(null);
                   }}
-                  className={`flex items-center gap-2 rounded-[8px] px-3 py-1.5 text-[12.5px] font-medium transition-all cursor-pointer border ${
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-[6px] px-3 py-1.5 text-[12.5px] transition-all cursor-pointer ${
                     isSelected
-                      ? "border-ink bg-canvas-elevated text-ink shadow-2xs font-semibold ring-1 ring-ink/20"
-                      : "border-hairline bg-canvas/60 text-mute hover:bg-canvas hover:text-ink"
+                      ? "bg-canvas-elevated text-ink font-semibold shadow-2xs border border-hairline"
+                      : "text-mute hover:text-ink"
                   }`}
                 >
                   <span
@@ -256,8 +262,8 @@ export default function NewConversationModal({
             <div className="border-b border-hairline px-3 pt-2.5 pb-2 bg-canvas">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center rounded-[4px] px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase bg-[#4A154B]/10 text-[#4A154B] dark:bg-[#E01E5A]/10 dark:text-[#E01E5A]">
-                    Slack Workspace
+                  <span className="inline-flex items-center rounded-[4px] px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase bg-surface-well text-body border border-hairline">
+                    Slack
                   </span>
                   {slackAccount?.name && (
                     <span className="font-mono text-[11px] text-mute truncate max-w-[200px]">
@@ -316,7 +322,7 @@ export default function NewConversationModal({
                       : "text-mute hover:text-ink"
                   }`}
                 >
-                  <span>👥 Direct Messages</span>
+                  <span>Direct Messages</span>
                   {directory?.users && (
                     <span className="font-mono text-[10px] rounded-full bg-canvas-elevated px-1.5 py-0.2 text-mute border border-hairline">
                       {directory.users.length}
@@ -332,7 +338,7 @@ export default function NewConversationModal({
                       : "text-mute hover:text-ink"
                   }`}
                 >
-                  <span>#️⃣ Channels</span>
+                  <span>Channels</span>
                   {directory?.channels && (
                     <span className="font-mono text-[10px] rounded-full bg-canvas-elevated px-1.5 py-0.2 text-mute border border-hairline">
                       {directory.channels.length}
@@ -375,7 +381,7 @@ export default function NewConversationModal({
                             disabled={isBusy}
                             className="flex w-full items-center gap-3 rounded-[8px] p-2 text-left transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer group"
                           >
-                            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[13px] font-bold text-primary overflow-hidden border border-hairline">
+                              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-well text-[13px] font-bold text-body overflow-hidden border border-hairline">
                               {user.avatarUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -386,9 +392,6 @@ export default function NewConversationModal({
                               ) : (
                                 user.displayName.slice(0, 2).toUpperCase()
                               )}
-                              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4A154B] text-[8px] font-bold text-white ring-1 ring-canvas">
-                                #
-                              </span>
                             </div>
 
                             <div className="flex-1 min-w-0">
@@ -396,7 +399,7 @@ export default function NewConversationModal({
                                 <span className="text-[13px] font-medium text-ink truncate group-hover:underline">
                                   {user.displayName}
                                 </span>
-                                <span className="font-mono text-[9px] uppercase px-1 py-0.2 rounded bg-[#4A154B]/10 text-[#4A154B] dark:bg-[#E01E5A]/10 dark:text-[#E01E5A] font-semibold">
+                                <span className="font-mono text-[9px] uppercase px-1 py-0.2 rounded bg-surface-well text-mute border border-hairline font-semibold">
                                   Slack DM
                                 </span>
                                 {user.isBot && (
@@ -427,7 +430,7 @@ export default function NewConversationModal({
                 )
               ) : filteredChannels.length === 0 ? (
                 <div className="py-12 px-6 text-center text-[12.5px] flex flex-col items-center justify-center gap-2">
-                  <span className="text-2xl">#️⃣</span>
+                  <span className="font-mono text-xl font-bold text-mute">#</span>
                   <p className="font-medium text-ink">
                     {query ? `No channels match “#${query}”` : "No channels found"}
                   </p>
@@ -453,8 +456,14 @@ export default function NewConversationModal({
                           disabled={isBusy}
                           className="flex w-full items-center gap-3 rounded-[8px] p-2 text-left transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer group"
                         >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#4A154B]/10 font-mono font-bold text-[#4A154B] dark:text-[#E01E5A] text-[13px] border border-[#4A154B]/20">
-                            {channel.isPrivate ? "🔒" : "#"}
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-surface-well font-mono font-bold text-body text-[13px] border border-hairline">
+                            {channel.isPrivate ? (
+                              <svg className="h-3.5 w-3.5 text-mute" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                            ) : (
+                              "#"
+                            )}
                           </div>
 
                           <div className="flex-1 min-w-0">
@@ -462,7 +471,7 @@ export default function NewConversationModal({
                               <span className="text-[13px] font-medium text-ink truncate group-hover:underline">
                                 #{channel.name}
                               </span>
-                              <span className="font-mono text-[9px] uppercase px-1 py-0.2 rounded bg-[#4A154B]/10 text-[#4A154B] dark:bg-[#E01E5A]/10 dark:text-[#E01E5A] font-semibold">
+                              <span className="font-mono text-[9px] uppercase px-1 py-0.2 rounded bg-surface-well text-mute border border-hairline font-semibold">
                                 Slack Channel
                               </span>
                               {channel.isPrivate && (
