@@ -51,7 +51,7 @@ export function WebhooksSettings({ data, metaUrl }: WebhooksSettingsProps) {
 
           <CopyCard
             label="Meta Webhook Verify Token"
-            value={data.settings.webhookVerifyToken || "connectme_verify"}
+            value={data.settings.webhookVerifyToken || "Not set — save settings to generate one"}
             hint="Must match Verify Token in your Meta Webhooks setup"
           />
 

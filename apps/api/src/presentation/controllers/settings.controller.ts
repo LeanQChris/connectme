@@ -10,6 +10,7 @@ import {
 } from "@connectme/contracts";
 import { TenantId } from "../auth/tenant-id.decorator";
 import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
+import { ensureWebhookVerifyToken } from "../webhook-verify-token";
 import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import { SaveSettingsBodySchema, ChannelSchema } from "../validation/schemas";
 
@@ -68,7 +69,12 @@ export class SettingsController {
           accounts.find((a) => a.channel === "SLACK" && a.provider === "slack")?.externalId ??
           null,
         updatedAt: creds?.updatedAt ? creds.updatedAt.toISOString() : null,
-        webhookVerifyToken: creds?.webhookVerifyToken || "connectme_verify_token",
+        // Minted here on first read so the UI always shows the real value.
+        webhookVerifyToken: await ensureWebhookVerifyToken(
+          this.tenantRepo,
+          tenantId,
+          creds?.webhookVerifyToken,
+        ),
         waPhoneNumberId: creds?.waPhoneNumberId ?? null,
         waAppId: creds?.waAppId ?? null,
         ai: {
@@ -105,7 +111,10 @@ export class SettingsController {
     const partial: any = {};
     if (s.waPhoneNumberId !== undefined) partial.waPhoneNumberId = s.waPhoneNumberId;
     if (s.waAppId !== undefined) partial.waAppId = s.waAppId;
-    if (s.webhookVerifyToken !== undefined) partial.webhookVerifyToken = s.webhookVerifyToken;
+    // Blank means "leave unchanged" in the settings form. Writing an empty
+    // value would clear the minted token and silently reject every inbound
+    // Telegram update, because the webhook handler treats unset as invalid.
+    if (s.webhookVerifyToken) partial.webhookVerifyToken = s.webhookVerifyToken;
     if (s.discordPublicKey !== undefined) partial.discordPublicKey = s.discordPublicKey;
     if (s.aiProvider !== undefined) partial.aiProvider = s.aiProvider;
     if (s.aiModel !== undefined) partial.aiModel = s.aiModel;
@@ -357,7 +366,8 @@ export class SettingsController {
     }
 
     const webhookUrl = `${domainUrl.replace(/\/$/, "")}/api/webhook/telegram/${botId}`;
-    const secretToken = creds.webhookVerifyToken || "connectme_verify_token";
+    // Keep registered == shown == validated (see ensureWebhookVerifyToken).
+    const secretToken = await ensureWebhookVerifyToken(this.tenantRepo, tenantId, creds.webhookVerifyToken);
     const res = await fetch(
       `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&secret_token=${encodeURIComponent(secretToken)}`,
     );

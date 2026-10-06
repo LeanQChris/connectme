@@ -215,7 +215,7 @@ export function MetaSettings({
                       onChange={(e) =>
                         setMetaForm((prev) => ({ ...prev, webhookVerifyToken: e.target.value }))
                       }
-                      placeholder={data.settings.webhookVerifyToken || "connectme_verify"}
+                      placeholder="Leave blank to keep the current token"
                       className="h-8 font-mono text-[12px]"
                     />
                   </div>

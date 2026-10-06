@@ -3,6 +3,7 @@ import { ITenantRepository } from "../../domain/repositories/i-tenant.repository
 import { AesVaultService } from "@connectme/channels";
 import { TenantId } from "../auth/tenant-id.decorator";
 import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
+import { ensureWebhookVerifyToken } from "../webhook-verify-token";
 
 @Controller("api")
 export class SetupController {
@@ -30,7 +31,9 @@ export class SetupController {
     }
 
     const webhookUrl = `${domainUrl.replace(/\/$/, "")}/api/webhook/telegram/${botId}`;
-    const secretToken = creds.webhookVerifyToken || "connectme_verify_token";
+    // Persisted on first use so the value sent to Telegram matches the one
+    // the inbound handler checks — a stored default could never validate.
+    const secretToken = await ensureWebhookVerifyToken(this.tenantRepo, tenantId, creds.webhookVerifyToken);
     const res = await fetch(
       `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&secret_token=${encodeURIComponent(secretToken)}`,
     );

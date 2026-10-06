@@ -37,7 +37,7 @@ const defaultSettingsPayload: SettingsPayload = {
       customSystemPrompt: null,
     },
     updatedAt: null,
-    webhookVerifyToken: "connectme_verify_token",
+    webhookVerifyToken: "",
     waPhoneNumberId: null,
     waAppId: null,
   },
