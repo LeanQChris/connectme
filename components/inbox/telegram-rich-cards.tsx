@@ -28,12 +28,14 @@ export function parseLocation(text: string | null | undefined): LocationPayload 
   if (!text) return null;
 
   const urlMatch = text.match(/maps\.google\.com\/\?q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  const firstLine = text.split("\n")[0];
+
   if (urlMatch) {
-    const nameMatch = text.match(/^📍\s*(.+?)\s*\((.*)\)/);
+    const nameMatch = firstLine.match(/^📍\s*(.+?)\s*\((.*)\)$/);
     return {
       latitude: Number(urlMatch[1]),
       longitude: Number(urlMatch[2]),
-      name: nameMatch?.[1],
+      name: nameMatch && !nameMatch[1].startsWith("Location") ? nameMatch[1] : undefined,
       address: nameMatch?.[2] || undefined,
     };
   }
@@ -43,8 +45,8 @@ export function parseLocation(text: string | null | undefined): LocationPayload 
     return { latitude: Number(plainMatch[1]), longitude: Number(plainMatch[2]) };
   }
 
-  const nameMatch = text.match(/^📍\s*(.+?)\s*\((.*)\)\s*$/);
-  if (nameMatch) {
+  const nameMatch = firstLine.match(/^📍\s*(.+?)\s*\((.*)\)\s*$/);
+  if (nameMatch && nameMatch[1] !== "Location") {
     return { name: nameMatch[1], address: nameMatch[2] || undefined };
   }
 
