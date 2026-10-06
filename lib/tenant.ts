@@ -174,6 +174,9 @@ export async function settingsPayload(
       webhookUrl: settings.webhookUrl,
       agents: settings.agents,
       templates: settings.templates,
+      aiConfigured: Boolean(settings.secrets.aiApiKey),
+      aiProvider: settings.secrets.aiProvider,
+      aiModel: settings.secrets.aiModel,
     },
     oauth: {
       metaConfigured: Boolean(config.metaAppId),

@@ -79,6 +79,50 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
     templates: (initial.settings.templates ?? []).join("\n"),
   });
 
+  // AI BYOK settings
+  const [aiForm, setAiForm] = useState({
+    aiProvider: initial.settings.aiProvider ?? "openai",
+    aiModel: initial.settings.aiModel ?? "",
+    aiApiKey: "",
+  });
+
+  const AI_MODEL_PLACEHOLDERS: Record<string, string> = {
+    openai: "gpt-4o-mini",
+    anthropic: "claude-3-5-haiku-latest",
+    gemini: "gemini-1.5-flash",
+  };
+
+  async function saveAi() {
+    setBusy("save-ai");
+    setGlobalError(null);
+    setGlobalSuccess(null);
+
+    const payload: Record<string, string> = {
+      aiProvider: aiForm.aiProvider,
+      aiModel: aiForm.aiModel.trim(),
+    };
+    // Only send the key when the user typed one — blank means "keep existing"
+    if (aiForm.aiApiKey.trim()) payload.aiApiKey = aiForm.aiApiKey.trim();
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to save AI settings.");
+
+      await load();
+      setAiForm((prev) => ({ ...prev, aiApiKey: "" }));
+      setGlobalSuccess("AI settings saved successfully!");
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : "Failed to save AI settings.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function saveWorkspace() {
     setBusy("save-workspace");
     setGlobalError(null);
@@ -1591,6 +1635,81 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
             className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
           >
             {busy === "save-workspace" ? "Saving…" : "Save Workspace Settings"}
+          </button>
+        </div>
+      </div>
+
+      {/* AI BYOK settings — always visible, independent of channel tabs */}
+      <div className="mt-6 rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
+        <h2 className="text-[16px] font-semibold text-ink">AI (Bring Your Own Key)</h2>
+        <p className="mt-0.5 text-[12.5px] text-body">
+          Use your own AI provider key for automated replies. The key is stored encrypted and never shown again.
+        </p>
+
+        {data.settings.aiConfigured && (
+          <div className="mt-4 rounded-lg border border-hairline bg-surface-well/50 px-3.5 py-2.5 text-[12px] text-body">
+            Configured: <strong className="font-mono text-ink">{data.settings.aiProvider}/{data.settings.aiModel}</strong>
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12.5px] font-medium text-ink">Provider</label>
+            <select
+              value={aiForm.aiProvider}
+              onChange={(e) =>
+                setAiForm((prev) => ({ ...prev, aiProvider: e.target.value }))
+              }
+              className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink focus:border-ink focus:outline-none"
+            >
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12.5px] font-medium text-ink">Model</label>
+            <input
+              type="text"
+              value={aiForm.aiModel}
+              onChange={(e) =>
+                setAiForm((prev) => ({ ...prev, aiModel: e.target.value }))
+              }
+              placeholder={
+                data.settings.aiModel ||
+                AI_MODEL_PLACEHOLDERS[aiForm.aiProvider] ||
+                "model-id"
+              }
+              className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label className="text-[12.5px] font-medium text-ink">API Key</label>
+            <input
+              type="password"
+              value={aiForm.aiApiKey}
+              onChange={(e) =>
+                setAiForm((prev) => ({ ...prev, aiApiKey: e.target.value }))
+              }
+              placeholder={data.settings.aiConfigured ? "••••" : "sk-..."}
+              className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+            />
+            <span className="text-[11px] text-mute">
+              Leave blank to keep the existing key. Enter an empty save with no key change to update provider/model only.
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center gap-3 pt-4 border-t border-hairline">
+          <button
+            type="button"
+            onClick={() => void saveAi()}
+            disabled={busy !== null}
+            className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+          >
+            {busy === "save-ai" ? "Saving…" : "Save AI Settings"}
           </button>
         </div>
       </div>

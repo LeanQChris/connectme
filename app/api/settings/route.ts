@@ -19,6 +19,9 @@ const KEYS = [
   "slackBotToken",
   "slackSigningSecret",
   "graphVersion",
+  "aiProvider",
+  "aiApiKey",
+  "aiModel",
 ] as const;
 
 function pick(input: Record<string, unknown>): Record<string, string> {
@@ -117,5 +120,8 @@ export async function PUT(request: Request): Promise<Response> {
     webhookUrl: settings.webhookUrl,
     agents: settings.agents,
     templates: settings.templates,
+    aiConfigured: Boolean(settings.secrets.aiApiKey),
+    aiProvider: settings.secrets.aiProvider,
+    aiModel: settings.secrets.aiModel,
   });
 }

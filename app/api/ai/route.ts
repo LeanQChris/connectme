@@ -1,3 +1,5 @@
+import { AIRouter, parseConfig } from "@ai-router-sdk/core";
+
 import { getConversation } from "@/lib/store";
 import { requireUserId, tenantSecrets } from "@/lib/tenant";
 
@@ -17,9 +19,9 @@ export async function POST(request: Request): Promise<Response> {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return Response.json({ error: "OPENAI_API_KEY not configured" }, { status: 501 });
+  const secrets = await tenantSecrets(auth.userId);
+  if (!secrets.aiApiKey) {
+    return Response.json({ error: "Add your AI provider key in Settings" }, { status: 501 });
   }
 
   let payload: { mode?: unknown; conversationId?: unknown; text?: unknown };
@@ -36,8 +38,7 @@ export async function POST(request: Request): Promise<Response> {
 
   let inputText = typeof payload.text === "string" ? payload.text : "";
   if (!inputText && typeof payload.conversationId === "string" && payload.conversationId) {
-    const tenant = await tenantSecrets(auth.userId);
-    const detail = await getConversation(auth.userId, payload.conversationId, tenant);
+    const detail = await getConversation(auth.userId, payload.conversationId, secrets);
     if (!detail) return Response.json({ error: "Conversation not found" }, { status: 404 });
     inputText = threadText(detail.messages);
   }
@@ -52,35 +53,25 @@ export async function POST(request: Request): Promise<Response> {
         ? `Write one suggested reply to the customer in this conversation. Reply with the suggestion only:\n\n${inputText}`
         : `Translate the following text to English. Reply with the translation only:\n\n${inputText}`;
 
-  const baseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-      }),
+    const config = parseConfig({
+      strategy: "fallback",
+      routes: [
+        {
+          id: "user",
+          provider: secrets.aiProvider || "openai",
+          model: secrets.aiModel || "gpt-4o-mini",
+          apiKey: secrets.aiApiKey,
+        },
+      ],
     });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      return Response.json(
-        { error: `AI request failed: HTTP ${response.status} ${detail.slice(0, 200)}` },
-        { status: 502 },
-      );
-    }
-
-    const json = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const result = json.choices?.[0]?.message?.content ?? "";
-    return Response.json({ result });
+    const router = new AIRouter(config);
+    const response = await router.complete({
+      model: "user",
+      messages: [{ role: "user", content: prompt }],
+    });
+    const content = response.choices[0]?.message.content;
+    return Response.json({ result: typeof content === "string" ? content : "" });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "AI request failed" },

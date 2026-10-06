@@ -233,6 +233,12 @@ export interface ProviderSecrets {
   slackBotToken: string;
   slackSigningSecret: string;
   graphVersion: string;
+  /** BYOK: which AI provider the tenant's key unlocks. */
+  aiProvider?: string;
+  /** BYOK: tenant's own AI provider key. Never sent to the client. */
+  aiApiKey?: string;
+  /** BYOK: provider-side model id, e.g. "gpt-4o-mini". */
+  aiModel?: string;
 }
 
 export const EMPTY_SECRETS: ProviderSecrets = {
@@ -343,6 +349,9 @@ export interface SettingsPayload {
     webhookUrl: string | null;
     agents: string[];
     templates: string[];
+    aiConfigured: boolean;
+    aiProvider?: string;
+    aiModel?: string;
   };
   oauth: {
     metaConfigured: boolean;
