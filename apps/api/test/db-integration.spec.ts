@@ -31,11 +31,6 @@ async function columnExists(name: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function lastMigrationName(): Promise<string | null> {
-  const rows = await run(`SELECT name FROM migrations ORDER BY timestamp DESC LIMIT 1`);
-  return rows[0]?.name ?? null;
-}
-
 /** Everything these tests create, tagged so cleanup can never touch real data. */
 async function seed(): Promise<{ tenantId: string; contactId: string; conversationId: string }> {
   const tenant = await run(
@@ -133,33 +128,48 @@ after(async () => {
   if (AppDataSource.isInitialized) await AppDataSource.destroy().catch(() => undefined);
 });
 
+/**
+ * Run the target migration's up() or down() directly.
+ *
+ * Calling the migration through TypeORM's own runner would require it to be the
+ * head migration, and any migration added later makes that impossible — which is
+ * exactly what happened when AddMissingChannelEnumValues landed. Invoking the
+ * instance keeps these tests independent of ordering and leaves the migrations
+ * table untouched, so the suite never records a half-applied run.
+ */
+async function runTargetMigration(direction: "up" | "down"): Promise<void> {
+  const migration = (AppDataSource.migrations as any[]).find((m) => m.name === TARGET_MIGRATION);
+  if (!migration || typeof migration[direction] !== "function") {
+    throw new Error(`migration ${TARGET_MIGRATION} has no ${direction}()`);
+  }
+
+  const queryRunner = AppDataSource.createQueryRunner();
+  try {
+    await queryRunner.startTransaction();
+    try {
+      await migration[direction](queryRunner);
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    }
+  } finally {
+    await queryRunner.release();
+  }
+}
+
 describe("mediaUrl migration against a real database", () => {
   test("backfills media[] from mediaUrl, then drops the column", async (t) => {
     if (!available) return t.skip(skipReason);
 
-    // The test needs to cycle this specific migration, so it must be the last
-    // one applied — otherwise undoLastMigration would revert something else.
-    const lastName = await lastMigrationName();
-    if (lastName !== TARGET_MIGRATION) {
-      return t.skip(`last applied migration is ${lastName}, not ${TARGET_MIGRATION}`);
-    }
-
     await cleanup();
-    let undid = false;
     try {
-      await AppDataSource.undoLastMigration();
-      undid = true;
-      assert.equal(
-        await columnExists("mediaUrl"),
-        true,
-        "down() must restore the legacy column",
-      );
-
+      // Recreate the pre-migration state: the legacy column, populated rows.
+      await run(`ALTER TABLE "messages" ADD COLUMN IF NOT EXISTS "mediaUrl" text`);
       const { conversationId } = await seed();
       await seedLegacyMessages(conversationId);
 
-      await AppDataSource.runMigrations();
-      undid = false;
+      await runTargetMigration("up");
 
       assert.equal(
         await columnExists("mediaUrl"),
@@ -201,25 +211,19 @@ describe("mediaUrl migration against a real database", () => {
       assert.equal(byId.get("DBITEST_null_url"), null);
     } finally {
       await cleanup().catch(() => undefined);
-      if (undid) {
-        // Never leave the schema in its pre-migration state, even on failure.
-        await AppDataSource.runMigrations().catch(() => undefined);
-      }
+      // Whatever happened, leave the schema in its post-migration state.
+      await run(`ALTER TABLE "messages" DROP COLUMN IF EXISTS "mediaUrl"`).catch(() => undefined);
     }
   });
 
   test("down() re-derives mediaUrl from the first attachment", async (t) => {
     if (!available) return t.skip(skipReason);
 
-    const lastName = await lastMigrationName();
-    if (lastName !== TARGET_MIGRATION) return t.skip(`last migration is ${lastName}`);
-
     await cleanup();
-    let undid = false;
     try {
+      // Start from the post-migration state and store only the canonical array.
+      await run(`ALTER TABLE "messages" DROP COLUMN IF EXISTS "mediaUrl"`);
       const { conversationId } = await seed();
-
-      // The column does not exist yet, so only the canonical array is stored.
       await run(
         `INSERT INTO messages ("conversationId", "externalId", direction, channel, type, media, status, "createdAt")
          VALUES ($1, 'DBITEST_roundtrip', 'INBOUND', 'WIDGET', 'IMAGE',
@@ -228,10 +232,7 @@ describe("mediaUrl migration against a real database", () => {
         [conversationId],
       );
 
-      // down() re-adds the column and derives it from media[0] — which only
-      // works if the row already exists when down() runs.
-      await AppDataSource.undoLastMigration();
-      undid = true;
+      await runTargetMigration("down");
       assert.equal(await columnExists("mediaUrl"), true, "down() must restore the column");
 
       const rows = await run(
@@ -244,7 +245,7 @@ describe("mediaUrl migration against a real database", () => {
       );
     } finally {
       await cleanup().catch(() => undefined);
-      if (undid) await AppDataSource.runMigrations().catch(() => undefined);
+      await run(`ALTER TABLE "messages" DROP COLUMN IF EXISTS "mediaUrl"`).catch(() => undefined);
     }
   });
 });
