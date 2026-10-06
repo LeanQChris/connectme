@@ -1,10 +1,14 @@
 "use client";
 
 import { memo, useState } from "react";
-import { MAX_UPLOAD_BYTES, type MessageType } from "@/core/types";
+import { MAX_UPLOAD_BYTES } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { SchedulePicker } from "@/modules/scheduling/components/schedule-picker";
-import { useReplyBox } from "../hooks/use-reply-box";
+import {
+  MAX_ATTACHMENTS,
+  useReplyBox,
+  type ReplyPayload,
+} from "../hooks/use-reply-box";
 import { EmojiPickerPopover } from "./emoji-picker-popover";
 import { QuickRepliesTray } from "./quick-replies-tray";
 import { AttachmentPreview } from "./attachment-preview";
@@ -12,15 +16,10 @@ import { AiCopilotBar } from "./ai-copilot-bar";
 import { AiRewriteMenu } from "./ai-rewrite-menu";
 import { WhatsAppTemplatePickerModal } from "./whatsapp-template-picker-modal";
 
-export interface ReplyPayload {
-  text: string;
-  mediaUrl?: string | null;
-  mimeType?: string;
-  type?: MessageType;
-}
+export type { ReplyPayload };
 
 interface ReplyBoxProps {
-  onSend: (payload: ReplyPayload) => Promise<void>;
+  onSend: (payload: ReplyPayload) => Promise<unknown>;
   onNote?: (text: string) => Promise<void>;
   onSchedule?: (payload: ReplyPayload, scheduledForIso: string) => Promise<void>;
   disabled: boolean;
@@ -62,8 +61,9 @@ const ReplyBox = memo(function ReplyBox({
     setMode,
     noteMode,
     canSchedule,
-    attachment,
-    setAttachment,
+    attachments,
+    removeAttachment,
+    canAddAttachment,
     uploading,
     showEmojiPicker,
     setShowEmojiPicker,
@@ -172,9 +172,22 @@ const ReplyBox = memo(function ReplyBox({
       {/* Quick Replies Tray */}
       {!text && !noteMode && <QuickRepliesTray onSelect={setText} />}
 
-      {/* Attachment Preview Card */}
-      {attachment && (
-        <AttachmentPreview attachment={attachment} onRemove={() => setAttachment(null)} />
+      {/* Attachment Preview Cards */}
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {attachments.map((item) => (
+            <AttachmentPreview
+              key={item.url}
+              attachment={item}
+              onRemove={() => removeAttachment(item.url)}
+            />
+          ))}
+        </div>
+      )}
+      {!canAddAttachment && (
+        <p className="px-0.5 font-mono text-[10px] text-mute">
+          Maximum {MAX_ATTACHMENTS} attachments per message.
+        </p>
       )}
 
       {/* Main Input Box */}
@@ -208,9 +221,9 @@ const ReplyBox = memo(function ReplyBox({
         {!noteMode && (
           <button
             type="button"
-            title={`Attach image, audio, video, or document (max ${(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(0)} MB)`}
+            title={`Attach image, audio, video, or document (max ${(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(0)} MB, up to ${MAX_ATTACHMENTS} files)`}
             aria-label="Attach a file"
-            disabled={uploading}
+            disabled={uploading || !canAddAttachment}
             onClick={() => fileRef.current?.click()}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well disabled:opacity-40 cursor-pointer"
           >
@@ -306,7 +319,7 @@ const ReplyBox = memo(function ReplyBox({
             type="button"
             title="Schedule this reply"
             aria-label="Schedule this reply"
-            disabled={pending || schedulePending || uploading || (!text.trim() && !attachment)}
+            disabled={pending || schedulePending || uploading || (!text.trim() && attachments.length === 0)}
             onClick={() => setShowSchedulePicker((prev) => !prev)}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well disabled:opacity-40 cursor-pointer"
           >
@@ -325,7 +338,7 @@ const ReplyBox = memo(function ReplyBox({
         <Button
           type="button"
           onClick={() => void submit()}
-          disabled={pending || schedulePending || uploading || (!text.trim() && !attachment)}
+          disabled={pending || schedulePending || uploading || (!text.trim() && attachments.length === 0)}
           className={`h-9 shrink-0 text-[12.5px] sm:text-[13px] font-medium ${
             noteMode
               ? "!bg-warning !text-ink hover:opacity-90"

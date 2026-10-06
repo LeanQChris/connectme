@@ -20,6 +20,9 @@ function previewLabel(message: string | null | undefined): string {
   if (message === "[audio]") return "🎵 Audio";
   if (message === "[document]") return "📄 Document";
   if (message === "[message]") return "💬 Message";
+  // Attachment-only messages: outbound paths store a bare "Attachment" preview
+  // when media was sent without a caption.
+  if (message === "Attachment" || message === "attachment") return "📎 Attachment";
   return message;
 }
 

@@ -22,7 +22,7 @@ interface ThreadProps {
   conversation: ConversationSummary;
   messages: Message[];
   onBack: () => void;
-  onSend: (payload: ReplyPayload) => Promise<void>;
+  onSend: (payload: ReplyPayload) => Promise<unknown>;
   onSchedule: (payload: ReplyPayload, scheduledForIso: string) => Promise<void>;
   onNote: (text: string) => Promise<void>;
   onArchive: (status: ConversationStatus) => void;
@@ -48,6 +48,16 @@ export interface ImageGroupItem {
 
 export type ClusterItem = SingleItem | ImageGroupItem;
 
+/**
+ * First attachment URL for a message rendered as a standalone gallery image.
+ * `mediaUrl` was retired from the Message contract, so images live in media[].
+ */
+function firstImageUrl(message: Message): string | null {
+  if (message.type !== "image") return null;
+  const first = message.media && message.media.length > 0 ? message.media[0] : null;
+  return first?.url ?? null;
+}
+
 export function clusterMessages(messages: Message[]): ClusterItem[] {
   const result: ClusterItem[] = [];
   let i = 0;
@@ -55,15 +65,14 @@ export function clusterMessages(messages: Message[]): ClusterItem[] {
   while (i < messages.length) {
     const msg = messages[i];
 
-    if (msg.type === "image" && msg.mediaUrl && msg.direction !== "note") {
+    if (firstImageUrl(msg) && msg.direction !== "note") {
       const group: Message[] = [msg];
       let j = i + 1;
 
       while (j < messages.length) {
         const next = messages[j];
         if (
-          next.type === "image" &&
-          next.mediaUrl &&
+          firstImageUrl(next) &&
           next.direction === msg.direction &&
           (!next.text || next.text.startsWith("[")) &&
           Math.abs(new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime()) < 180000
@@ -253,7 +262,7 @@ export default function Thread({
             if (isGroup) {
               const galleryImages = item.messages.map((m) => ({
                 id: m.id,
-                url: resolveMediaUrl(m.mediaUrl, { channel: conversation.channel }),
+                url: resolveMediaUrl(firstImageUrl(m) ?? "", { channel: conversation.channel }),
                 text: m.text,
                 createdAt: m.createdAt,
               }));

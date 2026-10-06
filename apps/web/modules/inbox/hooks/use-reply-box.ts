@@ -7,8 +7,11 @@ import { inboxApi, type ReplyPayload } from "../api/inbox.api";
 
 export type { ReplyPayload };
 
+/** Meta caps a single carousel/multi-media post at 10 items; match that for replies. */
+export const MAX_ATTACHMENTS = 10;
+
 interface UseReplyBoxOptions {
-  onSend: (payload: ReplyPayload) => Promise<void>;
+  onSend: (payload: ReplyPayload) => Promise<unknown>;
   onNote?: (text: string) => Promise<void>;
   onSchedule?: (payload: ReplyPayload, scheduledForIso: string) => Promise<void>;
   disabled: boolean;
@@ -20,7 +23,7 @@ export function useReplyBox({ onSend, onNote, onSchedule, disabled }: UseReplyBo
   const [schedulePending, setSchedulePending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"reply" | "note">("reply");
-  const [attachment, setAttachment] = useState<UploadedMedia | null>(null);
+  const [attachments, setAttachments] = useState<UploadedMedia[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -60,13 +63,20 @@ export function useReplyBox({ onSend, onNote, onSchedule, disabled }: UseReplyBo
   const uploadMutation = useMutation({
     mutationFn: (file: File) => inboxApi.uploadMedia(file),
     onSuccess: (data, file) => {
-      setAttachment({
-        url: data.url,
-        name: file.name,
-        size: file.size,
-        mimeType: data.mimeType || file.type,
-        type: data.type,
-      });
+      setAttachments((prev) =>
+        prev.length >= MAX_ATTACHMENTS
+          ? prev
+          : [
+              ...prev,
+              {
+                url: data.url,
+                name: file.name,
+                size: file.size,
+                mimeType: data.mimeType || file.type,
+                type: data.type,
+              },
+            ],
+      );
       setError(null);
     },
     onError: (err) => {
@@ -86,9 +96,31 @@ export function useReplyBox({ onSend, onNote, onSchedule, disabled }: UseReplyBo
     [uploadMutation],
   );
 
+  const removeAttachment = useCallback((url: string) => {
+    setAttachments((prev) => prev.filter((item) => item.url !== url));
+  }, []);
+
+  const clearAttachments = useCallback(() => setAttachments([]), []);
+
+  /** Build the wire payload: an array when multiple (or any) files are attached. */
+  const mediaPayload = useCallback(() => {
+    if (attachments.length === 0) return null;
+    return {
+      media: attachments.map((item) => ({
+        url: item.url,
+        type: item.type,
+        name: item.name,
+        size: item.size,
+        mimeType: item.mimeType,
+      })),
+      mimeType: attachments[0].mimeType,
+      type: attachments[0].type,
+    };
+  }, [attachments]);
+
   const submit = useCallback(async () => {
     const body = text.trim();
-    if ((!body && !attachment) || pending || uploadMutation.isPending) return;
+    if ((!body && attachments.length === 0) || pending || uploadMutation.isPending) return;
 
     setPending(true);
     setError(null);
@@ -97,50 +129,44 @@ export function useReplyBox({ onSend, onNote, onSchedule, disabled }: UseReplyBo
       if (noteMode) {
         await onNote!(body);
       } else {
-        await onSend(
-          attachment
-            ? {
-                text: body,
-                mediaUrl: attachment.url,
-                mimeType: attachment.mimeType,
-                type: attachment.type,
-              }
-            : { text: body },
-        );
+        const media = mediaPayload();
+        await onSend(media ? { text: body, ...media } : { text: body });
       }
       setText("");
-      setAttachment(null);
+      setAttachments([]);
       if (textareaRef.current) textareaRef.current.style.height = "auto";
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Failed to send message");
     } finally {
       setPending(false);
     }
-  }, [text, attachment, pending, uploadMutation.isPending, noteMode, onNote, onSend]);
+  }, [
+    text,
+    attachments,
+    mediaPayload,
+    pending,
+    uploadMutation.isPending,
+    noteMode,
+    onNote,
+    onSend,
+  ]);
 
   const schedule = useCallback(
     async (scheduledForIso: string) => {
       if (!onSchedule) return;
       const body = text.trim();
-      if ((!body && !attachment) || schedulePending || uploadMutation.isPending) return;
+      if ((!body && attachments.length === 0) || schedulePending || uploadMutation.isPending) {
+        return;
+      }
 
       setSchedulePending(true);
       setError(null);
       setShowEmojiPicker(false);
       try {
-        await onSchedule(
-          attachment
-            ? {
-                text: body,
-                mediaUrl: attachment.url,
-                mimeType: attachment.mimeType,
-                type: attachment.type,
-              }
-            : { text: body },
-          scheduledForIso,
-        );
+        const media = mediaPayload();
+        await onSchedule(media ? { text: body, ...media } : { text: body }, scheduledForIso);
         setText("");
-        setAttachment(null);
+        setAttachments([]);
         if (textareaRef.current) textareaRef.current.style.height = "auto";
       } catch (scheduleError) {
         setError(
@@ -150,7 +176,7 @@ export function useReplyBox({ onSend, onNote, onSchedule, disabled }: UseReplyBo
         setSchedulePending(false);
       }
     },
-    [text, attachment, schedulePending, uploadMutation.isPending, onSchedule],
+    [text, attachments, mediaPayload, schedulePending, uploadMutation.isPending, onSchedule],
   );
 
   return {
@@ -165,8 +191,12 @@ export function useReplyBox({ onSend, onNote, onSchedule, disabled }: UseReplyBo
     noteMode,
     canSchedule,
     effectiveMode,
-    attachment,
-    setAttachment,
+    attachment: attachments[0] ?? null,
+    attachments,
+    setAttachments,
+    removeAttachment,
+    clearAttachments,
+    canAddAttachment: attachments.length < MAX_ATTACHMENTS,
     uploading: uploadMutation.isPending,
     showEmojiPicker,
     setShowEmojiPicker,

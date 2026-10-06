@@ -3,7 +3,7 @@
 import { Fragment, memo } from "react";
 import Avatar from "@/components/ui/avatar";
 import { formatTime } from "@/core/utils/format";
-import type { ConversationSummary, Message, MessageStatus } from "@/core/types";
+import type { ConversationSummary, Message, MessageMedia, MessageStatus } from "@/core/types";
 import { MessageAttachment } from "./message-attachment";
 import { resolveMediaUrl } from "@/core/utils/media";
 import { extractUrls, LinkPreviewCard } from "./link-preview-card";
@@ -81,22 +81,37 @@ export const MessageItem = memo(function MessageItem({
   const runStart = showDivider || !prevMessage || prevMessage.direction !== message.direction;
   const showAvatar =
     !outgoing && !isNote && (!nextMessage || nextMessage.direction !== message.direction);
-  const hasMedia = Boolean(message.mediaUrl);
-  const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
-  // Slack attachments are private and must be fetched via the API proxy.
-  const displayUrl = resolveMediaUrl(message.mediaUrl, { channel: message.channel });
+  // media[] is the canonical shape (mediaUrl was retired from the contract).
+  const mediaList: MessageMedia[] = message.media && message.media.length > 0 ? message.media : [];
 
-  const isImage = message.type === "image" && message.mediaUrl;
-  const isAudio = message.type === "audio" && message.mediaUrl;
-  const isVideo = message.type === "video" && message.mediaUrl;
-  const isDoc = message.type === "document" && message.mediaUrl;
+  const hasMedia = mediaList.length > 0;
+  const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
+  const primary = mediaList[0];
+  // Slack attachments are private and must be fetched via the API proxy.
+  const displayUrl = primary
+    ? resolveMediaUrl(primary.url, { channel: message.channel })
+    : null;
+
+  const primaryKind = (primary?.type ?? message.type) as string;
+  const isSingle = mediaList.length === 1;
+  // Stickers and locations render on their own, never inside a chat bubble.
+  const isSticker = primaryKind === "sticker";
+  const isLocation = primaryKind === "location";
+  const isImage = primaryKind === "image";
+  const isAudio = primaryKind === "audio";
+  const isVideo = primaryKind === "video";
+  const isDoc = primaryKind === "document" || primaryKind === "file";
   const isPureMedia =
-    (isImage || isAudio || isVideo || isDoc) &&
+    isSingle &&
+    (isImage || isAudio || isVideo || isDoc || isSticker || isLocation) &&
     (!message.text ||
       message.text.startsWith("[") ||
       message.text === "Photo Attachment" ||
       message.text === "Video message" ||
       message.text === "Attached Document");
+  // A multi-attachment message never uses the single-media bubbles: it renders
+  // through MessageAttachment (grid for images, stacked cards otherwise).
+  const isMultiMedia = mediaList.length > 1 && message.type !== "text";
 
   if (isNote) {
     return (
@@ -170,8 +185,16 @@ export const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {/* 1. Pure Single Image (No outer bubble) */}
-        {isImage && isPureMedia ? (
+        {/* 0. Multi-attachment: grid of images or stacked cards, never a bubble. */}
+        {isMultiMedia ? (
+          <div className="relative max-w-[85%] sm:max-w-[360px]">
+            <MessageAttachment message={message} onOpenImage={onOpenImage} />
+            <div className="absolute bottom-2 right-2 rounded-full bg-black/65 px-2.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-md shadow-sm pointer-events-none">
+              <span>{formatTime(message.createdAt)}</span>
+            </div>
+          </div>
+        ) : /* 1. Pure Single Image (No outer bubble) */
+        isImage && isPureMedia && displayUrl ? (
           <div className="group/media relative max-w-[85%] sm:max-w-[360px] overflow-hidden rounded-[14px] border border-hairline/80 shadow-2xs bg-black/5 dark:bg-white/5 cursor-pointer">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -196,7 +219,7 @@ export const MessageItem = memo(function MessageItem({
               {outgoing && status?.text ? <span className={status.color}>{status.text}</span> : null}
             </div>
           </div>
-        ) : isAudio && isPureMedia ? (
+        ) : isAudio && isPureMedia && displayUrl ? (
           /* 2. Standalone Audio Message Pill */
           <div
             className={`flex items-center gap-2 rounded-[22px] border px-3.5 py-1.5 shadow-2xs ${
@@ -212,7 +235,7 @@ export const MessageItem = memo(function MessageItem({
             </span>
             {outgoing && status?.text ? <span className={status.color}>{status.text}</span> : null}
           </div>
-        ) : isVideo && isPureMedia ? (
+        ) : isVideo && isPureMedia && displayUrl ? (
           /* 3. Standalone Video Player */
           <div className="relative overflow-hidden rounded-[14px] bg-black border border-hairline shadow-2xs max-w-[320px]">
             <video
@@ -223,13 +246,13 @@ export const MessageItem = memo(function MessageItem({
               preload="metadata"
             />
           </div>
-        ) : isDoc && isPureMedia ? (
+        ) : isDoc && isPureMedia && displayUrl ? (
           /* 4. Standalone Document Attachment Card */
           <a
-            href={resolveMediaUrl(message.mediaUrl, {
+            href={resolveMediaUrl(primary.url, {
               channel: message.channel,
               download: true,
-              name: message.media?.[0]?.name ?? message.text,
+              name: primary.name ?? message.text,
             })}
             target="_blank"
             rel="noopener noreferrer"
@@ -249,11 +272,41 @@ export const MessageItem = memo(function MessageItem({
               </span>
             </div>
           </a>
+        ) : isSticker && isPureMedia && displayUrl ? (
+          /* 5. Sticker: natural size, no card chrome. */
+          <div className="max-w-[160px]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={displayUrl}
+              alt="Sticker"
+              onClick={() => onOpenImage(displayUrl)}
+              className="max-h-40 w-auto cursor-pointer object-contain"
+              loading="lazy"
+            />
+          </div>
+        ) : isLocation && isPureMedia ? (
+          /* 6. Location: map link, no media fetch. */
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              message.text || primary?.url || "",
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex max-w-[300px] items-center gap-3 rounded-[12px] border border-hairline bg-canvas-elevated p-3 text-ink shadow-2xs transition-colors hover:bg-surface-well"
+          >
+            <span className="text-lg">📍</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium">Shared location</p>
+              <span className="truncate font-mono text-[10px] text-mute">
+                {message.text || "Open in Maps"}
+              </span>
+            </div>
+          </a>
         ) : onlyEmoji ? (
-          /* 5. Pure Emoji Message */
+          /* 7. Pure Emoji Message */
           <div className="text-4xl leading-tight select-text py-1">{message.text}</div>
         ) : (
-          /* 6. Standard Text Message (or message with caption) - CHAT BUBBLE */
+          /* 8. Standard Text Message (or message with caption) - CHAT BUBBLE */
           <div
             className={`group relative max-w-[78%] leading-[1.55] sm:max-w-[68%] px-3.5 py-2 text-[13px] shadow-2xs ${
               outgoing
