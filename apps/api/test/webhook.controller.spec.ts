@@ -154,3 +154,74 @@ describe("WebhookController", () => {
     );
   });
 });
+
+describe("WebhookController redelivery dedup", () => {
+  function capturingQueue(sink: Array<{ jobId?: string }>) {
+    return {
+      add: async (_name: string, _data: unknown, opts: { jobId?: string }) => {
+        sink.push({ jobId: opts?.jobId });
+        return { id: "job" };
+      },
+    };
+  }
+
+  const metaPayload = (messageId: string) => ({
+    object: "whatsapp_business_account",
+    entry: [{ id: "e1", changes: [{ value: { messages: [{ id: messageId }] } }] }],
+  });
+
+  test("the same Meta payload produces the same jobId", async () => {
+    const sink: Array<{ jobId?: string }> = [];
+    const controller = makeController({ queue: capturingQueue(sink) as any });
+    const payload = metaPayload("wamid.ABC");
+
+    await (controller as any).dispatch("meta", { payload, receivedAt: 1 }, payload);
+    await (controller as any).dispatch("meta", { payload, receivedAt: 2 }, payload);
+
+    assert.ok(sink[0].jobId, "a Meta event id must yield a jobId");
+    assert.equal(sink[0].jobId, sink[1].jobId);
+  });
+
+  test("a different Meta payload produces a different jobId", async () => {
+    const sink: Array<{ jobId?: string }> = [];
+    const controller = makeController({ queue: capturingQueue(sink) as any });
+
+    await (controller as any).dispatch("meta", { receivedAt: 1 }, metaPayload("wamid.A"));
+    await (controller as any).dispatch("meta", { receivedAt: 2 }, metaPayload("wamid.B"));
+
+    assert.notEqual(sink[0].jobId, sink[1].jobId);
+  });
+
+  test("a Meta payload with no event ids falls back to no jobId", async () => {
+    // Never dedup on a key we cannot verify: a wrong hit drops a real message.
+    const sink: Array<{ jobId?: string }> = [];
+    const controller = makeController({ queue: capturingQueue(sink) as any });
+
+    await (controller as any).dispatch("meta", { receivedAt: 1 }, { object: "whatsapp_business_account", entry: [] });
+
+    assert.equal(sink[0].jobId, undefined);
+  });
+
+  test("telegram, slack and discord dedup on their own event ids", async () => {
+    const sink: Array<{ jobId?: string }> = [];
+    const controller = makeController({ queue: capturingQueue(sink) as any });
+
+    await (controller as any).dispatch("telegram", { receivedAt: 1 }, { update_id: 42 });
+    await (controller as any).dispatch("telegram", { receivedAt: 2 }, { update_id: 42 });
+    await (controller as any).dispatch("telegram", { receivedAt: 3 }, { update_id: 43 });
+
+    await (controller as any).dispatch("slack", { receivedAt: 1 }, { event_id: "Ev1" });
+    await (controller as any).dispatch("slack", { receivedAt: 2 }, { event_id: "Ev1" });
+
+    await (controller as any).dispatch("discord", { receivedAt: 1 }, { id: "int-1" });
+    await (controller as any).dispatch("discord", { receivedAt: 2 }, { id: "int-1" });
+
+    assert.ok(sink[0].jobId);
+    assert.equal(sink[0].jobId, sink[1].jobId, "telegram update_id stable");
+    assert.notEqual(sink[0].jobId, sink[2].jobId, "different telegram update differs");
+
+    assert.equal(sink[3].jobId, sink[4].jobId, "slack event_id stable");
+
+    assert.equal(sink[5].jobId, sink[6].jobId, "discord interaction id stable");
+  });
+});

@@ -89,17 +89,32 @@ export interface CreateInboundMessageInput {
   channel: ChannelType;
   type: Message["type"];
   text: string | null;
-  mediaUrl?: string | null;
   mediaMimeType?: string | null;
   media?: Message["media"] | null;
   authorName?: string | null;
   status?: MessageStatus;
 }
 
+/**
+ * Persist an inbound message.
+ *
+ * Returns null when this message was already stored for the conversation, which
+ * lets callers skip the unread bump, the realtime publish, and the follow-up
+ * jobs. Providers redeliver webhooks, and `messages` carries a unique
+ * (conversationId, externalId) index, so without this guard a redelivery would
+ * throw a unique violation, fail the job, and burn every retry.
+ */
 export async function createMessage(
   messageRepo: Repository<Message>,
   input: CreateInboundMessageInput,
-): Promise<Message> {
+): Promise<Message | null> {
+  if (input.externalId) {
+    const existing = await messageRepo.findOne({
+      where: { conversationId: input.conversationId, externalId: input.externalId },
+    });
+    if (existing) return null;
+  }
+
   const entity = messageRepo.create({
     conversationId: input.conversationId,
     externalId: input.externalId,
@@ -107,11 +122,21 @@ export async function createMessage(
     channel: input.channel,
     type: input.type,
     text: input.text,
-    mediaUrl: input.mediaUrl ?? null,
     mediaMimeType: input.mediaMimeType ?? null,
     media: input.media ?? null,
     authorName: input.authorName ?? null,
     status: input.status ?? MessageStatus.RECEIVED,
   });
-  return messageRepo.save(entity);
+
+  try {
+    return await messageRepo.save(entity);
+  } catch (err: any) {
+    // 23505 = unique_violation. Two workers racing on the same redelivered event
+    // both pass the existence check above; the loser must treat it as a duplicate
+    // rather than failing the job.
+    if (err?.code === "23505" || /duplicate key/i.test(err?.message ?? "")) {
+      return null;
+    }
+    throw err;
+  }
 }

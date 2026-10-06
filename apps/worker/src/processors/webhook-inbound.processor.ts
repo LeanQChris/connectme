@@ -22,6 +22,7 @@ import {
   touchConversation,
   upsertContact,
 } from "./inbound-persist.helpers";
+import { mediaKindFor } from "./media-kind";
 
 interface MetaEntry {
   id: string;
@@ -281,6 +282,29 @@ export class WebhookInboundProcessor extends WorkerHost {
       bodyText = bodyText || (msg.document?.filename || "Document");
       mediaId = msg.document?.id ?? null;
       mediaMimeType = msg.document?.mime_type ?? null;
+    } else if (msg.type === "sticker") {
+      mediaType = MediaType.STICKER;
+      bodyText = bodyText || "Sticker";
+      mediaId = msg.sticker?.id ?? null;
+      mediaMimeType = msg.sticker?.mime_type ?? null;
+    } else if (msg.type === "location") {
+      mediaType = MediaType.LOCATION;
+      const lat = msg.location?.latitude;
+      const lng = msg.location?.longitude;
+      bodyText =
+        bodyText ||
+        msg.location?.name ||
+        msg.location?.address ||
+        (lat != null && lng != null ? `${lat},${lng}` : "Location");
+    } else if (!bodyText) {
+      // WhatsApp emits many non-conversational event types (system, unsupported,
+      // ephemeral, request_welcome, order, interactive, button, reaction, errors).
+      // Persisting them would create empty bubbles and inflate unread counts, so
+      // only keep a type we can actually render text or media for.
+      this.logger.debug(
+        `Skipping unsupported WhatsApp message type "${msg.type}" (id ${msg.id}) for tenant ${tenantId}.`,
+      );
+      return;
     }
 
     const saved = await createMessage(this.messageRepo, {
@@ -291,6 +315,7 @@ export class WebhookInboundProcessor extends WorkerHost {
       text: bodyText,
       mediaMimeType,
     });
+    if (!saved) return; // duplicate redelivery: already persisted
     await touchConversation(this.convRepo, conv, bodyText, true);
     await this.realtime.publish({
       type: "message:new",
@@ -360,9 +385,20 @@ export class WebhookInboundProcessor extends WorkerHost {
           channel,
           type: mediaType,
           text: bodyText,
-          mediaUrl,
+          media: mediaUrl
+            ? [
+                {
+                  url: mediaUrl,
+                  type: mediaKindFor(mediaType),
+                  name:
+                    att?.payload?.name ??
+                    (mediaType === MediaType.DOCUMENT ? bodyText : undefined),
+                  mimeType: att?.payload?.mime_type ?? undefined,
+                },
+              ]
+            : null,
         });
-
+        if (!saved) return; // duplicate redelivery: already persisted
         await touchConversation(this.convRepo, conv, bodyText, true);
         await this.realtime.publish({
           type: "message:new",
@@ -386,6 +422,7 @@ export class WebhookInboundProcessor extends WorkerHost {
         type: MediaType.TEXT,
         text,
       });
+      if (!saved) return; // duplicate redelivery: already persisted
       await touchConversation(this.convRepo, conv, text, true);
       await this.realtime.publish({
         type: "message:new",
@@ -445,6 +482,7 @@ export class WebhookInboundProcessor extends WorkerHost {
       type: message.photo ? MediaType.IMAGE : MediaType.TEXT,
       text,
     });
+    if (!saved) return; // duplicate redelivery: already persisted
     await touchConversation(this.convRepo, conv, text, true);
     await this.realtime.publish({
       type: "message:new",
@@ -488,6 +526,7 @@ export class WebhookInboundProcessor extends WorkerHost {
       type: MediaType.TEXT,
       text,
     });
+    if (!saved) return; // duplicate redelivery: already persisted
     await touchConversation(this.convRepo, conv, text, true);
     await this.realtime.publish({
       type: "message:new",
@@ -609,11 +648,12 @@ export class WebhookInboundProcessor extends WorkerHost {
       channel: ChannelType.SLACK,
       type: media.length === 0 ? MediaType.TEXT : MediaType.DOCUMENT,
       text: text || null,
-      mediaUrl: media[0]?.url ?? null,
       mediaMimeType: media[0]?.mimeType ?? null,
       media: media.length > 0 ? media : null,
       authorName: contactName,
     });
+
+    if (!saved) return; // duplicate redelivery: already persisted
 
     const preview = text || (media.length > 0 ? `📎 ${media.length} attachment(s)` : "Slack message");
     await touchConversation(this.convRepo, conv, preview, true);

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   Controller,
   Get,
@@ -44,18 +45,74 @@ export class WebhookController {
   ) {}
 
   /**
+   * Derive a stable queue job id from the provider's own event id so a redelivery
+   * of the same event collapses into one job instead of being processed twice.
+   *
+   * Returns undefined when we cannot identify the event (providers may send
+   * batched payloads), falling back to an auto-generated id — never dedup on a
+   * key we are unsure about, because a wrong hit would drop a real message.
+   */
+  private deriveJobId(jobName: string, payload: unknown): string | undefined {
+    const key = this.providerEventKey(jobName, payload);
+    if (!key) return undefined;
+    // Hash so arbitrary provider ids cannot collide with our own job naming and
+    // so a multi-event payload collapses to a single stable key.
+    const digest = createHash("sha256").update(key).digest("hex").slice(0, 40);
+    return `${jobName}:${digest}`;
+  }
+
+  /** The provider's canonical id(s) for the event, or null when unavailable. */
+  private providerEventKey(jobName: string, payload: any): string | null {
+    switch (jobName) {
+      // Meta batches entries/changes/messages/statuses into one payload, so the
+      // key is the sorted set of every message and status id it carries.
+      case "meta": {
+        const ids: string[] = [];
+        for (const entry of payload?.entry || []) {
+          for (const change of entry?.changes || []) {
+            for (const msg of change?.value?.messages || []) if (msg?.id) ids.push(msg.id);
+            for (const status of change?.value?.statuses || []) if (status?.id) ids.push(status.id);
+          }
+        }
+        if (ids.length === 0) return null;
+        return [...new Set(ids)].sort().join("|");
+      }
+      case "telegram":
+        return payload?.update_id != null ? String(payload.update_id) : null;
+      case "discord":
+        return payload?.id ? String(payload.id) : null;
+      // Slack retries the same delivery with the same event_id; event_ts is the
+      // fallback for payloads that omit it.
+      case "slack":
+        if (payload?.event_id) return String(payload.event_id);
+        if (payload?.event?.event_ts) return String(payload.event.event_ts);
+        return null;
+      default:
+        return null;
+    }
+  }
+
+  /**
    * Hand webhook work to the durable worker queue so the HTTP response stays
    * fast (<50ms). If the queue is unreachable we return 503 so the provider
    * retries — events are never dropped silently, and the API never blocks on
    * ingestion work.
    */
-  private async dispatch(jobName: string, data: Record<string, unknown>): Promise<void> {
+  private async dispatch(
+    jobName: string,
+    data: Record<string, unknown>,
+    payload: unknown,
+  ): Promise<void> {
     try {
       await this.queue.add(jobName, data, {
         attempts: 5,
         backoff: { type: "exponential", delay: 10_000 },
         removeOnComplete: 1000,
         removeOnFail: 5000,
+        // Dedup: a provider redelivery reuses the event id, so BullMQ ignores the
+        // duplicate while the first job is still in the queue or within the
+        // retention window above.
+        jobId: this.deriveJobId(jobName, payload),
       });
     } catch (err) {
       this.logger.error(`Failed to enqueue ${jobName} webhook: ${(err as Error).message}`);
@@ -107,7 +164,7 @@ export class WebhookController {
       throw new ForbiddenException("Invalid webhook signature");
     }
 
-    await this.dispatch("meta", { payload, receivedAt: Date.now() });
+    await this.dispatch("meta", { payload, receivedAt: Date.now() }, payload);
     return { status: "EVENT_RECEIVED" };
   }
 
@@ -136,7 +193,7 @@ export class WebhookController {
       throw new ForbiddenException("Invalid webhook secret token");
     }
 
-    await this.dispatch("telegram", { botId, payload: update, receivedAt: Date.now() });
+    await this.dispatch("telegram", { botId, payload: update, receivedAt: Date.now() }, update);
     return { ok: true };
   }
 
@@ -162,7 +219,7 @@ export class WebhookController {
       return { type: 1 };
     }
 
-    await this.dispatch("discord", { payload: interaction, receivedAt: Date.now() });
+    await this.dispatch("discord", { payload: interaction, receivedAt: Date.now() }, interaction);
     return { type: 4, data: { content: "Received" } };
   }
 
@@ -196,7 +253,7 @@ export class WebhookController {
       }
     }
 
-    await this.dispatch("slack", { payload: body, receivedAt: Date.now() });
+    await this.dispatch("slack", { payload: body, receivedAt: Date.now() }, body);
     return { ok: true };
   }
 
