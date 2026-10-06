@@ -10,7 +10,12 @@
       "dependsOn": ["^lint"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      // `@connectme/*` packages resolve to their (gitignored) dist/, and tsc
+      // emits nothing, so a clean checkout cannot typecheck until the
+      // dependencies have been built. `^check-types` alone typechecks them
+      // without ever producing dist, which is what broke CI on a fresh
+      // `npm ci`. `test` already had the same requirement.
+      "dependsOn": ["^check-types", "^build"]
     },
     "dev": {
       "cache": false,
