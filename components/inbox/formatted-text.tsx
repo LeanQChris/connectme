@@ -19,6 +19,8 @@ interface TextSegment {
   content: string;
   href?: string;
   label?: string;
+  avatarUrl?: string | null;
+  userId?: string;
 }
 
 /**
@@ -78,13 +80,15 @@ function parseFormattedText(raw: string): TextSegment[] {
     // 2. Slack User Mention: <@USERID|name> or <@USERID>
     else if (token.startsWith("<@")) {
       const inner = token.slice(2, -1);
-      const pipeIdx = inner.indexOf("|");
-      const userId = pipeIdx !== -1 ? inner.slice(0, pipeIdx) : inner;
-      const name = pipeIdx !== -1 ? inner.slice(pipeIdx + 1) : userId;
+      const parts = inner.split("|");
+      const userId = parts[0];
+      const name = parts[1] ?? userId;
       segments.push({
         type: "user_mention",
         content: token,
         label: name.startsWith("@") ? name : `@${name}`,
+        avatarUrl: parts[2] ?? null,
+        userId,
       });
     }
     // 3. Slack Channel Mention: <#CHANNELID|name> or <#CHANNELID>
@@ -193,15 +197,43 @@ export default function FormattedText({
 
         if (seg.type === "user_mention") {
           return (
-            <span
-              key={idx}
-              className={`inline-flex items-center px-1.5 py-0.5 rounded-[5px] text-[12px] font-medium align-baseline mx-0.5 ${
-                outgoing
-                  ? "bg-white/20 text-white border border-white/30"
-                  : "bg-link/10 text-link border border-link/20"
-              }`}
-            >
-              {seg.label}
+            <span key={idx} className="group/mention relative inline-block align-baseline mx-0.5">
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 rounded-[5px] text-[12px] font-medium ${
+                  outgoing
+                    ? "bg-white/20 text-white border border-white/30"
+                    : "bg-link/10 text-link border border-link/20"
+                }`}
+              >
+                {seg.label}
+              </span>
+              <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-1.5 hidden w-56 rounded-[10px] border border-hairline bg-canvas-elevated p-3 shadow-lg group-hover/mention:block">
+                <span className="flex items-center gap-2.5">
+                  {seg.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={seg.avatarUrl}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-well text-[13px] font-semibold text-body">
+                      {seg.label?.replace("@", "").slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate text-[12.5px] font-semibold text-ink">
+                      {seg.label}
+                    </span>
+                    <span className="block truncate font-mono text-[10px] text-mute">
+                      {seg.userId}
+                    </span>
+                  </span>
+                </span>
+                <span className="mt-2 block font-mono text-[9.5px] uppercase tracking-wider text-mute">
+                  Slack user
+                </span>
+              </span>
             </span>
           );
         }

@@ -25,7 +25,7 @@ interface Row {
 /** Slack mrkdwn / mention tokens → readable plain text for previews. */
 function slackify(text: string): string {
   return text
-    .replace(/<@([A-Z0-9]+)\|([^>]+)>/g, "@$2")
+    .replace(/<@([A-Z0-9]+)\|([^|>]+)(?:\|[^>]+)?>/g, "@$2")
     .replace(/<@([A-Z0-9]+)>/g, "@user")
     .replace(/<#([A-Z0-9]+)\|([^>]+)>/g, "#$2")
     .replace(/<#([A-Z0-9]+)>/g, "#channel")

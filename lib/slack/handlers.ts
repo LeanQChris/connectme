@@ -94,7 +94,8 @@ export async function handleSlackMessage(
       try {
         const uProfile = await fetchSlackUserProfile(token, uid);
         if (uProfile?.name && !uProfile.name.startsWith("User ")) {
-          text = text.replaceAll(`<@${uid}>`, `<@${uid}|${uProfile.name}>`);
+          const avatar = uProfile.avatarUrl ? `|${uProfile.avatarUrl}` : "";
+          text = text.replaceAll(`<@${uid}>`, `<@${uid}|${uProfile.name}${avatar}>`);
         }
       } catch {
         // ignore profile fetch error
