@@ -119,6 +119,8 @@ export class MediaController {
   async getSlackMedia(
     @TenantId() tenantId: string,
     @Query("url") rawUrl: string,
+    @Query("download") download: string,
+    @Query("name") name: string,
     @Res() res: Response,
   ) {
     if (!rawUrl || !isAllowedMediaHost(rawUrl)) {
@@ -142,7 +144,18 @@ export class MediaController {
       const contentType = mediaRes.headers.get("content-type") || "application/octet-stream";
       res.setHeader("Content-Type", contentType);
 
+      // Slack file names are attacker-influenced; strip quotes and separators so
+      // they cannot break out of the Content-Disposition header.
+      if (download === "1" && name) {
+        const safeName = name.replace(/[^\w.\- ]+/g, "_").slice(0, 90) || "download";
+        res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+      }
+
       const buffer = Buffer.from(await mediaRes.arrayBuffer());
+      // content-length is advisory; enforce the cap on the real byte count too.
+      if (buffer.byteLength > MAX_MEDIA_BYTES) {
+        throw new BadRequestException("Media exceeds the maximum allowed size.");
+      }
       return res.send(buffer);
     } catch (err: any) {
       if (err instanceof BadRequestException || err instanceof NotFoundException) throw err;

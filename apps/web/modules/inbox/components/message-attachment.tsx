@@ -1,6 +1,7 @@
 "use client";
 
 import type { Message } from "@/core/types";
+import { resolveMediaUrl } from "@/core/utils/media";
 
 interface MessageAttachmentProps {
   message: Message;
@@ -19,8 +20,14 @@ export function MessageAttachment({ message, onOpenImage }: MessageAttachmentPro
   if (mediaList.length === 1) {
     const item = mediaList[0];
     const type = item.type || message.type;
-    const url = item.url;
     const name = item.name || message.text || "Attachment";
+    // Slack files are private; resolveMediaUrl routes them through the API.
+    const url = resolveMediaUrl(item.url, { channel: message.channel });
+    const downloadUrl = resolveMediaUrl(item.url, {
+      channel: message.channel,
+      download: true,
+      name,
+    });
 
     if (type === "sticker") {
       return (
@@ -88,7 +95,7 @@ export function MessageAttachment({ message, onOpenImage }: MessageAttachmentPro
     const ext = name.split(".").pop()?.toUpperCase() || "FILE";
     return (
       <a
-        href={url}
+        href={downloadUrl}
         target="_blank"
         rel="noopener noreferrer"
         download
@@ -126,18 +133,21 @@ export function MessageAttachment({ message, onOpenImage }: MessageAttachmentPro
   if (allImages) {
     return (
       <div className={`grid gap-1.5 overflow-hidden rounded-[10px] ${mediaList.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-        {mediaList.map((m, idx) => (
+        {mediaList.map((m, idx) => {
+          const mUrl = resolveMediaUrl(m.url, { channel: message.channel });
+          return (
           <div key={idx} className="group/media relative aspect-square overflow-hidden bg-black/10 cursor-pointer">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={m.url}
+              src={mUrl}
               alt={m.name || `Image ${idx + 1}`}
-              onClick={() => onOpenImage(m.url)}
+              onClick={() => onOpenImage(mUrl)}
               className="h-full w-full object-cover transition-transform duration-200 group-hover/media:scale-105"
               loading="lazy"
             />
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -149,7 +159,11 @@ export function MessageAttachment({ message, onOpenImage }: MessageAttachmentPro
         return (
           <a
             key={idx}
-            href={item.url}
+            href={resolveMediaUrl(item.url, {
+              channel: message.channel,
+              download: true,
+              name: item.name,
+            })}
             target="_blank"
             rel="noopener noreferrer"
             download

@@ -15,6 +15,7 @@ import ReplyBox, { type ReplyPayload } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
 import Avatar from "@/components/ui/avatar";
 import { formatTime } from "@/core/utils/format";
+import { resolveMediaUrl } from "@/core/utils/media";
 import { DeleteConversationModal } from "./delete-conversation-modal";
 
 interface ThreadProps {
@@ -252,7 +253,7 @@ export default function Thread({
             if (isGroup) {
               const galleryImages = item.messages.map((m) => ({
                 id: m.id,
-                url: m.mediaUrl!,
+                url: resolveMediaUrl(m.mediaUrl, { channel: conversation.channel }),
                 text: m.text,
                 createdAt: m.createdAt,
               }));

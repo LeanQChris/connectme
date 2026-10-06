@@ -5,6 +5,7 @@ import Avatar from "@/components/ui/avatar";
 import { formatTime } from "@/core/utils/format";
 import type { ConversationSummary, Message, MessageStatus } from "@/core/types";
 import { MessageAttachment } from "./message-attachment";
+import { resolveMediaUrl } from "@/core/utils/media";
 import { extractUrls, LinkPreviewCard } from "./link-preview-card";
 
 interface MessageItemProps {
@@ -82,6 +83,8 @@ export const MessageItem = memo(function MessageItem({
     !outgoing && !isNote && (!nextMessage || nextMessage.direction !== message.direction);
   const hasMedia = Boolean(message.mediaUrl);
   const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
+  // Slack attachments are private and must be fetched via the API proxy.
+  const displayUrl = resolveMediaUrl(message.mediaUrl, { channel: message.channel });
 
   const isImage = message.type === "image" && message.mediaUrl;
   const isAudio = message.type === "audio" && message.mediaUrl;
@@ -172,14 +175,14 @@ export const MessageItem = memo(function MessageItem({
           <div className="group/media relative max-w-[85%] sm:max-w-[360px] overflow-hidden rounded-[14px] border border-hairline/80 shadow-2xs bg-black/5 dark:bg-white/5 cursor-pointer">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={message.mediaUrl!}
+              src={displayUrl}
               alt="Photo attachment"
-              onClick={() => onOpenImage(message.mediaUrl!)}
+              onClick={() => onOpenImage(displayUrl)}
               className="max-h-[380px] w-auto max-w-full rounded-[14px] object-contain transition-transform duration-300 group-hover/media:scale-[1.015]"
               loading="lazy"
             />
             <div
-              onClick={() => onOpenImage(message.mediaUrl!)}
+              onClick={() => onOpenImage(displayUrl)}
               className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover/media:bg-black/20"
             >
               <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-medium text-white opacity-0 shadow-md transition-all duration-200 group-hover/media:opacity-100 flex items-center gap-1.5 backdrop-blur-md scale-95 group-hover/media:scale-100">
@@ -203,7 +206,7 @@ export const MessageItem = memo(function MessageItem({
             }`}
           >
             <span className="text-base">🎵</span>
-            <audio src={message.mediaUrl!} controls className="h-8 max-w-[200px] sm:max-w-[240px]" />
+            <audio src={displayUrl} controls className="h-8 max-w-[200px] sm:max-w-[240px]" />
             <span className="font-mono text-[10px] text-mute shrink-0 pl-1">
               {formatTime(message.createdAt)}
             </span>
@@ -213,7 +216,7 @@ export const MessageItem = memo(function MessageItem({
           /* 3. Standalone Video Player */
           <div className="relative overflow-hidden rounded-[14px] bg-black border border-hairline shadow-2xs max-w-[320px]">
             <video
-              src={message.mediaUrl!}
+              src={displayUrl}
               controls
               playsInline
               className="max-h-[340px] w-full rounded-[14px]"
@@ -223,7 +226,11 @@ export const MessageItem = memo(function MessageItem({
         ) : isDoc && isPureMedia ? (
           /* 4. Standalone Document Attachment Card */
           <a
-            href={message.mediaUrl!}
+            href={resolveMediaUrl(message.mediaUrl, {
+              channel: message.channel,
+              download: true,
+              name: message.media?.[0]?.name ?? message.text,
+            })}
             target="_blank"
             rel="noopener noreferrer"
             download
