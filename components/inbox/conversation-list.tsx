@@ -14,6 +14,8 @@ interface Props {
   onSelect: (id: string) => void;
   loading: boolean;
   onNewConversation?: () => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 interface Row {
@@ -54,11 +56,19 @@ export default function ConversationList({
   onSelect,
   loading,
   onNewConversation,
+  selectedIds,
+  onToggleSelect,
 }: Props) {
   const [search, setSearch] = useState("");
+  const [showSnoozed, setShowSnoozed] = useState(false);
   const query = search.trim();
   const searching = query.length >= 2;
   const { data: hits = [], isFetching } = useMessageSearch(query);
+
+  const now = Date.now();
+  const isSnoozed = (c: ConversationSummary) =>
+    Boolean(c.snoozedUntil && new Date(c.snoozedUntil).getTime() > now);
+  const snoozedCount = conversations.filter(isSnoozed).length;
 
   // Two chars or more go to the server so message bodies are searchable too.
   const rows: Row[] = searching
@@ -68,6 +78,7 @@ export default function ConversationList({
         createdAt: hit.createdAt,
       }))
     : conversations
+        .filter((c) => (showSnoozed ? isSnoozed(c) : !isSnoozed(c)))
         .filter((c) => {
           if (!query) return true;
           const q = query.toLowerCase();
@@ -158,6 +169,25 @@ export default function ConversationList({
         )}
       </div>
 
+      {snoozedCount > 0 && (
+        <div className="flex items-center gap-1.5 border-b border-hairline px-2.5 py-1.5">
+          <button
+            type="button"
+            onClick={() => setShowSnoozed((v) => !v)}
+            className={`rounded-full border px-2.5 py-0.5 font-mono text-[10.5px] transition-colors ${
+              showSnoozed
+                ? "border-ink bg-ink text-on-primary"
+                : "border-hairline bg-canvas-elevated text-mute hover:text-ink"
+            }`}
+          >
+            💤 Snoozed ({snoozedCount})
+          </button>
+          {showSnoozed && (
+            <span className="font-mono text-[10px] text-mute">showing snoozed only</span>
+          )}
+        </div>
+      )}
+
       <ul className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1 space-y-0.5">
         {rows.length === 0 ? (
           <li className="p-8 text-center text-[12.5px] text-mute flex flex-col items-center justify-center gap-2">
@@ -185,7 +215,7 @@ export default function ConversationList({
 
             return (
               <li key={`${conversation.id}-${row.createdAt}`}>
-                <button
+                    <button
                   type="button"
                   onClick={() => onSelect(conversation.id)}
                   aria-current={selected}
@@ -195,6 +225,28 @@ export default function ConversationList({
                       : "hover:bg-surface-well/70 border-l-[3px] border-l-transparent"
                   }`}
                 >
+                  {onToggleSelect && (
+                    <span
+                      role="checkbox"
+                      aria-checked={selectedIds?.has(conversation.id) ?? false}
+                      aria-label="Select conversation"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSelect(conversation.id);
+                      }}
+                      className={`mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border border-hairline bg-canvas-elevated transition-opacity ${
+                        selectedIds?.has(conversation.id)
+                          ? "opacity-100 bg-ink border-ink text-on-primary"
+                          : "opacity-0 group-hover:opacity-100"
+                      }`}
+                    >
+                      {selectedIds?.has(conversation.id) && (
+                        <svg className="h-2.5 w-2.5 stroke-current" fill="none" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                  )}
                   <Avatar
                     name={displayName}
                     avatarUrl={conversation.avatarUrl}
@@ -236,16 +288,23 @@ export default function ConversationList({
                       </div>
 
                       <span className="shrink-0 font-mono text-[10px] tabular-nums text-mute">
+                        {isSnoozed(conversation) && (
+                          <span className="mr-1" title={`Snoozed until ${conversation.snoozedUntil}`}>
+                            💤 {formatRelative(conversation.snoozedUntil!)}
+                          </span>
+                        )}
                         {formatRelative(row.createdAt)}
                       </span>
                     </div>
 
                     {/* Subtitle: Handle/ID for Direct Messages */}
-                    {!isChannel && hasRealName && (
+                    {(!isChannel && hasRealName) || conversation.assignee ? (
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="truncate font-mono text-[10.5px] text-mute">
-                          {conversation.contactExternalId}
-                        </span>
+                        {!isChannel && hasRealName && (
+                          <span className="truncate font-mono text-[10.5px] text-mute">
+                            {conversation.contactExternalId}
+                          </span>
+                        )}
                         {conversation.assignee && (
                           <span
                             title={`Assigned to ${conversation.assignee}`}
@@ -255,7 +314,7 @@ export default function ConversationList({
                           </span>
                         )}
                       </div>
-                    )}
+                    ) : null}
 
                     {/* Preview Snippet + Unread Pill */}
                     <div className="mt-1 flex items-center justify-between gap-2">

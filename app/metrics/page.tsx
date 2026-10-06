@@ -1,27 +1,20 @@
 import Link from "next/link";
-import { Suspense } from "react";
-import { headers } from "next/headers";
 
 import UserMenu from "@/components/auth/user-menu";
 import ThemeToggle from "@/components/inbox/theme-toggle";
-import SettingsForm from "@/components/settings/settings-form";
-import { requireUserId, settingsPayload } from "@/lib/tenant";
+import MetricsDashboard from "@/components/metrics/metrics-dashboard";
+import { requireUserId } from "@/lib/tenant";
 
 export const metadata = {
-  title: "Settings · ConnectMe",
+  title: "Metrics · ConnectMe",
 };
 
-export default async function SettingsPage() {
-  const [auth, headerList] = await Promise.all([requireUserId(), headers()]);
+export default async function MetricsPage() {
+  const auth = await requireUserId();
 
   if (auth instanceof Response) {
     return <div className="min-h-[100dvh] bg-canvas" />;
   }
-
-  const origin = headerList.get("origin") ?? `https://${headerList.get("host")}`;
-  // Rendered on the server so the form arrives filled in — no client-side
-  // fetch, no loading flash on load or hard reload.
-  const initial = await settingsPayload(auth.userId, origin);
 
   return (
     <div className="min-h-[100dvh] bg-canvas text-ink">
@@ -40,7 +33,7 @@ export default async function SettingsPage() {
           <span className="hidden h-3.5 w-px bg-hairline sm:block" />
 
           <span className="hidden font-mono text-[11px] text-mute sm:inline">
-            ConnectMe Workspace Configuration
+            ConnectMe Workspace Metrics
           </span>
         </div>
 
@@ -50,15 +43,7 @@ export default async function SettingsPage() {
         </div>
       </header>
 
-      <Suspense fallback={<div className="mx-auto max-w-3xl p-8 text-center text-mute">Loading settings…</div>}>
-        <SettingsForm initial={initial} />
-      </Suspense>
-
-      <div className="mx-auto max-w-4xl px-4 pb-10 sm:px-6">
-        <Link href="/metrics" className="text-[12.5px] font-medium text-body underline-offset-2 hover:text-ink hover:underline">
-          View workspace metrics →
-        </Link>
-      </div>
+      <MetricsDashboard />
     </div>
   );
 }

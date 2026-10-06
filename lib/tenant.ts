@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import { auth, currentUser } from "@clerk/nextjs/server";
 
 import { decryptSecrets, encryptSecrets, telegramBotId } from "./secrets";
-import { getCredentials, saveCredentials, upsertUser } from "./store";
+import { getCredentials, getUserSettings, saveCredentials, upsertUser } from "./store";
 import type {
   ConnectedAccount,
   ConnectionFlag,
@@ -102,7 +102,11 @@ function connectedFlags(
 
 /** Everything the settings UI needs, minus the secrets themselves. */
 export async function tenantSettings(userId: string): Promise<TenantSettings> {
-  const [record, secrets] = await Promise.all([getCredentials(userId), tenantSecrets(userId)]);
+  const [record, secrets, userSettings] = await Promise.all([
+    getCredentials(userId),
+    tenantSecrets(userId),
+    getUserSettings(userId),
+  ]);
   const rawAccounts = record?.accounts ?? [];
   // Strip tokens before passing to UI
   const safeAccounts: ConnectedAccount[] = rawAccounts.map((a) => ({
@@ -128,6 +132,9 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
     slackBotId: record?.slackBotId ?? null,
     widgetId: record?.widgetId ?? null,
     updatedAt: record?.updatedAt ?? null,
+    webhookUrl: userSettings.webhookUrl,
+    agents: userSettings.agents,
+    templates: userSettings.templates,
   };
 }
 
@@ -164,6 +171,9 @@ export async function settingsPayload(
       webhookVerifyToken: settings.secrets.webhookVerifyToken,
       waPhoneNumberId: settings.secrets.waPhoneNumberId || null,
       waAppId: settings.secrets.waAppId || null,
+      webhookUrl: settings.webhookUrl,
+      agents: settings.agents,
+      templates: settings.templates,
     },
     oauth: {
       metaConfigured: Boolean(config.metaAppId),

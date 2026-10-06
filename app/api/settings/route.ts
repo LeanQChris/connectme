@@ -1,5 +1,5 @@
 import { encryptSecrets, telegramBotId } from "@/lib/secrets";
-import { getCredentials, saveCredentials } from "@/lib/store";
+import { getCredentials, saveCredentials, saveUserSettings } from "@/lib/store";
 import { requireUserId, settingsPayload, syncProviderMetadata, tenantSecrets, tenantSettings } from "@/lib/tenant";
 
 export const runtime = "nodejs";
@@ -64,6 +64,28 @@ export async function PUT(request: Request): Promise<Response> {
   const patch = pick(payload);
   const secrets = { ...current, ...patch } as typeof current;
 
+  const userSettingsPatch: { webhookUrl?: string | null; agents?: string[]; templates?: string[] } =
+    {};
+  if (payload.webhookUrl === null || typeof payload.webhookUrl === "string") {
+    userSettingsPatch.webhookUrl =
+      typeof payload.webhookUrl === "string" ? payload.webhookUrl.trim() || null : null;
+  }
+  if (
+    Array.isArray(payload.agents) &&
+    payload.agents.every((a) => typeof a === "string")
+  ) {
+    userSettingsPatch.agents = payload.agents as string[];
+  }
+  if (
+    Array.isArray(payload.templates) &&
+    payload.templates.every((t) => typeof t === "string")
+  ) {
+    userSettingsPatch.templates = payload.templates as string[];
+  }
+  if (Object.keys(userSettingsPatch).length > 0) {
+    await saveUserSettings(auth.userId, userSettingsPatch);
+  }
+
   const record = await getCredentials(auth.userId);
   const pageId = typeof payload.pageId === "string" ? payload.pageId : record?.pageId;
   const botId = telegramBotId(secrets.telegramBotToken);
@@ -92,5 +114,8 @@ export async function PUT(request: Request): Promise<Response> {
     connected: settings.connected,
     pageId: settings.pageId,
     accounts: settings.accounts,
+    webhookUrl: settings.webhookUrl,
+    agents: settings.agents,
+    templates: settings.templates,
   });
 }

@@ -88,6 +88,9 @@ export interface Conversation {
   assignee: string | null;
   tags: string[];
   status: ConversationStatus;
+  snoozedUntil?: string | null;
+  csatRating?: number | null;
+  pendingCsat?: boolean;
   createdAt: string;
 }
 
@@ -135,11 +138,36 @@ export interface ConversationSummary {
   tags: string[];
   status: ConversationStatus;
   window: ReplyWindow;
+  snoozedUntil?: string | null;
+  csatRating?: number | null;
 }
 
 export interface ConversationDetail {
   conversation: ConversationSummary;
   messages: Message[];
+  typers: { name: string; until: string }[];
+}
+
+export interface Snippet {
+  id: string;
+  userId: string;
+  shortcut: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface TyperEntry {
+  userId: string;
+  conversationId: string;
+  name: string;
+  until: string;
+}
+
+export interface UserSettings {
+  userId: string;
+  webhookUrl: string | null;
+  agents: string[];
+  templates: string[];
 }
 
 /** One conversation plus the newest message body that matched a search. */
@@ -287,6 +315,9 @@ export interface TenantSettings {
   slackBotId: string | null;
   widgetId: string | null;
   updatedAt: string | null;
+  webhookUrl: string | null;
+  agents: string[];
+  templates: string[];
 }
 
 /** Settings payload: rendered on the server, then refreshed by the API. */
@@ -309,6 +340,9 @@ export interface SettingsPayload {
     webhookVerifyToken: string;
     waPhoneNumberId?: string | null;
     waAppId?: string | null;
+    webhookUrl: string | null;
+    agents: string[];
+    templates: string[];
   };
   oauth: {
     metaConfigured: boolean;

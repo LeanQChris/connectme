@@ -30,7 +30,10 @@ import type {
   MessageStatus,
   MessageType,
   SearchHit,
+  Snippet,
   TenantUser,
+  TyperEntry,
+  UserSettings,
   WidgetOutboxItem,
 } from "./types";
 import { replyWindow } from "./window";
@@ -48,6 +51,9 @@ interface StoreData {
   messages: Message[];
   /** Replies waiting in a visitor's browser; drained by the widget poll route. */
   widgetOutbox: WidgetOutboxItem[];
+  snippets: Snippet[];
+  typing: TyperEntry[];
+  userSettings: UserSettings[];
 }
 
 const EMPTY: StoreData = {
@@ -57,6 +63,9 @@ const EMPTY: StoreData = {
   conversations: [],
   messages: [],
   widgetOutbox: [],
+  snippets: [],
+  typing: [],
+  userSettings: [],
 };
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -139,6 +148,9 @@ function normalize(data: Partial<StoreData>): StoreData {
     conversations: data.conversations ?? [],
     messages: data.messages ?? [],
     widgetOutbox: data.widgetOutbox ?? [],
+    snippets: data.snippets ?? [],
+    typing: data.typing ?? [],
+    userSettings: data.userSettings ?? [],
   };
 
   const owner = [...merged.users].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]?.userId;
@@ -393,6 +405,8 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     assignee: conv.assignee ?? null,
     tags: conv.tags ?? [],
     status: conv.status,
+    snoozedUntil: conv.snoozedUntil ?? null,
+    csatRating: conv.csatRating ?? null,
     window:
       contact.channel === "telegram" ||
       contact.channel === "discord" ||
@@ -546,6 +560,39 @@ export async function recordInbound(input: InboundInput): Promise<boolean> {
     conversation.unreadCount += 1;
     // A new inbound message always resurfaces the thread, archived or not.
     conversation.status = "open";
+
+    const settings = data.userSettings.find((s) => s.userId === input.userId);
+
+    // a) CSAT capture: a bare 1-5 reply right after closing is the rating.
+    if (conversation.pendingCsat && typeof input.text === "string" && /^[1-5]\s*$/.test(input.text)) {
+      conversation.csatRating = Number(input.text.trim());
+      conversation.pendingCsat = false;
+    }
+
+    // b) Auto-assign round-robin across the tenant's agents.
+    if (!conversation.assignee) {
+      const agents = settings?.agents ?? [];
+      if (agents.length > 0) {
+        const assigned = conversationsOf(data, input.userId).filter((c) => c.assignee).length;
+        conversation.assignee = agents[assigned % agents.length];
+      }
+    }
+
+    // c) Outbound webhook, fire-and-forget.
+    if (settings?.webhookUrl) {
+      void fetch(settings.webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "message",
+          channel: input.channel,
+          senderName: input.senderName ?? undefined,
+          text: input.text,
+          createdAt: input.createdAt.toISOString(),
+        }),
+      }).catch((err) => console.warn("[store] outbound webhook failed:", err));
+    }
+
     return true;
   });
 }
@@ -962,7 +1009,7 @@ export async function getConversation(
   const summary = summarize(conversation, data);
   if (!summary) return null;
 
-  return { conversation: summary, messages };
+  return { conversation: summary, messages, typers: getTypersFromData(data, userId, id) };
 }
 
 export async function resetUnread(userId: string, id: string): Promise<void> {
@@ -975,6 +1022,221 @@ export async function resetUnread(userId: string, id: string): Promise<void> {
   });
 }
 
+export async function setSnooze(
+  userId: string,
+  id: string,
+  until: string | null,
+): Promise<boolean> {
+  return tx((data) => {
+    const conversation = findConversation(data, userId, id);
+    if (!conversation) return false;
+    conversation.snoozedUntil = until;
+    return true;
+  });
+}
+
+export async function setCsatRating(
+  userId: string,
+  id: string,
+  rating: number | null,
+): Promise<boolean> {
+  return tx((data) => {
+    const conversation = findConversation(data, userId, id);
+    if (!conversation) return false;
+    conversation.csatRating = rating;
+    conversation.pendingCsat = false;
+    return true;
+  });
+}
+
+/* ------------------------------------------------------------------ snippets */
+
+export async function listSnippets(userId: string): Promise<Snippet[]> {
+  const data = await read();
+  return data.snippets.filter((s) => s.userId === userId);
+}
+
+export async function addSnippet(
+  userId: string,
+  shortcut: string,
+  text: string,
+): Promise<Snippet> {
+  return tx((data) => {
+    const snippet: Snippet = {
+      id: randomUUID(),
+      userId,
+      shortcut,
+      text,
+      createdAt: new Date().toISOString(),
+    };
+    data.snippets.push(snippet);
+    return snippet;
+  });
+}
+
+export async function deleteSnippet(userId: string, id: string): Promise<boolean> {
+  return tx((data) => {
+    const at = data.snippets.findIndex((s) => s.id === id && s.userId === userId);
+    if (at === -1) return false;
+    data.snippets.splice(at, 1);
+    return true;
+  });
+}
+
+/* ------------------------------------------------------------------- typing */
+
+export async function setTyping(
+  userId: string,
+  conversationId: string,
+  name: string,
+): Promise<TyperEntry> {
+  return tx((data) => {
+    data.typing = data.typing.filter(
+      (t) => !(t.userId === userId && t.conversationId === conversationId),
+    );
+    const entry: TyperEntry = {
+      userId,
+      conversationId,
+      name,
+      until: new Date(Date.now() + 12_000).toISOString(),
+    };
+    data.typing.push(entry);
+    return entry;
+  });
+}
+
+function getTypersFromData(
+  data: StoreData,
+  userId: string,
+  conversationId: string,
+): { name: string; until: string }[] {
+  const now = Date.now();
+  data.typing = data.typing.filter((t) => Date.parse(t.until) > now);
+  return data.typing
+    .filter((t) => t.userId === userId && t.conversationId === conversationId)
+    .map((t) => ({ name: t.name, until: t.until }));
+}
+
+export async function getTypers(
+  userId: string,
+  conversationId: string,
+): Promise<{ name: string; until: string }[]> {
+  const data = await read();
+  return getTypersFromData(data, userId, conversationId);
+}
+
+/* ----------------------------------------------------------------- settings */
+
+function defaultUserSettings(userId: string): UserSettings {
+  return { userId, webhookUrl: null, agents: [], templates: [] };
+}
+
+export async function getUserSettings(userId: string): Promise<UserSettings> {
+  const data = await read();
+  return data.userSettings.find((s) => s.userId === userId) ?? defaultUserSettings(userId);
+}
+
+export async function saveUserSettings(
+  userId: string,
+  patch: Partial<Omit<UserSettings, "userId">>,
+): Promise<UserSettings> {
+  return tx((data) => {
+    const existing = data.userSettings.find((s) => s.userId === userId);
+    const next: UserSettings = {
+      ...(existing ?? defaultUserSettings(userId)),
+      ...patch,
+      userId,
+    };
+    if (existing) Object.assign(existing, next);
+    else data.userSettings.push(next);
+    return next;
+  });
+}
+
+/* -------------------------------------------------------------- bulk update */
+
+export async function bulkConversationUpdate(
+  userId: string,
+  ids: string[],
+  patch: { status?: ConversationStatus; assignee?: string | null; tags?: string[] },
+): Promise<number> {
+  return tx((data) => {
+    let count = 0;
+    for (const conversation of data.conversations) {
+      if (conversation.userId !== userId || !ids.includes(conversation.id)) continue;
+      if (patch.status !== undefined) {
+        conversation.status = patch.status;
+        if (patch.status === "closed") {
+          conversation.unreadCount = 0;
+          conversation.pendingCsat = true;
+        } else {
+          conversation.pendingCsat = false;
+        }
+      }
+      if (patch.assignee !== undefined) conversation.assignee = patch.assignee;
+      if (patch.tags !== undefined) conversation.tags = patch.tags;
+      count += 1;
+    }
+    return count;
+  });
+}
+
+/* ------------------------------------------------------------------ metrics */
+
+export async function computeMetrics(userId: string): Promise<{
+  conversations: { open: number; closed: number; total: number };
+  perChannel: Record<string, number>;
+  avgFirstResponseMs: number | null;
+  avgCsat: number | null;
+  csatCount: number;
+}> {
+  const data = await read();
+  const owned = conversationsOf(data, userId);
+
+  const open = owned.filter((c) => c.status === "open").length;
+  const closed = owned.filter((c) => c.status === "closed").length;
+
+  const perChannel: Record<string, number> = {};
+  for (const conv of owned) {
+    const contact = data.contacts.find((c) => c.id === conv.contactId);
+    if (!contact) continue;
+    perChannel[contact.channel] = (perChannel[contact.channel] ?? 0) + 1;
+  }
+
+  const firstResponses: number[] = [];
+  for (const conv of owned) {
+    const thread = data.messages
+      .filter((m) => m.conversationId === conv.id)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const firstIn = thread.find((m) => m.direction === "in");
+    const firstOut = thread.find((m) => m.direction === "out");
+    if (firstIn && firstOut) {
+      const delta = Date.parse(firstOut.createdAt) - Date.parse(firstIn.createdAt);
+      if (delta >= 0) firstResponses.push(delta);
+    }
+  }
+  const avgFirstResponseMs =
+    firstResponses.length > 0
+      ? Math.round(firstResponses.reduce((a, b) => a + b, 0) / firstResponses.length)
+      : null;
+
+  const rated = owned.filter(
+    (c): c is Conversation & { csatRating: number } => typeof c.csatRating === "number",
+  );
+  const avgCsat =
+    rated.length > 0
+      ? rated.reduce((sum, c) => sum + c.csatRating, 0) / rated.length
+      : null;
+
+  return {
+    conversations: { open, closed, total: owned.length },
+    perChannel,
+    avgFirstResponseMs,
+    avgCsat,
+    csatCount: rated.length,
+  };
+}
+
 /** Archives or restores a conversation. Returns false when the id is unknown. */
 export async function setStatus(
   userId: string,
@@ -985,7 +1247,12 @@ export async function setStatus(
     const conversation = findConversation(data, userId, id);
     if (!conversation) return false;
     conversation.status = status;
-    if (status === "closed") conversation.unreadCount = 0;
+    if (status === "closed") {
+      conversation.unreadCount = 0;
+      conversation.pendingCsat = true;
+    } else {
+      conversation.pendingCsat = false;
+    }
     return true;
   });
 }

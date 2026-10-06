@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import UserMenu from "@/components/auth/user-menu";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
 import {
   useAddNote,
@@ -39,6 +40,13 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   const [accountId, setAccountId] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [tagFilter, setTagFilter] = useState("");
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
+  const [savedFilters, setSavedFilters] = useState<
+    { name: string; channel: string; status: string; tag: string; unassigned: boolean }[]
+  >([]);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
 
   // React Query cached hooks
   const { data: all = [], isLoading: loadingList } = useConversations();
@@ -48,6 +56,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   const accounts = useMemo(() => settingsData?.settings?.accounts ?? [], [settingsData]);
 
   const sendMutation = useSendReply(selectedId);
+  const queryClient = useQueryClient();
   const statusMutation = useSetConversationStatus();
   const metaMutation = useSetConversationMeta(selectedId);
   const noteMutation = useAddNote(selectedId);
@@ -65,6 +74,22 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Load saved filters + notification permission on mount; register SW.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("connectme:savedFilters");
+      if (raw) setSavedFilters(JSON.parse(raw));
+    } catch {}
+    if (typeof Notification !== "undefined") setNotifPermission(Notification.permission);
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      fetch("/sw.js", { method: "HEAD" })
+        .then((res) => {
+          if (res.ok) return navigator.serviceWorker.register("/sw.js");
+        })
+        .catch(() => {});
+    }
   }, []);
 
   // Page filter only makes sense inside one channel: "All conversations" mixes
@@ -86,9 +111,76 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
         : filter
           ? all.filter((c) => c.channel === filter && c.status === "open")
           : all.filter((c) => c.status === "open")
-      ).filter((c) => !activeAccountId || c.accountId === activeAccountId),
-    [all, filter, activeAccountId],
+      )
+        .filter((c) => !activeAccountId || c.accountId === activeAccountId)
+        .filter((c) => !tagFilter || c.tags.includes(tagFilter))
+        .filter((c) => !unassignedOnly || !c.assignee),
+    [all, filter, activeAccountId, tagFilter, unassignedOnly],
   );
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of all) for (const t of c.tags) set.add(t);
+    return [...set].sort();
+  }, [all]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function bulk(patch: { status?: string; tags?: string[] }) {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    try {
+      await fetch("/api/conversations/bulk", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids, ...patch }),
+      });
+    } finally {
+      setSelectedIds(new Set());
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    }
+  }
+
+  function saveCurrentView() {
+    const name = window.prompt("Name this view:");
+    if (!name || !name.trim()) return;
+    const entry = {
+      name: name.trim(),
+      channel: filter,
+      status: filter === ARCHIVED ? "closed" : "open",
+      tag: tagFilter,
+      unassigned: unassignedOnly,
+    };
+    const next = [...savedFilters.filter((f) => f.name !== entry.name), entry];
+    setSavedFilters(next);
+    try {
+      window.localStorage.setItem("connectme:savedFilters", JSON.stringify(next));
+    } catch {}
+  }
+
+  function applySavedFilter(f: (typeof savedFilters)[number]) {
+    setFilter(f.status === "closed" ? ARCHIVED : f.channel);
+    setTagFilter(f.tag);
+    setUnassignedOnly(f.unassigned);
+  }
+
+  async function toggleNotifications() {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "granted") {
+      // No programmatic revoke; guide user via a no-op toggle off state.
+      setNotifPermission("default");
+      return;
+    }
+    const result = await Notification.requestPermission();
+    setNotifPermission(result);
+  }
 
   // Rail badges count unread inbound messages; Archived keeps a closed-thread tally.
   const counts = useMemo<Record<string, number>>(() => {
@@ -114,6 +206,16 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
 
     if (prevUnreadRef.current !== null && currentUnread > prevUnreadRef.current) {
       soundNotifier.playChime();
+      if (
+        typeof document !== "undefined" &&
+        document.hidden &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        try {
+          new Notification("New message", { body: "You have new unread messages in ConnectMe." });
+        } catch {}
+      }
     }
     prevUnreadRef.current = currentUnread;
   }, [counts.total]);
@@ -289,13 +391,121 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
                   ))}
                 </select>
               )}
+              <button
+                type="button"
+                onClick={() => void toggleNotifications()}
+                title={notifPermission === "granted" ? "Notifications on" : "Enable notifications"}
+                className={`ml-auto flex h-7 w-7 items-center justify-center rounded-[6px] border text-[12px] transition-colors ${
+                  notifPermission === "granted"
+                    ? "border-ink bg-ink text-on-primary"
+                    : "border-hairline bg-canvas-elevated text-body hover:bg-surface-well hover:text-ink"
+                } ${channelFilter && scopedAccounts.length > 1 ? "ml-1.5" : ""}`}
+              >
+                🔔
+              </button>
             </div>
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-hairline bg-canvas px-3.5 py-1.5">
+              <select
+                value={tagFilter}
+                aria-label="Filter by tag"
+                onChange={(e) => setTagFilter(e.target.value)}
+                className="h-7 rounded-[6px] border border-hairline bg-canvas-elevated px-1.5 font-mono text-[10.5px] text-body focus:outline-none"
+              >
+                <option value="">All tags</option>
+                {allTags.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setUnassignedOnly((v) => !v)}
+                className={`h-7 rounded-full border px-2.5 font-mono text-[10.5px] transition-colors ${
+                  unassignedOnly
+                    ? "border-ink bg-ink text-on-primary"
+                    : "border-hairline bg-canvas-elevated text-mute hover:text-ink"
+                }`}
+              >
+                Unassigned
+              </button>
+              {savedFilters.map((f) => (
+                <button
+                  key={f.name}
+                  type="button"
+                  onClick={() => applySavedFilter(f)}
+                  className="h-7 rounded-full border border-hairline bg-canvas-elevated px-2.5 font-mono text-[10.5px] text-body transition-colors hover:bg-surface-well hover:text-ink"
+                >
+                  {f.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={saveCurrentView}
+                className="h-7 rounded-full border border-dashed border-hairline px-2.5 font-mono text-[10.5px] text-mute transition-colors hover:text-ink"
+              >
+                + Save view
+              </button>
+            </div>
+            {selectedIds.size > 0 && (
+              <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-hairline bg-canvas-elevated px-3.5 py-2 shadow-2xs">
+                <span className="font-mono text-[11px] text-mute">{selectedIds.size} selected</span>
+                <button
+                  type="button"
+                  onClick={() => void bulk({ status: "closed" })}
+                  className="rounded-[6px] border border-hairline bg-canvas px-2.5 py-1 text-[11.5px] text-body hover:bg-surface-well"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void bulk({ status: "open" })}
+                  className="rounded-[6px] border border-hairline bg-canvas px-2.5 py-1 text-[11.5px] text-body hover:bg-surface-well"
+                >
+                  Reopen
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const tag = window.prompt("Add tag to selected:");
+                    if (!tag || !tag.trim()) return;
+                    const clean = tag.trim().toLowerCase();
+                    // Bulk replaces tags, so merge per conversation here.
+                    await Promise.all(
+                      [...selectedIds].map((id) => {
+                        const existing = all.find((c) => c.id === id)?.tags ?? [];
+                        const nextTags = existing.includes(clean) ? existing : [...existing, clean];
+                        return fetch(`/api/conversations/${id}`, {
+                          method: "PATCH",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ tags: nextTags }),
+                        });
+                      }),
+                    );
+                    setSelectedIds(new Set());
+                    void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+                  }}
+                  className="rounded-[6px] border border-hairline bg-canvas px-2.5 py-1 text-[11.5px] text-body hover:bg-surface-well"
+                >
+                  + Tag
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="ml-auto text-[11.5px] text-mute hover:text-ink"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
             <ConversationList
               conversations={visible}
               selectedId={selectedId}
               onSelect={select}
               loading={loadingList}
               onNewConversation={() => setIsNewModalOpen(true)}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
             />
           </div>
         </aside>
@@ -306,6 +516,7 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
             <Thread
               conversation={detail.conversation}
               messages={detail.messages}
+              typers={detail.typers}
               onBack={back}
               onSend={handleSend}
               onNote={handleNote}

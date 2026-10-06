@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MAX_UPLOAD_BYTES, type MessageType, type UploadedMedia } from "@/lib/types";
+import { MAX_UPLOAD_BYTES, type MessageType, type UploadedMedia, type Snippet } from "@/lib/types";
+import { useSettings } from "@/lib/hooks/use-inbox";
 
 export interface ReplyPayload {
   text: string;
@@ -14,6 +15,7 @@ interface Props {
   onSend: (payload: ReplyPayload) => Promise<void>;
   onNote?: (text: string) => Promise<void>;
   disabled: boolean;
+  conversationId?: string | null;
 }
 
 const QUICK_REPLIES = [
@@ -40,7 +42,7 @@ const EMOJI_CATEGORIES = [
 
 const QUICK_EMOJIS = ["👍", "❤️", "😊", "😂", "🙏", "🔥", "🎉", "✨", "🚀", "💯"];
 
-export default function ReplyBox({ onSend, onNote, disabled }: Props) {
+export default function ReplyBox({ onSend, onNote, disabled, conversationId }: Props) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +50,100 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
   const [attachment, setAttachment] = useState<UploadedMedia | null>(null);
   const [uploading, setUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [snippets, setSnippets] = useState<Snippet[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { data: settingsData } = useSettings();
+  const templates = settingsData?.settings?.templates ?? [];
+
+  // Snippets loaded once and refreshed after add/delete.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/snippets", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setSnippets(Array.isArray(d.snippets) ? d.snippets : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function refreshSnippets() {
+    fetch("/api/snippets", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setSnippets(Array.isArray(d.snippets) ? d.snippets : []))
+      .catch(() => {});
+  }
+
+  // AI suggestion → composer draft.
+  useEffect(() => {
+    function onSuggest(event: Event) {
+      const detail = (event as CustomEvent<string>).detail;
+      if (typeof detail === "string" && detail.trim()) {
+        setText((prev) => (prev.trim() ? `${prev}\n${detail}` : detail));
+      }
+    }
+    window.addEventListener("ai:suggest", onSuggest);
+    return () => window.removeEventListener("ai:suggest", onSuggest);
+  }, []);
+
+  // Typing presence: debounce ~2s, name from localStorage.
+  useEffect(() => {
+    if (!conversationId || !text.trim()) return;
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => {
+      const name =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("connectme:agentName") || "Agent"
+          : "Agent";
+      void fetch("/api/typing", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId, name }),
+      }).catch(() => {});
+    }, 2000);
+    return () => {
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+    };
+  }, [text, conversationId]);
+
+  // Current "/token" being typed, if any.
+  const slashMatch = text.match(/(?:^|\s)(\/[^\s]*)$/);
+  const slashToken = slashMatch ? slashMatch[1].toLowerCase() : null;
+  const snippetMatches = slashToken
+    ? snippets.filter((s) => `/${s.shortcut.replace(/^\//, "").toLowerCase()}`.startsWith(slashToken) || s.shortcut.toLowerCase().startsWith(slashToken))
+    : [];
+
+  function insertSnippet(snippet: Snippet) {
+    setText((prev) => prev.replace(/(?:^|\s)(\/[^\s]*)$/, (m) => (m.startsWith(" ") ? " " : "") + snippet.text));
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  async function deleteSnippet(id: string) {
+    try {
+      await fetch(`/api/snippets?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      setSnippets((prev) => prev.filter((s) => s.id !== id));
+    } catch {}
+  }
+
+  async function addSnippetFromDraft() {
+    const body = text.trim();
+    if (!body) return;
+    const shortcut = window.prompt("Snippet shortcut (e.g. /thanks):");
+    if (!shortcut || !shortcut.trim()) return;
+    try {
+      const res = await fetch("/api/snippets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shortcut: shortcut.trim(), text: body }),
+      });
+      if (res.ok) refreshSnippets();
+    } catch {}
+  }
 
   // Notes are internal, so they stay available even when the window is closed.
   const effectiveMode: "reply" | "note" = disabled ? "note" : mode;
@@ -279,6 +373,59 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
         </div>
       )}
 
+      {/* Snippet suggestions for "/" tokens */}
+      {snippetMatches.length > 0 && (
+        <div className="absolute bottom-full left-3 right-3 z-30 mb-1 max-h-48 overflow-y-auto rounded-[8px] border border-hairline bg-canvas-elevated p-1 shadow-lg">
+          {snippetMatches.map((s) => (
+            <div key={s.id} className="group flex items-center gap-2 rounded-[6px] px-2 py-1.5 hover:bg-surface-well">
+              <button
+                type="button"
+                onClick={() => insertSnippet(s)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <span className="font-mono text-[11.5px] text-ink">/{s.shortcut.replace(/^\//, "")}</span>
+                <span className="ml-2 truncate text-[11.5px] text-mute">{s.text}</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Delete snippet"
+                onClick={() => void deleteSnippet(s.id)}
+                className="shrink-0 rounded px-1 text-mute opacity-0 transition-opacity hover:bg-canvas hover:text-error group-hover:opacity-100"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Templates picker */}
+      {showTemplates && templates.length > 0 && (
+        <>
+          <button
+            type="button"
+            aria-label="Close templates"
+            className="fixed inset-0 z-20 cursor-default"
+            onClick={() => setShowTemplates(false)}
+          />
+          <div className="absolute bottom-full left-3 z-30 mb-1 max-h-48 w-72 overflow-y-auto rounded-[8px] border border-hairline bg-canvas-elevated p-1 shadow-lg">
+            {templates.map((t, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  setText((prev) => (prev.trim() ? `${prev}\n${t}` : t));
+                  setShowTemplates(false);
+                }}
+                className="block w-full truncate rounded-[6px] px-2 py-1.5 text-left text-[12px] text-body hover:bg-surface-well hover:text-ink"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Main Input Box */}
       <div
         className={`flex items-end gap-1.5 rounded-[12px] border bg-canvas-elevated p-1.5 shadow-2xs transition-all ${
@@ -328,6 +475,30 @@ export default function ReplyBox({ onSend, onNote, disabled }: Props) {
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well"
           >
             <span className="text-base leading-none">😀</span>
+          </button>
+        )}
+
+        {/* Templates + Snippet manage buttons */}
+        {!noteMode && templates.length > 0 && (
+          <button
+            type="button"
+            title="Insert template"
+            aria-label="Insert template"
+            onClick={() => setShowTemplates((v) => !v)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] font-mono text-[13px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well"
+          >
+            T
+          </button>
+        )}
+        {!noteMode && (
+          <button
+            type="button"
+            title="Save current draft as snippet"
+            aria-label="Save current draft as snippet"
+            onClick={() => void addSnippetFromDraft()}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] font-mono text-[13px] text-mute transition-colors hover:bg-surface-well hover:text-ink active:bg-surface-well"
+          >
+            /+
           </button>
         )}
 

@@ -114,6 +114,8 @@ export function useDeleteConversation() {
 export interface ConversationMetaPatch {
   assignee?: string | null;
   tags?: string[];
+  snoozedUntil?: string | null;
+  csatRating?: number | null;
 }
 
 /** Assigns an owner and/or replaces the tag list. */
@@ -138,6 +140,7 @@ export function useSetConversationMeta(id: string | null) {
       const optimistic: ConversationSummary | null = previous
         ? {
             ...previous.conversation,
+            ...patch,
             assignee: patch.assignee !== undefined ? patch.assignee : previous.conversation.assignee,
             tags: patch.tags ?? previous.conversation.tags,
           }
@@ -147,6 +150,7 @@ export function useSetConversationMeta(id: string | null) {
         queryClient.setQueryData<ConversationDetail>(QUERY_KEYS.conversation(id), {
           conversation: optimistic,
           messages: previous?.messages ?? [],
+          typers: previous?.typers ?? [],
         });
         queryClient.setQueryData<ConversationSummary[]>(QUERY_KEYS.conversations, (list) =>
           list?.map((c) => (c.id === id ? { ...c, ...optimistic } : c)),

@@ -72,6 +72,49 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
 
   const [showManualMeta, setShowManualMeta] = useState(false);
 
+  // Workspace-wide automation settings (separate from per-channel secrets)
+  const [workspaceForm, setWorkspaceForm] = useState({
+    webhookUrl: initial.settings.webhookUrl ?? "",
+    agents: (initial.settings.agents ?? []).join(", "),
+    templates: (initial.settings.templates ?? []).join("\n"),
+  });
+
+  async function saveWorkspace() {
+    setBusy("save-workspace");
+    setGlobalError(null);
+    setGlobalSuccess(null);
+
+    const agents = workspaceForm.agents
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const templates = workspaceForm.templates
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          webhookUrl: workspaceForm.webhookUrl.trim() || null,
+          agents,
+          templates,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to save settings.");
+
+      await load();
+      setGlobalSuccess("Workspace settings saved successfully!");
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : "Failed to save settings.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // Reload fresh settings payload from the server
   const load = useCallback(async () => {
     try {
@@ -1484,6 +1527,73 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
           </div>
         </div>
       )}
+
+      {/* Workspace automation settings — always visible, independent of channel tabs */}
+      <div className="mt-6 rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
+        <h2 className="text-[16px] font-semibold text-ink">Workspace Automation</h2>
+        <p className="mt-0.5 text-[12.5px] text-body">
+          Outbound webhook target, auto-assignment pool, and canned message templates.
+        </p>
+
+        <div className="mt-5 grid gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12.5px] font-medium text-ink">Webhook URL</label>
+            <input
+              type="text"
+              value={workspaceForm.webhookUrl}
+              onChange={(e) =>
+                setWorkspaceForm((prev) => ({ ...prev, webhookUrl: e.target.value }))
+              }
+              placeholder={data.settings.webhookUrl || "https://example.com/hook"}
+              className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+            />
+            <span className="text-[11px] text-mute">
+              Leave empty to disable outbound event delivery.
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12.5px] font-medium text-ink">Auto-assign agents</label>
+            <input
+              type="text"
+              value={workspaceForm.agents}
+              onChange={(e) =>
+                setWorkspaceForm((prev) => ({ ...prev, agents: e.target.value }))
+              }
+              placeholder="alice@example.com, bob@example.com"
+              className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+            />
+            <span className="text-[11px] text-mute">
+              Comma-separated. New conversations round-robin across this list.
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12.5px] font-medium text-ink">Message templates</label>
+            <textarea
+              value={workspaceForm.templates}
+              onChange={(e) =>
+                setWorkspaceForm((prev) => ({ ...prev, templates: e.target.value }))
+              }
+              placeholder={"One template per line\nThanks for reaching out!\nWe'll get back to you shortly."}
+              rows={5}
+              className="w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+            />
+            <span className="text-[11px] text-mute">One template per line.</span>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center gap-3 pt-4 border-t border-hairline">
+          <button
+            type="button"
+            onClick={() => void saveWorkspace()}
+            disabled={busy !== null}
+            className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
+          >
+            {busy === "save-workspace" ? "Saving…" : "Save Workspace Settings"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

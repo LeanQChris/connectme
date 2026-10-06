@@ -39,6 +39,7 @@ interface Props {
   onArchive: (status: ConversationStatus) => void;
   onDelete?: () => void;
   onMeta: (patch: ConversationMetaPatch) => void;
+  typers?: { name: string; until: string }[];
 }
 
 const STATUS_GLYPH: Record<MessageStatus, { text: string; color: string }> = {
@@ -272,6 +273,91 @@ function TagPicker({
   );
 }
 
+function formatFullDate(iso: string | undefined | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
+}
+
+function SnoozeMenu({
+  snoozedUntil,
+  onChange,
+}: {
+  snoozedUntil?: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const active = snoozedUntil && new Date(snoozedUntil).getTime() > Date.now();
+
+  function optionAt(which: "hour" | "tomorrow" | "3days"): string {
+    const d = new Date();
+    if (which === "hour") d.setTime(d.getTime() + 3_600_000);
+    else if (which === "tomorrow") {
+      d.setDate(d.getDate() + 1);
+      d.setHours(9, 0, 0, 0);
+    } else d.setTime(d.getTime() + 3 * 86_400_000);
+    return d.toISOString();
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={active ? `Snoozed until ${new Date(snoozedUntil!).toLocaleString()}` : "Snooze"}
+        className={`flex h-8 items-center gap-1 rounded-[6px] border px-2 text-[12px] shadow-2xs transition-colors ${
+          active
+            ? "border-ink bg-ink text-on-primary"
+            : "border-hairline bg-canvas-elevated text-body hover:bg-surface-well hover:text-ink"
+        }`}
+      >
+        💤<span className="hidden sm:inline font-mono text-[11px]">Snooze</span>
+      </button>
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close snooze menu"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 top-9 z-20 w-44 rounded-[8px] border border-hairline bg-canvas-elevated p-1 shadow-lg">
+            {(
+              [
+                ["1 hour", () => optionAt("hour")],
+                ["Tomorrow 9am", () => optionAt("tomorrow")],
+                ["3 days", () => optionAt("3days")],
+              ] as const
+            ).map(([label, fn]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  onChange(fn());
+                  setOpen(false);
+                }}
+                className="block w-full rounded-[6px] px-2.5 py-1.5 text-left text-[12px] text-body transition-colors hover:bg-surface-well hover:text-ink"
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                onChange(null);
+                setOpen(false);
+              }}
+              className="block w-full rounded-[6px] px-2.5 py-1.5 text-left text-[12px] text-mute transition-colors hover:bg-surface-well hover:text-ink"
+            >
+              Clear snooze
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function formatDateDivider(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -318,6 +404,7 @@ export default function Thread({
   onArchive,
   onDelete,
   onMeta,
+  typers = [],
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -329,6 +416,36 @@ export default function Thread({
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
   const windowOpen = conversation.window.open;
   const archived = conversation.status === "closed";
+  const [showInfo, setShowInfo] = useState(false);
+  const [aiPanel, setAiPanel] = useState<{ title: string; text: string } | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const pendingCsat = (conversation as { pendingCsat?: boolean }).pendingCsat;
+
+  async function runAi(mode: "summarize" | "suggest" | "translate") {
+    setAiError(null);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode, conversationId: conversation.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      const result = String(data.result ?? "");
+      if (mode === "suggest") {
+        window.dispatchEvent(new CustomEvent("ai:suggest", { detail: result }));
+      } else {
+        setAiPanel({ title: mode === "summarize" ? "Summary" : "Translation", text: result });
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "AI request failed");
+    }
+  }
+
+  const otherTypers = typers.filter((t) => {
+    const self = typeof window !== "undefined" ? window.localStorage.getItem("connectme:agentName") : null;
+    return t.name !== (self ?? "Agent");
+  });
 
   const clusteredItems = useMemo(() => clusterMessages(messages), [messages]);
 
@@ -467,6 +584,12 @@ export default function Thread({
                   </svg>
                 )}
               </button>
+              {conversation.assignee && (
+                <span className="truncate">· Assigned to {conversation.assignee}</span>
+              )}
+              {pendingCsat && (
+                <span className="truncate text-mute">· Awaiting customer rating…</span>
+              )}
             </div>
           </div>
         </div>
@@ -495,7 +618,61 @@ export default function Thread({
 
           <AssigneePicker value={conversation.assignee} onChange={(assignee) => onMeta({ assignee })} />
 
+          {typeof conversation.csatRating === "number" && conversation.csatRating > 0 && (
+            <span
+              title={`Customer rating: ${conversation.csatRating}/5`}
+              className="hidden sm:inline-flex shrink-0 items-center rounded-full border border-hairline bg-surface-well px-2 py-0.5 text-[11px] text-amber-500"
+            >
+              {"★".repeat(conversation.csatRating)}
+              <span className="text-mute">{"★".repeat(Math.max(0, 5 - conversation.csatRating))}</span>
+            </span>
+          )}
+
           <TagPicker tags={conversation.tags} onChange={(tags) => onMeta({ tags })} />
+
+          <SnoozeMenu
+            snoozedUntil={conversation.snoozedUntil}
+            onChange={(snoozedUntil) => onMeta({ snoozedUntil })}
+          />
+
+          <button
+            type="button"
+            onClick={() => void runAi("summarize")}
+            title="Summarize conversation"
+            className="flex h-8 items-center rounded-[6px] border border-hairline bg-canvas-elevated px-2 text-[11px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink"
+          >
+            Summarize
+          </button>
+          <button
+            type="button"
+            onClick={() => void runAi("suggest")}
+            title="Suggest a reply"
+            className="flex h-8 items-center rounded-[6px] border border-hairline bg-canvas-elevated px-2 text-[11px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink"
+          >
+            Suggest
+          </button>
+          <button
+            type="button"
+            onClick={() => void runAi("translate")}
+            title="Translate last inbound message"
+            className="flex h-8 items-center rounded-[6px] border border-hairline bg-canvas-elevated px-2 text-[11px] font-medium text-body shadow-2xs transition-colors hover:bg-surface-well hover:text-ink"
+          >
+            Translate
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowInfo((v) => !v)}
+            title="Conversation details"
+            aria-label="Conversation details"
+            className={`flex h-8 w-8 items-center justify-center rounded-[6px] border text-[12px] shadow-2xs transition-colors ${
+              showInfo
+                ? "border-ink bg-ink text-on-primary"
+                : "border-hairline bg-canvas-elevated text-body hover:bg-surface-well hover:text-ink"
+            }`}
+          >
+            ⓘ
+          </button>
 
           <button
             type="button"
@@ -610,8 +787,36 @@ export default function Thread({
 
       <ReplyWindowBar lastInboundAt={conversation.lastInboundAt} channel={conversation.channel} />
 
-      {/* Messages Stream */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
+      {(aiPanel || aiError) && (
+        <div className="border-b border-hairline bg-surface-well px-4 py-2.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {aiPanel && (
+                <>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-mute">{aiPanel.title}</p>
+                  <p className="mt-0.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-body">{aiPanel.text}</p>
+                </>
+              )}
+              {aiError && <p className="text-[12px] text-error">{aiError}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAiPanel(null);
+                setAiError(null);
+              }}
+              aria-label="Dismiss"
+              className="shrink-0 rounded p-0.5 text-mute hover:bg-canvas-elevated hover:text-ink"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
         {clusteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] border border-hairline bg-canvas-elevated text-body shadow-2xs">
@@ -1074,10 +1279,44 @@ export default function Thread({
             );
           })
         )}
-      </div>
+          </div>
 
-      {/* Reply Input Box */}
-      <ReplyBox disabled={!windowOpen} onSend={onSend} onNote={onNote} />
+          {otherTypers.length > 0 && (
+            <p className="px-4 pb-1 text-[11.5px] italic text-mute">
+              {otherTypers.map((t) => t.name).join(", ")}{" "}
+              {otherTypers.length === 1 ? "is" : "are"} typing…
+            </p>
+          )}
+
+          {/* Reply Input Box */}
+          <ReplyBox
+            disabled={!windowOpen}
+            onSend={onSend}
+            onNote={onNote}
+            conversationId={conversation.id}
+          />
+        </div>
+
+        {showInfo && (
+          <aside className="w-60 shrink-0 overflow-y-auto border-l border-hairline bg-canvas-elevated p-3 text-[12px]">
+            <h3 className="mb-2 font-mono text-[10px] uppercase tracking-wider text-mute">Details</h3>
+            <dl className="space-y-1.5">
+              <div><dt className="text-mute">Name</dt><dd className="text-ink">{conversation.contactName}</dd></div>
+              <div><dt className="text-mute">External ID</dt><dd className="break-all font-mono text-[11px] text-ink">{conversation.contactExternalId}</dd></div>
+              <div><dt className="text-mute">Channel</dt><dd className="text-ink">{channelInfo.label}</dd></div>
+              <div><dt className="text-mute">Account</dt><dd className="text-ink">{conversation.accountName ?? "—"}</dd></div>
+              <div><dt className="text-mute">Created</dt><dd className="text-ink">{formatFullDate((conversation as { createdAt?: string }).createdAt)}</dd></div>
+              <div><dt className="text-mute">Snoozed until</dt><dd className="text-ink">{conversation.snoozedUntil ? new Date(conversation.snoozedUntil).toLocaleString() : "—"}</dd></div>
+              <div><dt className="text-mute">Status</dt><dd className="text-ink">{conversation.status}</dd></div>
+              <div><dt className="text-mute">Assignee</dt><dd className="text-ink">{conversation.assignee ?? "Unassigned"}</dd></div>
+              <div><dt className="text-mute">Tags</dt><dd className="text-ink">{conversation.tags.length ? conversation.tags.join(", ") : "—"}</dd></div>
+              <div><dt className="text-mute">CSAT</dt><dd className="text-amber-500">{conversation.csatRating ? "★".repeat(conversation.csatRating) : "—"}</dd></div>
+              <div><dt className="text-mute">Unread</dt><dd className="text-ink">{conversation.unreadCount}</dd></div>
+              <div><dt className="text-mute">Last inbound</dt><dd className="text-ink">{conversation.lastInboundAt ? new Date(conversation.lastInboundAt).toLocaleString() : "—"}</dd></div>
+            </dl>
+          </aside>
+        )}
+      </div>
     </section>
   );
 }

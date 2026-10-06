@@ -1,4 +1,4 @@
-import { deleteConversation, getConversation, resetUnread, setStatus, updateConversationMeta } from "@/lib/store";
+import { deleteConversation, getConversation, resetUnread, setCsatRating, setSnooze, setStatus, updateConversationMeta } from "@/lib/store";
 import { requireUserId, tenantSecrets } from "@/lib/tenant";
 import { CONVERSATION_STATUSES, type ConversationStatus } from "@/lib/types";
 
@@ -27,6 +27,7 @@ export async function GET(
       lastReadAt: new Date().toISOString(),
     },
     messages: detail.messages,
+    typers: detail.typers,
   });
 }
 
@@ -40,11 +41,37 @@ export async function PATCH(
   const { id } = await context.params;
   const tenant = await tenantSecrets(auth.userId);
 
-  let payload: { status?: unknown; assignee?: unknown; tags?: unknown };
+  let payload: {
+    status?: unknown;
+    assignee?: unknown;
+    tags?: unknown;
+    snoozedUntil?: unknown;
+    csatRating?: unknown;
+  };
   try {
     payload = (await request.json()) as typeof payload;
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const snoozedUntil =
+    payload.snoozedUntil === null || typeof payload.snoozedUntil === "string"
+      ? payload.snoozedUntil
+      : undefined;
+  if (snoozedUntil !== undefined && snoozedUntil !== null && Number.isNaN(Date.parse(snoozedUntil))) {
+    return Response.json({ error: "snoozedUntil must be an ISO timestamp or null" }, { status: 400 });
+  }
+
+  const csatRating =
+    payload.csatRating === null ||
+    (typeof payload.csatRating === "number" &&
+      Number.isInteger(payload.csatRating) &&
+      payload.csatRating >= 1 &&
+      payload.csatRating <= 5)
+      ? (payload.csatRating as number | null)
+      : undefined;
+  if (payload.csatRating !== undefined && csatRating === undefined) {
+    return Response.json({ error: "csatRating must be an integer 1-5 or null" }, { status: 400 });
   }
 
   const tags =
@@ -68,13 +95,25 @@ export async function PATCH(
     }
   }
 
+  if (snoozedUntil !== undefined) {
+    if (!(await setSnooze(auth.userId, id, snoozedUntil))) {
+      return Response.json({ error: "Conversation not found" }, { status: 404 });
+    }
+  }
+
+  if (csatRating !== undefined) {
+    if (!(await setCsatRating(auth.userId, id, csatRating))) {
+      return Response.json({ error: "Conversation not found" }, { status: 404 });
+    }
+  }
+
   if (assignee !== undefined || tags !== undefined) {
     const summary = await updateConversationMeta(auth.userId, id, { assignee, tags });
     if (!summary) return Response.json({ error: "Conversation not found" }, { status: 404 });
     return Response.json({ conversation: summary });
   }
 
-  if (payload.status === undefined) {
+  if (payload.status === undefined && snoozedUntil === undefined && csatRating === undefined) {
     return Response.json({ error: "Nothing to update" }, { status: 400 });
   }
 
