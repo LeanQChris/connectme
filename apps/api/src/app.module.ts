@@ -73,7 +73,6 @@ import { ListConversationsUseCase } from "./application/use-cases/conversations/
 import { GetConversationDetailUseCase } from "./application/use-cases/conversations/get-conversation-detail.use-case";
 import { UpdateConversationUseCase } from "./application/use-cases/conversations/update-conversation.use-case";
 import { DeleteConversationUseCase } from "./application/use-cases/conversations/delete-conversation.use-case";
-import { ProcessInboundSlackUseCase } from "./application/use-cases/webhooks/process-inbound-slack.use-case";
 import { CreateScheduledPostUseCase } from "./application/use-cases/scheduling/create-scheduled-post.use-case";
 import { CreateScheduledMessageUseCase } from "./application/use-cases/scheduling/create-scheduled-message.use-case";
 import { ListScheduledPostsUseCase } from "./application/use-cases/scheduling/list-scheduled-posts.use-case";
@@ -233,7 +232,6 @@ import { HealthController } from "./presentation/controllers/health.controller";
     GetConversationDetailUseCase,
     UpdateConversationUseCase,
     DeleteConversationUseCase,
-    ProcessInboundSlackUseCase,
     CreateScheduledPostUseCase,
     CreateScheduledMessageUseCase,
     ListScheduledPostsUseCase,

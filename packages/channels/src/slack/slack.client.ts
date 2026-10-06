@@ -24,6 +24,11 @@ export class SlackClient implements IChannelClient {
   readonly channel = ChannelType.SLACK;
   private readonly logger = new Logger(SlackClient.name);
 
+  // Bounded so a busy workspace cannot grow it without limit. Keyed by
+  // channel id; Slack channel names rarely change, so no TTL is needed.
+  private static conversationCache = new Map<string, { name: string; isDirectMessage: boolean }>();
+  private static readonly CONVERSATION_CACHE_MAX = 1000;
+
   constructor(private readonly aesVault: AesVaultService) {}
 
   private token(ctx: ChannelSendContext): string {
@@ -130,6 +135,87 @@ export class SlackClient implements IChannelClient {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Resolve a conversation label. DMs are named after the counterpart user,
+   * public/private channels after the channel, matching how Slack itself shows
+   * them. Results are cached because inbound webhooks repeat the same ids.
+   */
+  async getConversationLabel(
+    channelId: string,
+    token: string,
+  ): Promise<{ name: string; isDirectMessage: boolean } | null> {
+    const cached = SlackClient.conversationCache.get(channelId);
+    if (cached) return cached;
+
+    // A DM id always starts with D; mpim ids start with G. This avoids an API
+    // round-trip for the common case where there is nothing to resolve.
+    const isDirectMessage = channelId.startsWith("D") || channelId.startsWith("G");
+
+    let resolved: { name: string; isDirectMessage: boolean } | null = null;
+    try {
+      const info = await this.slackApi("conversations.info", token, { channel: channelId });
+      const ch = info.channel;
+      if (ch) {
+        if (ch.is_im && ch.user) {
+          const user = await this.getUserInfo(ch.user, token);
+          if (user?.name) resolved = { name: user.name, isDirectMessage: true };
+        } else if (ch.name?.trim()) {
+          resolved = { name: ch.name.trim().replace(/^#+/, ""), isDirectMessage };
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`conversations.info failed for ${channelId}: ${err.message}`);
+    }
+
+    // not_in_channel: the app was installed but never added to this channel.
+    // Joining a public channel is safe and is what makes names resolve at all.
+    if (!resolved && !isDirectMessage) {
+      try {
+        const joined = await this.slackApi("conversations.join", token, { channel: channelId });
+        const name = joined.channel?.name?.trim().replace(/^#+/, "");
+        if (name) resolved = { name, isDirectMessage };
+      } catch (err: any) {
+        this.logger.warn(`conversations.join failed for ${channelId}: ${err.message}`);
+      }
+    }
+
+    if (resolved) {
+      if (SlackClient.conversationCache.size >= SlackClient.CONVERSATION_CACHE_MAX) {
+        // Evict oldest entry; Map preserves insertion order.
+        const oldest = SlackClient.conversationCache.keys().next().value;
+        if (oldest) SlackClient.conversationCache.delete(oldest);
+      }
+      SlackClient.conversationCache.set(channelId, resolved);
+    }
+    return resolved;
+  }
+
+  /** Slack API call that returns the payload instead of throwing on failure. */
+  private async slackApi(
+    method: string,
+    token: string,
+    body: Record<string, unknown>,
+  ): Promise<any> {
+    const res = await fetchWithTimeout(`https://slack.com/api/${method}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.ok) {
+      const err = new Error(json.error || `Slack ${method} failed`) as Error & {
+        slackError?: string;
+      };
+      err.slackError = json.error;
+      throw err;
+    }
+    return json;
   }
 
   private async postSlackApi(method: string, token: string, body: Record<string, unknown>): Promise<any> {

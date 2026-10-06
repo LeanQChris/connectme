@@ -14,7 +14,8 @@ import {
   TenantCredential,
 } from "@connectme/database";
 import { INBOUND_WEBHOOKS_QUEUE, AI_AGENT_QUEUE, MEDIA_REHOST_QUEUE } from "../queue.constants";
-import { AesVaultService, fetchMetaProfile } from "@connectme/channels";import { RealtimePublisher } from "../realtime/realtime-publisher";
+import { AesVaultService, fetchMetaProfile, SlackClient } from "@connectme/channels";
+import { RealtimePublisher } from "../realtime/realtime-publisher";
 import {
   createMessage,
   findOrCreateConversation,
@@ -43,6 +44,26 @@ interface DiscordPayload {
   user?: any;
   data?: { name?: string };
 }
+interface SlackPayload {
+  type?: string;
+  team_id?: string;
+  event?: {
+    channel?: string;
+    user?: string;
+    ts?: string;
+    text?: string;
+    bot_id?: string;
+    subtype?: string;
+    files?: Array<{
+      url_private_download?: string;
+      url_private?: string;
+      name?: string;
+      title?: string;
+      mimetype?: string;
+      size?: number;
+    }>;
+  };
+}
 
 @Processor(INBOUND_WEBHOOKS_QUEUE, { concurrency: 8 })
 export class WebhookInboundProcessor extends WorkerHost {
@@ -60,6 +81,7 @@ export class WebhookInboundProcessor extends WorkerHost {
     @InjectRepository(TenantCredential)
     private readonly credRepo: Repository<TenantCredential>,
     private readonly aesVault: AesVaultService,
+    private readonly slackClient: SlackClient,
     private readonly realtime: RealtimePublisher,
     @InjectQueue(AI_AGENT_QUEUE) private readonly aiQueue: Queue,
     @InjectQueue(MEDIA_REHOST_QUEUE) private readonly mediaQueue: Queue,
@@ -150,6 +172,8 @@ export class WebhookInboundProcessor extends WorkerHost {
         return this.handleTelegram(job.data.botId, payload);
       case "discord":
         return this.handleDiscord(payload);
+      case "slack":
+        return this.handleSlack(payload);
       default:
         this.logger.warn(`Unknown inbound job name: ${job.name}`);
     }
@@ -475,6 +499,136 @@ export class WebhookInboundProcessor extends WorkerHost {
       conversationId: conv.id,
       messageId: saved.id,
       channel: ChannelType.DISCORD,
+    });
+  }
+
+  /**
+   * Slack Events API. The workspace (team) id on the envelope is the routing
+   * key; it is registered when the tenant saves their bot token.
+   */
+  private async handleSlack(payload: SlackPayload): Promise<void> {
+    if (payload?.type === "url_verification") return;
+    if (payload?.type && payload.type !== "event_callback") return;
+
+    const event = payload?.event;
+    // Bot messages are our own outbound echoes: storing them would loop.
+    if (!event || event.bot_id || event.subtype === "bot_message") return;
+
+    const channelId = event.channel;
+    const userId = event.user;
+    if (!channelId || !userId) return;
+
+    const teamId = payload.team_id;
+    if (!teamId) {
+      this.logger.warn("Dropping Slack event with no team_id.");
+      return;
+    }
+
+    const account = await this.accountTenant(ChannelType.SLACK, teamId);
+    if (!account?.tenantId) {
+      this.logger.warn(`Dropping Slack event for unregistered workspace ${teamId}.`);
+      return;
+    }
+    const tenantId = account.tenantId;
+
+    // event.ts is the message id. Slack retries aggressively, so check for an
+    // existing message first; messages carry no tenantId, so join via the
+    // conversation. The unique index on (conversationId, externalId) is the
+    // backstop if two retries race.
+    const externalMessageId = event.ts ? String(event.ts) : null;
+
+    const creds = await this.credRepo.findOne({ where: { tenantId } });
+    let contactName = userId;
+    let contactAvatar: string | null | undefined;
+    let channelLabel: string | null = null;
+    let isDirectMessage = false;
+
+    if (creds?.slackBotTokenEnc) {
+      try {
+        const token = this.aesVault.decryptStrict<string>(creds.slackBotTokenEnc);
+        const user = await this.slackClient.getUserInfo(userId, token);
+        if (user) {
+          contactName = user.name || contactName;
+          contactAvatar = user.avatarUrl;
+        }
+        const label = await this.slackClient.getConversationLabel(channelId, token);
+        if (label) {
+          channelLabel = label.name;
+          isDirectMessage = label.isDirectMessage;
+        }
+      } catch (err) {
+        this.logger.warn(`Slack profile lookup failed: ${(err as Error).message}`);
+      }
+    }
+
+    // A channel conversation is named after the channel so the thread is not
+    // renamed by every sender; a DM is named after the person. Without a
+    // resolved label we cannot tell them apart, and the channel id is the
+    // contact key anyway.
+    const conversationName = isDirectMessage ? contactName : (channelLabel || channelId);
+
+    const contact = await upsertContact(this.contactRepo, tenantId, ChannelType.SLACK, channelId, {
+      name: conversationName,
+      avatarUrl: isDirectMessage ? contactAvatar : undefined,
+    });
+    const conv = await findOrCreateConversation(
+      this.convRepo,
+      tenantId,
+      contact.id,
+      ChannelType.SLACK,
+      account.id,
+    );
+
+    if (externalMessageId) {
+      const existing = await this.messageRepo
+        .createQueryBuilder("m")
+        .innerJoin("m.conversation", "c")
+        .where("c.tenantId = :tenantId", { tenantId })
+        .andWhere("m.externalId = :id", { id: externalMessageId })
+        .getOne();
+      if (existing) {
+        this.logger.debug(`Slack duplicate ${externalMessageId}, ignored.`);
+        return;
+      }
+    }
+
+    const media = (event.files || [])
+      .map((f) => ({
+        url: f.url_private_download || f.url_private,
+        name: f.name || f.title || "slack-file",
+        type: f.mimetype?.startsWith("image/") ? "image" : "file",
+        mimeType: f.mimetype,
+        size: f.size,
+      }))
+      .filter((m) => Boolean(m.url));
+
+    const text = event.text || "";
+    const saved = await createMessage(this.messageRepo, {
+      conversationId: conv.id,
+      externalId: externalMessageId,
+      channel: ChannelType.SLACK,
+      type: media.length === 0 ? MediaType.TEXT : MediaType.DOCUMENT,
+      text: text || null,
+      mediaUrl: media[0]?.url ?? null,
+      mediaMimeType: media[0]?.mimeType ?? null,
+      media: media.length > 0 ? media : null,
+      authorName: contactName,
+    });
+
+    const preview = text || (media.length > 0 ? `📎 ${media.length} attachment(s)` : "Slack message");
+    await touchConversation(this.convRepo, conv, preview, true);
+    await this.realtime.publish({
+      type: "message:new",
+      tenantId,
+      payload: { conversationId: conv.id, message: saved },
+    });
+    await this.dispatchFollowUps({
+      tenantId,
+      conversationId: conv.id,
+      messageId: saved.id,
+      channel: ChannelType.SLACK,
+      mediaUrl: media[0]?.url ?? null,
+      mimeType: media[0]?.mimeType ?? null,
     });
   }
 }

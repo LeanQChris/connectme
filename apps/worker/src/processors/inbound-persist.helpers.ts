@@ -91,6 +91,8 @@ export interface CreateInboundMessageInput {
   text: string | null;
   mediaUrl?: string | null;
   mediaMimeType?: string | null;
+  media?: Message["media"] | null;
+  authorName?: string | null;
   status?: MessageStatus;
 }
 
@@ -107,6 +109,8 @@ export async function createMessage(
     text: input.text,
     mediaUrl: input.mediaUrl ?? null,
     mediaMimeType: input.mediaMimeType ?? null,
+    media: input.media ?? null,
+    authorName: input.authorName ?? null,
     status: input.status ?? MessageStatus.RECEIVED,
   });
   return messageRepo.save(entity);

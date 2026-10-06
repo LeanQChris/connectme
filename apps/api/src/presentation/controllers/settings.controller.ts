@@ -155,8 +155,40 @@ export class SettingsController {
         `Discord channel ${s.discordChannelId}`,
       );
     }
+    // Register the Slack workspace so inbound events can be routed to this
+    // tenant. Best-effort: the token is already saved, so a Slack outage must
+    // not fail the whole settings request.
+    if (s.slackBotToken) {
+      try {
+        const token = decryptStrict(this.aesVault, updated.slackBotTokenEnc!);
+        const team = await this.slackWorkspace(token);
+        if (team?.id) {
+          await this.upsertAccount(tenantId, ChannelType.SLACK, "slack", team.id, team.name || `Slack ${team.id}`);
+        }
+      } catch {
+        // Token is saved regardless; workspace routing stays unconfigured.
+      }
+    }
 
     return { ok: true };
+  }
+
+  /** Resolve the Slack workspace a bot token belongs to (auth.test). */
+  private async slackWorkspace(
+    token: string,
+  ): Promise<{ id: string; name?: string } | null> {
+    const res = await fetch("https://slack.com/api/auth.test", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: "{}",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok || !data.team?.id) return null;
+    return { id: String(data.team.id), name: data.team.name };
   }
 
   private async upsertAccount(
@@ -245,6 +277,28 @@ export class SettingsController {
           return { ok: false, detail: result.detail || result.data?.message || "Discord bot verification failed" };
         }
         return { ok: true, detail: `Connected to ${result.data.username}#${result.data.discriminator || "0"}` };
+      }
+      case "slack": {
+        if (!creds.slackBotTokenEnc) {
+          return { ok: false, detail: "Slack bot token is required." };
+        }
+        const token = decryptStrict(this.aesVault, creds.slackBotTokenEnc);
+        const result = await this.probe("https://slack.com/api/auth.test", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json; charset=utf-8",
+          },
+          body: "{}",
+        });
+        // Slack answers 200 with {"ok": false} for auth failures.
+        if (!result.ok) {
+          return { ok: false, detail: result.detail || "Slack bot verification failed" };
+        }
+        if (!result.data.ok) {
+          return { ok: false, detail: result.data.error || "Slack bot verification failed" };
+        }
+        return { ok: true, detail: `Connected to ${result.data.team || "Slack workspace"}` };
       }
       default:
         return { ok: false, detail: "Unknown channel" };
