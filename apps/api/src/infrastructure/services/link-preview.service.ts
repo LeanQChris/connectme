@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { RedisService } from "../redis/redis.service";
+import { isSafePublicUrl } from "../security/safe-fetch-url";
 
 export interface LinkPreviewData {
   url: string;
@@ -16,11 +17,17 @@ export class LinkPreviewService {
   constructor(private readonly redis: RedisService) {}
 
   async getPreview(rawUrl: string): Promise<LinkPreviewData | null> {
+    // This endpoint is public and the caller chooses the target, so the server
+    // would otherwise fetch any internal host on their behalf — cloud metadata,
+    // RFC1918 services, loopback. Checked before the cache so a rejected URL can
+    // never be served either.
+    if (!(await isSafePublicUrl(rawUrl))) {
+      this.logger.warn(`Blocked link preview for non-public URL: ${rawUrl}`);
+      return null;
+    }
+
     try {
       const url = new URL(rawUrl);
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        return null;
-      }
 
       // Check redis cache
       const cacheKey = `link_preview:${rawUrl}`;
