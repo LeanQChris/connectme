@@ -113,23 +113,23 @@ export function TeamRbacSettings() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-hairline pb-4">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xl font-bold">
+      <div className="rounded-xl border border-hairline bg-canvas-elevated shadow-xs overflow-hidden">
+        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas-elevated">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-well border border-hairline text-ink">
               👥
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-[16px] font-semibold text-ink">
-                  Team Roles & Permissions (RBAC)
-                </h3>
-                <span className="rounded-full bg-purple-500/10 px-2 py-0.5 font-mono text-[10.5px] font-semibold text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                <h2 className="text-[16px] font-semibold text-ink">
+                  Team Members & RBAC Roles
+                </h2>
+                <span className="rounded bg-surface-well px-1.5 py-0.2 font-mono text-[9.5px] font-medium text-mute border border-hairline">
                   {members.length} Members
                 </span>
               </div>
               <p className="text-[12.5px] text-mute mt-0.5">
-                Manage organization members, assign access roles (Owner, Admin, Agent, Viewer), and invite collaborators.
+                Manage organization members, assign roles (Owner, Admin, Agent, Viewer), and invite collaborators.
               </p>
             </div>
           </div>
@@ -139,7 +139,7 @@ export function TeamRbacSettings() {
             variant="primary"
             size="sm"
             onClick={() => setShowInviteModal(true)}
-            className="h-9 px-4 bg-purple-600 hover:bg-purple-700 text-white cursor-pointer shadow-sm"
+            className="h-8 px-3 text-[12.5px] font-medium shrink-0"
           >
             + Invite Member
           </Button>
@@ -250,9 +250,9 @@ export function TeamRbacSettings() {
       </div>
 
       {/* Permissions Matrix Reference Card */}
-      <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-2xs space-y-4">
-        <h4 className="font-mono text-[12px] font-semibold uppercase tracking-wider text-ink">
-          Role Permissions Matrix Reference
+      <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-xs space-y-4">
+        <h4 className="font-mono text-[11.5px] font-semibold uppercase tracking-wider text-ink">
+          Role Permissions Reference
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {(Object.keys(ROLE_PERMISSIONS) as UserRole[]).map((rKey) => {

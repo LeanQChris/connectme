@@ -23,7 +23,9 @@ export function useSettingsForm(initial: SettingsPayload) {
         : "Successfully connected Facebook & Instagram!"
       : null;
 
-  const [activeTab, setActiveTab] = useState<SettingsTabId>("whatsapp");
+  const [activeTab, setActiveTab] = useState<SettingsTabId>(
+    connectedParam === "meta" ? "meta" : "overview",
+  );
   const [globalError, setGlobalError] = useState<string | null>(initialError);
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(initialSuccess);
   const [busy, setBusy] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function useSettingsForm(initial: SettingsPayload) {
   const [metaForm, setMetaForm] = useState({
     pageAccessToken: "",
     metaAppSecret: "",
+    instagramAppSecret: "",
     webhookVerifyToken: "",
   });
 
@@ -60,6 +63,11 @@ export function useSettingsForm(initial: SettingsPayload) {
     discordBotToken: "",
     discordPublicKey: "",
     discordChannelId: "",
+  });
+
+  const [slackForm, setSlackForm] = useState({
+    slackBotToken: "",
+    slackSigningSecret: "",
   });
 
   const [showManualMeta, setShowManualMeta] = useState(false);
@@ -155,7 +163,7 @@ export function useSettingsForm(initial: SettingsPayload) {
     },
   });
 
-  const verifyChannel = (channel: "whatsapp" | "page" | "telegram" | "discord") => {
+  const verifyChannel = (channel: "whatsapp" | "page" | "telegram" | "discord" | "slack") => {
     setBusy(`verify-${channel}`);
     setChannelStatus((prev) => ({ ...prev, [channel]: { ok: true, detail: "Verifying…" } }));
     verifyMutation.mutate(channel);
@@ -248,19 +256,28 @@ export function useSettingsForm(initial: SettingsPayload) {
     discordSetupMutation.mutate();
   };
 
+  const metaAccounts =
+    data.settings.accounts?.filter(
+      (a) => a.channel === "messenger" || a.channel === "instagram",
+    ) || [];
+
   const isWhatsAppConnected = Boolean(data.settings.connected.whatsapp);
   const isMetaConnected = Boolean(
     data.settings.connected.messenger ||
     data.settings.connected.instagram ||
-    (data.settings.accounts && data.settings.accounts.length > 0)
+    metaAccounts.length > 0,
   );
   const isTelegramConnected = Boolean(data.settings.connected.telegram);
   const isDiscordConnected = Boolean(data.settings.connected.discord);
+  const isSlackConnected = Boolean(data.settings.connected.slack);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const metaUrl = data.webhookUrls.meta.startsWith("http")
     ? data.webhookUrls.meta
     : `${origin}${data.webhookUrls.meta}`;
+  const slackUrl = data.webhookUrls.slack?.startsWith("http")
+    ? data.webhookUrls.slack
+    : `${origin}${data.webhookUrls.slack ?? ""}`;
 
   return {
     data,
@@ -282,6 +299,8 @@ export function useSettingsForm(initial: SettingsPayload) {
     setTelegramForm,
     discordForm,
     setDiscordForm,
+    slackForm,
+    setSlackForm,
     showManualMeta,
     setShowManualMeta,
     saveChannel,
@@ -293,6 +312,8 @@ export function useSettingsForm(initial: SettingsPayload) {
     isMetaConnected,
     isTelegramConnected,
     isDiscordConnected,
+    isSlackConnected,
     metaUrl,
+    slackUrl,
   };
 }

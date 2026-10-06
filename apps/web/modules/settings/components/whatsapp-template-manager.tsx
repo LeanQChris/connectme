@@ -96,7 +96,7 @@ export function WhatsAppTemplateManager() {
   };
 
   return (
-    <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-2xs space-y-6">
+    <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-xs space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hairline pb-4">
         <div>

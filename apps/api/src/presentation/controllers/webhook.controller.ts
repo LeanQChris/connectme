@@ -226,8 +226,12 @@ export class WebhookController {
         const creds = account?.tenantId
           ? await this.tenantRepo.getCredentials(account.tenantId)
           : null;
-        if (!creds?.metaAppSecretEnc) continue;
-        const secret = decryptStrict(this.aesVault, creds.metaAppSecretEnc);
+        const secretEnc =
+          channel === ChannelType.INSTAGRAM && creds?.instagramAppSecretEnc
+            ? creds.instagramAppSecretEnc
+            : creds?.metaAppSecretEnc;
+        if (!secretEnc) continue;
+        const secret = decryptStrict(this.aesVault, secretEnc);
         if (verifyHmacSha256(rawBody, secret, signature)) return true;
       }
     } catch (err) {

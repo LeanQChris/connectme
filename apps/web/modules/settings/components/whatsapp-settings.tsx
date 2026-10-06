@@ -46,177 +46,179 @@ export function WhatsappSettings({
 }: WhatsappSettingsProps) {
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-hairline">
+      <div className="rounded-xl border border-hairline bg-canvas-elevated shadow-xs overflow-hidden">
+        {/* Card Header */}
+        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas-elevated">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-whatsapp/10 text-whatsapp">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-whatsapp/10 text-whatsapp">
               <ChannelIcon channel="whatsapp" className="h-5 w-5" />
             </div>
             <div>
               <h2 className="text-[16px] font-semibold text-ink">WhatsApp Cloud API</h2>
-              <p className="text-[12.5px] text-body">
+              <p className="text-[12.5px] text-mute mt-0.5">
                 Official Meta Cloud API for customer conversations and media attachments.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium ${
                 isWhatsAppConnected
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                   : "bg-surface-well text-mute border border-hairline"
               }`}
             >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  isWhatsAppConnected ? "bg-emerald-500" : "bg-neutral-400"
-                }`}
-              />
+              <span className={`h-1.5 w-1.5 rounded-full ${isWhatsAppConnected ? "bg-emerald-500" : "bg-neutral-400"}`} />
               {isWhatsAppConnected ? "Connected" : "Not configured"}
             </span>
           </div>
         </div>
 
-        {/* Currently Active Configuration Badge */}
-        {data.settings.waPhoneNumberId && (
-          <div className="mt-4 rounded-lg border border-hairline bg-surface-well/50 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[12px]">
-            <span className="text-body">
-              Active Phone Number ID: <strong className="font-mono text-ink">{data.settings.waPhoneNumberId}</strong>
-            </span>
-            {data.settings.waAppId && (
-              <span className="text-mute font-mono text-[11px]">
-                Meta App ID: {data.settings.waAppId}
+        {/* Card Body */}
+        <div className="p-6 space-y-5">
+          {/* Active Config Pill */}
+          {data.settings.waPhoneNumberId && (
+            <div className="rounded-lg border border-hairline bg-surface-well/40 px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+              <span className="text-body">
+                Active Phone ID: <strong className="font-mono text-ink font-semibold">{data.settings.waPhoneNumberId}</strong>
               </span>
-            )}
-          </div>
-        )}
-
-        {/* WhatsApp Form Inputs (Strictly Isolated State) */}
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {/* Phone Number ID */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12.5px] font-medium text-ink">
-              Phone Number ID <span className="text-error">*</span>
-            </label>
-            <Input
-              type="text"
-              value={whatsappForm.waPhoneNumberId}
-              onChange={(e) =>
-                setWhatsappForm((prev) => ({ ...prev, waPhoneNumberId: e.target.value }))
-              }
-              placeholder={data.settings.waPhoneNumberId || "e.g. 104829104829104"}
-            />
-            <span className="text-[11px] text-mute">
-              From Meta Developer Portal → WhatsApp → API Setup
-            </span>
-          </div>
-
-          {/* Access Token */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12.5px] font-medium text-ink">
-              Permanent Access Token <span className="text-error">*</span>
-            </label>
-            <div className="relative">
-              <Input
-                type={visibleSecrets.waAccessToken ? "text" : "password"}
-                value={whatsappForm.waAccessToken}
-                onChange={(e) =>
-                  setWhatsappForm((prev) => ({ ...prev, waAccessToken: e.target.value }))
-                }
-                placeholder={isWhatsAppConnected ? "••••••••••••  (Active & Encrypted)" : "EAAG..."}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => toggleSecret("waAccessToken")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1"
-                title={visibleSecrets.waAccessToken ? "Hide" : "Show"}
-              >
-                {visibleSecrets.waAccessToken ? "Hide" : "Show"}
-              </button>
+              {data.settings.waAppId && (
+                <span className="text-mute font-mono text-[11px]">
+                  Meta App ID: <span className="text-body">{data.settings.waAppId}</span>
+                </span>
+              )}
             </div>
-            <span className="text-[11px] text-mute">
-              System User Token with <code className="font-mono">whatsapp_business_messaging</code>
-            </span>
-          </div>
+          )}
 
-          {/* Meta App ID (Optional) */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12.5px] font-medium text-ink">
-              Meta App ID <span className="text-mute font-normal">(Optional)</span>
-            </label>
-            <Input
-              type="text"
-              value={whatsappForm.waAppId}
-              onChange={(e) =>
-                setWhatsappForm((prev) => ({ ...prev, waAppId: e.target.value }))
-              }
-              placeholder={data.settings.waAppId || "e.g. 592019482910"}
-            />
-            <span className="text-[11px] text-mute">
-              Used to address WhatsApp media uploads directly
-            </span>
-          </div>
-
-          {/* WhatsApp App Secret */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12.5px] font-medium text-ink">
-              WhatsApp App Secret <span className="text-mute font-normal">(Optional)</span>
-            </label>
-            <div className="relative">
+          {/* Form Inputs */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-medium text-ink">
+                Phone Number ID <span className="text-error">*</span>
+              </label>
               <Input
-                type={visibleSecrets.waAppSecret ? "text" : "password"}
-                value={whatsappForm.waAppSecret}
+                type="text"
+                value={whatsappForm.waPhoneNumberId}
                 onChange={(e) =>
-                  setWhatsappForm((prev) => ({ ...prev, waAppSecret: e.target.value }))
+                  setWhatsappForm((prev) => ({ ...prev, waPhoneNumberId: e.target.value }))
                 }
-                placeholder="App secret for WhatsApp webhook HMAC"
-                className="pr-10"
+                placeholder={data.settings.waPhoneNumberId || "e.g. 104829104829104"}
+                className="h-9 font-mono text-[12.5px]"
               />
-              <button
-                type="button"
-                onClick={() => toggleSecret("waAppSecret")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1"
-              >
-                {visibleSecrets.waAppSecret ? "Hide" : "Show"}
-              </button>
+              <span className="block text-[11px] text-mute">
+                From Meta Developer Portal → WhatsApp → API Setup
+              </span>
             </div>
-            <span className="text-[11px] text-mute">
-              Isolated secret for your WhatsApp developer app
-            </span>
+
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-medium text-ink">
+                Permanent Access Token <span className="text-error">*</span>
+              </label>
+              <div className="relative">
+                <Input
+                  type={visibleSecrets.waAccessToken ? "text" : "password"}
+                  value={whatsappForm.waAccessToken}
+                  onChange={(e) =>
+                    setWhatsappForm((prev) => ({ ...prev, waAccessToken: e.target.value }))
+                  }
+                  placeholder={isWhatsAppConnected ? "••••••••••••••••••••••••••••••••  (Saved)" : "EAAG..."}
+                  className="h-9 pr-14 font-mono text-[12.5px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleSecret("waAccessToken")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[11px] text-mute hover:text-ink cursor-pointer px-1.5 py-0.5 rounded"
+                >
+                  {visibleSecrets.waAccessToken ? "Hide" : "Show"}
+                </button>
+              </div>
+              <span className="block text-[11px] text-mute">
+                System User Token with <code className="font-mono text-ink">whatsapp_business_messaging</code>
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-medium text-ink">
+                Meta App ID <span className="text-mute font-normal">(Optional)</span>
+              </label>
+              <Input
+                type="text"
+                value={whatsappForm.waAppId}
+                onChange={(e) =>
+                  setWhatsappForm((prev) => ({ ...prev, waAppId: e.target.value }))
+                }
+                placeholder={data.settings.waAppId || "e.g. 592019482910"}
+                className="h-9 font-mono text-[12.5px]"
+              />
+              <span className="block text-[11px] text-mute">
+                Used to address WhatsApp media uploads directly
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-medium text-ink">
+                WhatsApp App Secret <span className="text-mute font-normal">(Optional)</span>
+              </label>
+              <div className="relative">
+                <Input
+                  type={visibleSecrets.waAppSecret ? "text" : "password"}
+                  value={whatsappForm.waAppSecret}
+                  onChange={(e) =>
+                    setWhatsappForm((prev) => ({ ...prev, waAppSecret: e.target.value }))
+                  }
+                  placeholder="App secret for webhook verification"
+                  className="h-9 pr-14 font-mono text-[12.5px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleSecret("waAppSecret")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[11px] text-mute hover:text-ink cursor-pointer px-1.5 py-0.5 rounded"
+                >
+                  {visibleSecrets.waAppSecret ? "Hide" : "Show"}
+                </button>
+              </div>
+              <span className="block text-[11px] text-mute">
+                Dedicated secret for payload signature verification
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Action Buttons & Feedback */}
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-hairline">
+        {/* Card Footer Actions */}
+        <div className="px-6 py-3.5 bg-surface-well/30 border-t border-hairline flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              variant="primary"
-              onClick={onSave}
+              variant="outline"
+              size="sm"
+              onClick={onVerify}
               disabled={busy !== null}
+              className="h-8 px-3 cursor-pointer text-[12px]"
             >
-              {busy === "save-whatsapp" ? "Saving WhatsApp…" : "Save WhatsApp Settings"}
+              {busy === "verify-whatsapp" ? "Verifying…" : "Test Connection"}
             </Button>
 
             <Button
               type="button"
-              variant="outline"
-              onClick={onVerify}
+              variant="primary"
+              size="sm"
+              onClick={onSave}
               disabled={busy !== null}
+              className="h-8 px-4 cursor-pointer text-[12.5px] font-medium"
             >
-              {busy === "verify-whatsapp" ? "Testing…" : "Verify Connection"}
+              {busy === "save-whatsapp" ? "Saving…" : "Save Changes"}
             </Button>
           </div>
 
           {channelStatus.whatsapp && (
             <div
-              className={`text-[12.5px] font-medium ${
+              className={`text-[12px] font-medium flex items-center gap-1.5 ${
                 channelStatus.whatsapp.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"
               }`}
             >
-              {channelStatus.whatsapp.detail}
+              <span>{channelStatus.whatsapp.ok ? "✓" : "!"}</span>
+              <span>{channelStatus.whatsapp.detail}</span>
             </div>
           )}
         </div>
@@ -224,36 +226,6 @@ export function WhatsappSettings({
 
       {/* WhatsApp Message Template Manager Component */}
       <WhatsAppTemplateManager />
-
-      {/* Quick Setup Guide Card */}
-      <div className="rounded-xl border border-hairline bg-surface-well/40 p-4 text-[12.5px] text-body">
-        <h3 className="font-semibold text-ink text-[13px] mb-1">Quick WhatsApp Setup Guide:</h3>
-        <ol className="list-decimal pl-5 space-y-1 text-mute text-[12px]">
-          <li>
-            Visit{" "}
-            <a
-              href="https://developers.facebook.com/apps"
-              target="_blank"
-              rel="noreferrer"
-              className="text-ink underline"
-            >
-              Meta Developer Portal
-            </a>{" "}
-            and select your Business App.
-          </li>
-          <li>
-            Under WhatsApp → API Setup, copy your <strong>Phone number ID</strong>.
-          </li>
-          <li>
-            Generate a Permanent System User Token with{" "}
-            <code className="font-mono text-ink">whatsapp_business_messaging</code> and{" "}
-            <code className="font-mono text-ink">whatsapp_business_management</code>.
-          </li>
-          <li>
-            Paste the values above and click Save. Copy the Webhook URL from the <em>Webhooks</em> tab into Meta.
-          </li>
-        </ol>
-      </div>
     </div>
   );
 }
