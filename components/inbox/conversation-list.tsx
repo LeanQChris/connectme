@@ -22,6 +22,22 @@ interface Row {
   createdAt: string;
 }
 
+/** Slack mrkdwn / mention tokens → readable plain text for previews. */
+function slackify(text: string): string {
+  return text
+    .replace(/<@([A-Z0-9]+)\|([^>]+)>/g, "@$2")
+    .replace(/<@([A-Z0-9]+)>/g, "@user")
+    .replace(/<#([A-Z0-9]+)\|([^>]+)>/g, "#$2")
+    .replace(/<#([A-Z0-9]+)>/g, "#channel")
+    .replace(/<!(here|channel|everyone)>/g, "@$1")
+    .replace(/<!([a-z]+)\^[^|>]+\|([^>]+)>/g, "@$2")
+    .replace(/<!([a-z]+)\^[^>]+>/g, "@$1")
+    .replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, "$2")
+    .replace(/<(mailto:[^|>]+)\|([^>]+)>/g, "$2")
+    .replace(/<(tel:[^|>]+)\|([^>]+)>/g, "$2")
+    .replace(/<(https?:\/\/[^>]+|mailto:[^>]+|tel:[^>]+)>/g, "$1");
+}
+
 function previewLabel(message: string | null | undefined): string {
   if (!message) return "—";
   if (message === "[attachment]" || message === "[image]") return "📷 Image";
@@ -29,7 +45,7 @@ function previewLabel(message: string | null | undefined): string {
   if (message === "[audio]") return "🎵 Audio";
   if (message === "[document]") return "📄 Document";
   if (message === "[message]") return "💬 Message";
-  return message;
+  return slackify(message);
 }
 
 export default function ConversationList({
@@ -248,7 +264,7 @@ export default function ConversationList({
                           unread ? "font-medium text-ink" : "text-mute group-hover:text-body"
                         }`}
                       >
-                        {searching ? row.snippet : previewLabel(row.snippet)}
+                        {previewLabel(row.snippet)}
                       </span>
 
                       {unread && (
