@@ -4,7 +4,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "passThroughEnv": [
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+        "DATABASE_URL"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -22,22 +28,35 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      // Lets the DB integration specs reach a real Postgres when one is
+      // provided (CI has a postgres service) instead of skipping.
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "ENCRYPTION_KEY",
+        "CLERK_SECRET_KEY"
+      ]
     },
     "db:sync": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL", "DB_SYNCHRONIZE", "NODE_ENV"]
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL", "DB_SYNCHRONIZE", "NODE_ENV"]
     },
     "schema:sync": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL", "DB_SYNCHRONIZE", "NODE_ENV"]
     },
     "migration:run": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL", "DB_SYNCHRONIZE", "NODE_ENV"]
     },
     "migration:generate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL", "DB_SYNCHRONIZE", "NODE_ENV"]
     },
     "clean": {
       "cache": false
