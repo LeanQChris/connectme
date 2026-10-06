@@ -12,6 +12,7 @@
   let isOpen = false;
   let pollTimer = null;
   let isSending = false;
+  let pendingAttachment = null;
 
   // Load existing session
   try {
@@ -161,6 +162,36 @@
       align-items: center;
       justify-content: center;
     }
+    .cm-attach-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      width: 30px;
+      height: 36px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cm-attach-btn:hover { color: #0f172a; }
+    .cm-chip-row { padding: 8px 16px 0; }
+    .cm-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: #334155;
+      max-width: 100%;
+    }
+    .cm-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+    .cm-chip-remove { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 14px; line-height: 1; padding: 0; }
+    .cm-chip-remove:hover { color: #0f172a; }
+    .cm-attach-error { color: #b91c1c; font-size: 12px; padding: 6px 16px 0; }
     @media (max-width: 480px) {
       #cm-widget-window {
         width: calc(100vw - 32px);
@@ -186,7 +217,18 @@
       <div class="cm-messages" id="cm-messages-list">
         <div class="cm-msg cm-msg-out">Hello! How can we help you today?</div>
       </div>
+      <div class="cm-chip-row" id="cm-chip-row" style="display:none;">
+        <span class="cm-chip">
+          <span class="cm-chip-name" id="cm-chip-name"></span>
+          <button type="button" class="cm-chip-remove" id="cm-chip-remove" aria-label="Remove attachment">&times;</button>
+        </span>
+      </div>
+      <div class="cm-attach-error" id="cm-attach-error" style="display:none;"></div>
       <form class="cm-footer" id="cm-form">
+        <input type="file" id="cm-file" accept="image/*,video/*,audio/*,.pdf,.txt" style="display:none" />
+        <button type="button" class="cm-attach-btn" id="cm-attach" title="Attach a file" aria-label="Attach a file">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
         <input type="text" class="cm-input" id="cm-input" placeholder="Type your message..." autocomplete="off" />
         <button type="submit" class="cm-send-btn" id="cm-send">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
@@ -205,6 +247,12 @@
   const form = document.getElementById("cm-form");
   const input = document.getElementById("cm-input");
   const list = document.getElementById("cm-messages-list");
+  const fileInput = document.getElementById("cm-file");
+  const attachBtn = document.getElementById("cm-attach");
+  const chipRow = document.getElementById("cm-chip-row");
+  const chipName = document.getElementById("cm-chip-name");
+  const chipRemove = document.getElementById("cm-chip-remove");
+  const attachError = document.getElementById("cm-attach-error");
 
   async function initSession() {
     if (sessionToken) return;
@@ -240,6 +288,66 @@
     } catch {}
   }
 
+  function showAttachError(message) {
+    attachError.textContent = message;
+    attachError.style.display = message ? "block" : "none";
+  }
+
+  function setAttachment(att) {
+    pendingAttachment = att;
+    if (att) {
+      chipName.textContent = att.name;
+      chipRow.style.display = "block";
+    } else {
+      chipRow.style.display = "none";
+    }
+    showAttachError("");
+  }
+
+  function guessKind(file) {
+    const type = (file.type || "").toLowerCase();
+    if (type.startsWith("image/")) return "image";
+    if (type.startsWith("video/")) return "video";
+    if (type.startsWith("audio/")) return "audio";
+    return "document";
+  }
+
+  /**
+   * Ask the API for a presigned URL, then PUT the bytes straight to storage.
+   * The declared size is signed into the URL server-side, so an oversized file
+   * fails signature verification rather than being silently accepted.
+   */
+  async function uploadFile(file) {
+    await initSession();
+    if (!sessionToken) throw new Error("No active session");
+
+    const presignRes = await fetch(`${apiBase}/api/widget/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify({ filename: file.name, size: file.size, contentType: file.type }),
+    });
+    if (!presignRes.ok) {
+      const detail = await presignRes.json().catch(() => ({}));
+      throw new Error(detail.message || "Upload rejected");
+    }
+    const presign = await presignRes.json();
+
+    const putRes = await fetch(presign.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!putRes.ok) throw new Error(`Storage upload failed (HTTP ${putRes.status})`);
+
+    return {
+      url: presign.publicUrl,
+      name: file.name,
+      size: file.size,
+      type: guessKind(file),
+      mimeType: file.type || "application/octet-stream",
+    };
+  }
+
   function renderMessages(msgs) {
     list.innerHTML = `<div class="cm-msg cm-msg-out">Hello! How can we help you today?</div>`;
     // messages arrive newest first or oldest first
@@ -247,7 +355,10 @@
     for (const m of sorted) {
       const el = document.createElement("div");
       el.className = `cm-msg ${m.direction === "INBOUND" ? "cm-msg-in" : "cm-msg-out"}`;
-      el.textContent = m.text || (m.mediaUrl ? "Attachment" : "");
+      // media[] is canonical; the single mediaUrl field was retired.
+      const attachments = Array.isArray(m.media) ? m.media.length : 0;
+      const label = attachments > 1 ? `${attachments} attachments` : attachments ? "Attachment" : "";
+      el.textContent = m.text || label;
       list.appendChild(el);
     }
     list.scrollTop = list.scrollHeight;
@@ -266,13 +377,32 @@
     }
   }
 
+  attachBtn.addEventListener("click", () => fileInput.click());
+  chipRemove.addEventListener("click", () => {
+    fileInput.value = "";
+    setAttachment(null);
+  });
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    showAttachError("");
+    try {
+      setAttachment(await uploadFile(file));
+    } catch (err) {
+      setAttachment(null);
+      showAttachError(err && err.message ? err.message : "Upload failed");
+    }
+    fileInput.value = "";
+  });
+
   btn.addEventListener("click", toggleWidget);
   closeBtn.addEventListener("click", toggleWidget);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text || isSending) return;
+    if ((!text && !pendingAttachment) || isSending) return;
 
     await initSession();
     if (!sessionToken) return;
@@ -283,7 +413,7 @@
     // Optimistic message
     const temp = document.createElement("div");
     temp.className = "cm-msg cm-msg-in";
-    temp.textContent = text;
+    temp.textContent = text || (pendingAttachment ? "Attachment" : "");
     list.appendChild(temp);
     list.scrollTop = list.scrollHeight;
 
@@ -294,8 +424,9 @@
           "Content-Type": "application/json",
           Authorization: `Bearer ${sessionToken}`,
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(pendingAttachment ? { text, media: [pendingAttachment] } : { text }),
       });
+      setAttachment(null);
       fetchMessages();
     } catch {
       temp.style.opacity = "0.6";

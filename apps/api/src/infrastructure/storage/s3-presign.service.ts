@@ -28,7 +28,13 @@ export class S3PresignService {
     );
   }
 
-  presignPut(key: string, expiresSeconds = 900): PresignResult {
+  /**
+   * @param contentLength When given, this exact byte length is signed as a
+   *   header, so a client that PUTs a different size fails signature
+   *   verification. Callers that need a size cap (anonymous widget uploads)
+   *   pass it; omitting it reproduces the previous behaviour exactly.
+   */
+  presignPut(key: string, expiresSeconds = 900, contentLength?: number): PresignResult {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException(
         "Media storage is not configured. Set S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.",
@@ -65,12 +71,14 @@ export class S3PresignService {
       .sort()
       .join("&");
 
+    const hasLength =
+      typeof contentLength === "number" && Number.isFinite(contentLength) && contentLength >= 0;
     const canonicalRequest = [
       "PUT",
       canonicalUri,
       canonicalQuery,
-      `host:${host}\n`,
-      "host",
+      hasLength ? `content-length:${contentLength}\nhost:${host}\n` : `host:${host}\n`,
+      hasLength ? "content-length;host" : "host",
       "UNSIGNED-PAYLOAD",
     ].join("\n");
 
