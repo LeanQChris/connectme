@@ -3,12 +3,38 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { TenantCredential } from "@connectme/database";
 import { AesVaultService } from "@connectme/channels";
-import {
+import type {
   AIRouter,
-  type ChatMessage,
-  type ModelRoute,
-  type ProviderId,
+  ChatMessage,
+  ModelRoute,
+  ProviderId,
+  RoutingStrategy,
 } from "@ai-router-sdk/core";
+
+// @ai-router-sdk/core is ESM-only, but this app compiles to CommonJS. A plain
+// static import (or a bare `import()`, which TypeScript downlevels to
+// `require()` under module: commonjs) fails with ERR_PACKAGE_PATH_NOT_EXPORTED.
+// Building the importer through `new Function` keeps it a genuine dynamic
+// `import()`, so Node loads the ESM entry via the "import" condition.
+const importEsm = new Function(
+  "specifier",
+  "return import(specifier);",
+) as <T>(specifier: string) => Promise<T>;
+
+const loadAiRouter = () =>
+  importEsm<typeof import("@ai-router-sdk/core")>("@ai-router-sdk/core");
+
+// The router SDK names its strategies differently from the tenant-facing
+// AiRoutingStrategy enum, so translate rather than cast.
+const AI_ROUTER_STRATEGIES: Record<
+  NonNullable<AiTenantConfig["routingStrategy"]>,
+  RoutingStrategy
+> = {
+  priority: "fallback",
+  balanced: "balanced",
+  lowest_latency: "least-latency",
+  lowest_cost: "cheapest",
+};
 import type {
   GenerateAiSuggestionsDto,
   AiSuggestion,
@@ -85,7 +111,8 @@ export class AiService {
     };
   }
 
-  private createRouter(config: AiTenantConfig): AIRouter {
+  private async createRouter(config: AiTenantConfig): Promise<AIRouter> {
+    const { AIRouter } = await loadAiRouter();
     const providerMap: Record<AiProvider, ProviderId> = {
       openai: "openai",
       anthropic: "anthropic",
@@ -131,7 +158,7 @@ export class AiService {
 
     return new AIRouter({
       routes,
-      strategy: (config.routingStrategy as any) || "priority",
+      strategy: AI_ROUTER_STRATEGIES[config.routingStrategy ?? "priority"] ?? "fallback",
     });
   }
 
@@ -140,7 +167,7 @@ export class AiService {
     dto: GenerateAiSuggestionsDto,
   ): Promise<AiSuggestion[]> {
     const config = await this.getTenantAiConfig(tenantId);
-    const router = this.createRouter(config);
+    const router = await this.createRouter(config);
 
     const systemPrompt = [
       "You are an expert customer support copilot for an omnichannel team inbox.",
@@ -244,7 +271,7 @@ export class AiService {
     mode: AiRewriteMode,
   ): Promise<{ text: string; originalText: string; mode: AiRewriteMode }> {
     const config = await this.getTenantAiConfig(tenantId);
-    const router = this.createRouter(config);
+    const router = await this.createRouter(config);
 
     const modeInstructions: Record<AiRewriteMode, string> = {
       professional: "Rewrite this message in a polite, polished, and professional customer support tone.",
@@ -303,7 +330,7 @@ export class AiService {
     dto: AiSummarizeDto,
   ): Promise<{ summary: string; sentiment: string; keyPoints: string[] }> {
     const config = await this.getTenantAiConfig(tenantId);
-    const router = this.createRouter(config);
+    const router = await this.createRouter(config);
 
     const history = dto.messages
       .map((m) => `${m.direction.toUpperCase()}: ${m.text || "[media]"}`)
@@ -349,7 +376,7 @@ export class AiService {
     customBaseUrl?: string | null,
   ): Promise<{ success: boolean; model: string; message: string }> {
     const config: AiTenantConfig = { apiKey, provider, model, customBaseUrl };
-    const router = this.createRouter(config);
+    const router = await this.createRouter(config);
 
     const messages: ChatMessage[] = [
       { role: "user", content: "Ping: Respond with exactly one word: OK" },

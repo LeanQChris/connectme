@@ -3,12 +3,25 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { TenantCredential } from "@connectme/database";
 import { AesVaultService } from "@connectme/channels";
-import {
+import type {
   AIRouter,
-  type ChatMessage,
-  type ModelRoute,
-  type ProviderId,
+  ChatMessage,
+  ModelRoute,
+  ProviderId,
 } from "@ai-router-sdk/core";
+
+// @ai-router-sdk/core is ESM-only, but this app compiles to CommonJS. A plain
+// static import (or a bare `import()`, which TypeScript downlevels to
+// `require()` under module: commonjs) fails with ERR_PACKAGE_PATH_NOT_EXPORTED.
+// Building the importer through `new Function` keeps it a genuine dynamic
+// `import()`, so Node loads the ESM entry via the "import" condition.
+const importEsm = new Function(
+  "specifier",
+  "return import(specifier);",
+) as <T>(specifier: string) => Promise<T>;
+
+const loadAiRouter = () =>
+  importEsm<typeof import("@ai-router-sdk/core")>("@ai-router-sdk/core");
 
 export interface AiAgentConfig {
   apiKey: string;
@@ -88,7 +101,8 @@ export class AiAgentService {
     return config?.autoReplyEnabled ?? false;
   }
 
-  private createRouter(config: AiAgentConfig): AIRouter {
+  private async createRouter(config: AiAgentConfig): Promise<AIRouter> {
+    const { AIRouter } = await loadAiRouter();
     const targetProvider: ProviderId = PROVIDER_MAP[config.provider] || "openai";
     const baseUrl =
       config.provider === "openrouter"
@@ -107,7 +121,7 @@ export class AiAgentService {
       },
     ];
 
-    return new AIRouter({ routes, strategy: "priority" });
+    return new AIRouter({ routes, strategy: "fallback" });
   }
 
   public async generateReply(
@@ -117,7 +131,7 @@ export class AiAgentService {
     const config = await this.getConfig(tenantId);
     if (!config) return null;
 
-    const router = this.createRouter(config);
+    const router = await this.createRouter(config);
 
     const systemPrompt = [
       "You are an expert customer support agent for an omnichannel team inbox.",
