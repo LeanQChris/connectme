@@ -73,8 +73,20 @@ export async function POST(request: Request): Promise<Response> {
     const content = response.choices[0]?.message.content;
     return Response.json({ result: typeof content === "string" ? content : "" });
   } catch (err) {
+    const attempt =
+      err instanceof Error && "attempts" in err
+        ? (err as { attempts?: { provider: string; model: string; kind?: string; message?: string }[] })
+            .attempts?.[0]
+        : undefined;
+    const detail = attempt?.message;
     return Response.json(
-      { error: err instanceof Error ? err.message : "AI request failed" },
+      {
+        error: detail
+          ? `${attempt!.provider}/${attempt!.model}: ${detail}`
+          : err instanceof Error
+            ? err.message
+            : "AI request failed",
+      },
       { status: 502 },
     );
   }
