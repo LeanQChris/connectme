@@ -94,6 +94,11 @@ export async function handleTelegramUpdate(
   } else if (message.poll) {
     type = "text";
     text = `📊 Poll: ${message.poll.question}`;
+    if (message.poll.options?.length) {
+      text += message.poll.options
+        .map((option) => `\n• ${option.text} (${option.voter_count} votes)`)
+        .join("");
+    }
   } else if (message.dice) {
     type = "text";
     text = `${message.dice.emoji} (${message.dice.value})`;

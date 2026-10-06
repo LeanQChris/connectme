@@ -15,6 +15,14 @@ import type { ConversationMetaPatch } from "@/lib/hooks/use-inbox";
 
 import FileCard from "./file-card";
 import FormattedText from "./formatted-text";
+import {
+  ContactCard,
+  LocationCard,
+  PollCard,
+  parseContact,
+  parseLocation,
+  parsePoll,
+} from "./telegram-rich-cards";
 import ImageGallery, { Lightbox } from "./image-gallery";
 import LinkPreviewCard from "./link-preview-card";
 import ReplyBox, { type ReplyPayload } from "./reply-box";
@@ -71,6 +79,11 @@ interface ImageGroupItem {
 
 type ClusterItem = SingleItem | ImageGroupItem;
 
+/** First attachment URL of a message, if any. */
+function firstMediaUrl(message: Message): string | null {
+  return message.media?.[0]?.url ?? null;
+}
+
 function clusterMessages(messages: Message[]): ClusterItem[] {
   const result: ClusterItem[] = [];
   let i = 0;
@@ -78,7 +91,7 @@ function clusterMessages(messages: Message[]): ClusterItem[] {
   while (i < messages.length) {
     const msg = messages[i];
 
-    if (msg.type === "image" && msg.mediaUrl && msg.direction !== "note") {
+    if (msg.type === "image" && firstMediaUrl(msg) && msg.direction !== "note") {
       const group: Message[] = [msg];
       let j = i + 1;
 
@@ -86,7 +99,7 @@ function clusterMessages(messages: Message[]): ClusterItem[] {
         const next = messages[j];
         if (
           next.type === "image" &&
-          next.mediaUrl &&
+          firstMediaUrl(next) &&
           next.direction === msg.direction &&
           (!next.text || next.text.startsWith("[")) &&
           Math.abs(new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime()) < 180000
@@ -672,7 +685,7 @@ export default function Thread({
             if (isGroup) {
               const galleryImages = item.messages.map((m) => ({
                 id: m.id,
-                url: getProxiedMediaUrl(m.mediaUrl, { channel: m.channel, name: m.text }),
+                url: getProxiedMediaUrl(firstMediaUrl(m), { channel: m.channel, name: m.text }),
                 text: m.text,
                 createdAt: m.createdAt,
               }));
@@ -731,12 +744,18 @@ export default function Thread({
             }
 
             // Single Message
-            const hasMedia = Boolean(message.mediaUrl);
+            const hasMedia = Boolean(firstMediaUrl(message));
             const onlyEmoji = isOnlyEmoji(message.text) && !hasMedia;
-            const isImage = message.type === "image" && message.mediaUrl;
-            const isAudio = message.type === "audio" && message.mediaUrl;
-            const isVideo = message.type === "video" && message.mediaUrl;
-            const isDoc = message.type === "document" || (message.type !== "text" && message.mediaUrl);
+            const isImage = message.type === "image" && firstMediaUrl(message);
+            const isAudio = message.type === "audio" && firstMediaUrl(message);
+            const isVideo = message.type === "video" && firstMediaUrl(message);
+            const isDoc = message.type === "document" || (message.type !== "text" && firstMediaUrl(message));
+            const locationPayload =
+              message.type === "location" || message.channel === "telegram"
+                ? parseLocation(message.text)
+                : null;
+            const contactPayload = message.channel === "telegram" ? parseContact(message.text) : null;
+            const pollPayload = message.channel === "telegram" ? parsePoll(message.text) : null;
 
             return (
               <Fragment key={item.id}>
@@ -778,10 +797,31 @@ export default function Thread({
                     </div>
                   )}
 
-                  {/* 1. Standalone Image */}
-                  {isImage ? (
+                  {/* 0. Rich Telegram cards: location / contact / poll */}
+                  {locationPayload ? (
+                    <LocationCard
+                      location={locationPayload}
+                      createdAt={message.createdAt}
+                      outgoing={outgoing}
+                      statusGlyph={outgoing ? status.text : undefined}
+                    />
+                  ) : contactPayload ? (
+                    <ContactCard
+                      contact={contactPayload}
+                      createdAt={message.createdAt}
+                      outgoing={outgoing}
+                      statusGlyph={outgoing ? status.text : undefined}
+                    />
+                  ) : pollPayload ? (
+                    <PollCard
+                      poll={pollPayload}
+                      createdAt={message.createdAt}
+                      outgoing={outgoing}
+                      statusGlyph={outgoing ? status.text : undefined}
+                    />
+                  ) : isImage ? (
                     (() => {
-                      const proxiedImgUrl = getProxiedMediaUrl(message.mediaUrl, {
+                      const proxiedImgUrl = getProxiedMediaUrl(firstMediaUrl(message), {
                         channel: message.channel,
                         name: message.text,
                       });
@@ -789,7 +829,7 @@ export default function Thread({
                         message.text &&
                         !message.text.startsWith("[") &&
                         message.text !== "Photo Attachment" &&
-                        message.text !== message.mediaUrl;
+                        message.text !== firstMediaUrl(message);
 
                       return (
                         <div className="flex flex-col gap-1 max-w-[85%] sm:max-w-[360px]">
@@ -857,7 +897,7 @@ export default function Thread({
                   ) : isAudio ? (
                     /* 2. Standalone Audio Message Pill */
                     (() => {
-                      const proxiedAudioUrl = getProxiedMediaUrl(message.mediaUrl, {
+                      const proxiedAudioUrl = getProxiedMediaUrl(firstMediaUrl(message), {
                         channel: message.channel,
                       });
                       return (
@@ -886,14 +926,14 @@ export default function Thread({
                   ) : isVideo ? (
                     /* 3. Standalone Video Player */
                     (() => {
-                      const proxiedVideoUrl = getProxiedMediaUrl(message.mediaUrl, {
+                      const proxiedVideoUrl = getProxiedMediaUrl(firstMediaUrl(message), {
                         channel: message.channel,
                       });
                       const hasCaption =
                         message.text &&
                         !message.text.startsWith("[") &&
                         message.text !== "Video message" &&
-                        message.text !== message.mediaUrl;
+                        message.text !== firstMediaUrl(message);
 
                       return (
                         <div className="flex flex-col gap-1 max-w-[320px]">
@@ -925,7 +965,7 @@ export default function Thread({
                     /* 4. Standalone Document Attachment Card (No chat bubble wrapper!) */
                     <FileCard
                       filename={message.text}
-                      mediaUrl={message.mediaUrl}
+                      mediaUrl={firstMediaUrl(message)}
                       channel={message.channel}
                       createdAt={message.createdAt}
                       outgoing={outgoing}
