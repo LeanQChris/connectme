@@ -29,6 +29,9 @@ export default function NewConversationModal({
     if (connected.slack || accounts.some((a) => a.channel === "slack")) list.push("slack");
     if (connected.whatsapp || accounts.some((a) => a.channel === "whatsapp")) list.push("whatsapp");
     if (connected.discord || accounts.some((a) => a.channel === "discord")) list.push("discord");
+    if (connected.sms || accounts.some((a) => a.channel === "sms")) list.push("sms");
+    if (connected.viber || accounts.some((a) => a.channel === "viber")) list.push("viber");
+    if (connected.email || accounts.some((a) => a.channel === "email")) list.push("email");
     // Default fallback if none explicitly connected
     if (list.length === 0) list.push("slack", "whatsapp");
     return list;
@@ -246,7 +249,7 @@ export default function NewConversationModal({
                   <span
                     className={`inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] text-white font-bold shrink-0 ${meta.tile}`}
                   >
-                    {ch === "slack" ? "#" : ch === "whatsapp" ? "W" : ch === "telegram" ? "T" : ch === "discord" ? "D" : ch[0].toUpperCase()}
+                    {ch === "slack" ? "#" : ch === "whatsapp" ? "W" : ch === "telegram" ? "T" : ch === "discord" ? "D" : ch === "sms" ? "S" : ch === "viber" ? "V" : ch === "email" ? "@" : ch[0].toUpperCase()}
                   </span>
                   <span>{meta.label}</span>
                 </button>
@@ -520,10 +523,14 @@ export default function NewConversationModal({
 
               <div>
                 <label className="block text-[12px] font-medium text-body mb-1">
-                  {selectedChannel === "whatsapp"
+                  {selectedChannel === "whatsapp" || selectedChannel === "sms"
                     ? "Recipient Phone Number (with country code)"
                     : selectedChannel === "discord"
                     ? "Discord User ID or Channel ID"
+                    : selectedChannel === "email"
+                    ? "Recipient Email Address"
+                    : selectedChannel === "viber"
+                    ? "Viber User ID"
                     : "Recipient ID / Handle"}
                 </label>
                 <input
@@ -532,8 +539,10 @@ export default function NewConversationModal({
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
                   placeholder={
-                    selectedChannel === "whatsapp"
+                    selectedChannel === "whatsapp" || selectedChannel === "sms"
                       ? "+1 555 123 4567"
+                      : selectedChannel === "email"
+                      ? "someone@example.com"
                       : "1234567890"
                   }
                   className="h-9 w-full rounded-[8px] border border-hairline bg-canvas-elevated px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
