@@ -397,7 +397,7 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
     contactName: contactLabel(contact),
     contactExternalId: contact.externalId,
     avatarUrl: contact.avatarUrl ?? null,
-    lastMessage: last?.text ?? null,
+    lastMessage: last?.text ?? (last?.media?.length ? `📎 ${last.media[0]?.name ?? last.media[0]?.type}` : null),
     lastMessageAt: conv.lastMessageAt,
     lastInboundAt: conv.lastInboundAt,
     unreadCount: conv.unreadCount,
@@ -1432,9 +1432,12 @@ export async function takeWidgetMessages(
 ): Promise<WidgetOutboxItem[]> {
   return tx((data) => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    data.widgetOutbox = data.widgetOutbox.filter(
-      (item) => !(item.deliveredAt && Date.parse(item.deliveredAt) < cutoff),
-    );
+    const stale = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    data.widgetOutbox = data.widgetOutbox.filter((item) => {
+      if (item.deliveredAt) return Date.parse(item.deliveredAt) >= cutoff;
+      // Visitors who never come back would otherwise keep their queue forever.
+      return Date.parse(item.createdAt) >= stale;
+    });
 
     const pending = data.widgetOutbox
       .filter((item) => item.userId === userId && item.sid === sid && !item.deliveredAt)

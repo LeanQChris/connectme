@@ -28,6 +28,31 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(initialSuccess);
   const [busy, setBusy] = useState<string | null>(null);
 
+  async function saveWidgetOrigins() {
+    setBusy("widget-origins");
+    setGlobalError(null);
+    setGlobalSuccess(null);
+    try {
+      const origins = widgetOrigins
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ widgetAllowedOrigins: origins }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to save allowed origins.");
+      await load();
+      setGlobalSuccess("Widget allowed origins saved!");
+    } catch (err) {
+      setGlobalError(err instanceof Error ? err.message : "Failed to save allowed origins.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // Status map for verification & action results per channel
   const [channelStatus, setChannelStatus] = useState<
     Record<string, { ok: boolean; detail: string }>
@@ -73,6 +98,9 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   const [showManualMeta, setShowManualMeta] = useState(false);
 
   // Workspace-wide automation settings (separate from per-channel secrets)
+  const [widgetOrigins, setWidgetOrigins] = useState(
+    (initial.settings.widgetAllowedOrigins ?? []).join(", "),
+  );
   const [workspaceForm, setWorkspaceForm] = useState({
     webhookUrl: initial.settings.webhookUrl ?? "",
     agents: (initial.settings.agents ?? []).join(", "),
@@ -1460,6 +1488,29 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                   </ul>
                 </div>
 
+                <div className="mt-5">
+                  <label className="block text-[12px] font-medium text-ink">Allowed origins</label>
+                  <p className="text-[12px] text-mute">
+                    Comma-separated list of sites that may embed the widget. Leave blank to allow any site.
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <input
+                      value={widgetOrigins}
+                      onChange={(e) => setWidgetOrigins(e.target.value)}
+                      placeholder="https://example.com, https://shop.example.com"
+                      className="flex-1 rounded-lg border border-hairline bg-canvas px-3 py-1.5 text-[13px] text-ink outline-none focus:border-ink/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void saveWidgetOrigins()}
+                      disabled={busy !== null}
+                      className="h-8 rounded-lg border border-hairline bg-canvas-elevated px-3 text-[12.5px] font-medium text-ink transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer"
+                    >
+                      {busy === "widget-origins" ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-hairline">
                   <button
                     type="button"
@@ -1490,6 +1541,29 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                     <li>Paste the script tag before the closing <code className="text-ink font-mono text-[11px]">&lt;/body&gt;</code> tag on your site.</li>
                     <li>Visitors who message you appear in the inbox under the Live Chat channel.</li>
                   </ul>
+                </div>
+
+                <div className="mt-5">
+                  <label className="block text-[12px] font-medium text-ink">Allowed origins</label>
+                  <p className="text-[12px] text-mute">
+                    Comma-separated list of sites that may embed the widget. Leave blank to allow any site.
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <input
+                      value={widgetOrigins}
+                      onChange={(e) => setWidgetOrigins(e.target.value)}
+                      placeholder="https://example.com, https://shop.example.com"
+                      className="flex-1 rounded-lg border border-hairline bg-canvas px-3 py-1.5 text-[13px] text-ink outline-none focus:border-ink/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void saveWidgetOrigins()}
+                      disabled={busy !== null}
+                      className="h-8 rounded-lg border border-hairline bg-canvas-elevated px-3 text-[12.5px] font-medium text-ink transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer"
+                    >
+                      {busy === "widget-origins" ? "Saving…" : "Save"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-hairline">

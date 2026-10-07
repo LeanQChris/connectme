@@ -1,5 +1,6 @@
 import { takeWidgetMessages } from "@/lib/store";
 import { preflight, widgetResponse } from "@/lib/widget/cors";
+import { requestOriginAllowed } from "@/lib/widget/origin";
 import { bearerToken, verifyWidgetSession } from "@/lib/widget/session";
 
 export const runtime = "nodejs";
@@ -16,6 +17,9 @@ export function OPTIONS(): Response {
 export async function GET(request: Request): Promise<Response> {
   const session = verifyWidgetSession(bearerToken(request));
   if (!session) return widgetResponse({ error: "Invalid session" }, 401);
+  if (!(await requestOriginAllowed(session.userId, request))) {
+    return widgetResponse({ error: "Origin not allowed" }, 403);
+  }
 
   const messages = await takeWidgetMessages(session.userId, session.sid);
   return widgetResponse({ messages });

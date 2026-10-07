@@ -101,6 +101,14 @@
     "#text{flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid #d1d5db;border-radius:19px;font-size:13.5px;outline:none;color:#111827}",
     "#text:focus{border-color:#111827}",
     "#send{width:38px;height:38px;border-radius:50%;background:#111827;color:#fff;font-size:16px;flex:none}",
+    "#clip{width:38px;height:38px;border-radius:50%;color:#6b7280;font-size:17px;flex:none;display:flex;align-items:center;justify-content:center}",
+    "#clip:hover{background:#f3f4f6}",
+    "#previews{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px 0;background:#fff}",
+    ".chip{position:relative;max-width:120px;padding:4px 20px 4px 8px;border:1px solid #e5e7eb;border-radius:8px;font-size:11px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".chip button{position:absolute;right:2px;top:2px;color:#9ca3af;font-size:12px;line-height:1}",
+    ".bubble audio,.bubble video{max-width:100%;display:block;margin-top:4px}",
+    ".bubble a{color:inherit;text-decoration:underline}",
+    "@media(prefers-color-scheme:dark){#previews{background:#111827}.chip{border-color:#374151;color:#d1d5db}#clip:hover{background:#1f2937}}",
     "#send:disabled{opacity:.4;cursor:default}",
     "#err{padding:0 14px 8px;font-size:11.5px;color:#b91c1c;background:#fff;display:none}",
     "@media(prefers-color-scheme:dark){#panel,#form{background:#111827}#panel{border:1px solid #374151}#head{background:#030712}#log{background:#0b1220}#text{background:#111827;border-color:#374151;color:#f9fafb}.in .bubble{background:#1f2937;border-color:#374151;color:#f9fafb}}",
@@ -133,6 +141,9 @@
   var log = el("div", "log");
   log.setAttribute("role", "log");
 
+  var previews = el("div", "previews");
+  var pendingFiles = [];
+
   var err = el("div", "err");
 
   var form = el("form", "form");
@@ -144,13 +155,54 @@
   send.type = "submit";
   send.textContent = "→";
 
+  var clip = el("button", "clip");
+  clip.type = "button";
+  clip.setAttribute("aria-label", "Attach a file");
+  clip.textContent = "📎";
+  var fileInput = el("input");
+  fileInput.type = "file";
+  fileInput.multiple = true;
+  fileInput.style.display = "none";
+
+  form.appendChild(clip);
+  form.appendChild(fileInput);
   form.appendChild(input);
   form.appendChild(send);
 
   panel.appendChild(head);
   panel.appendChild(log);
   panel.appendChild(err);
+  panel.appendChild(previews);
   panel.appendChild(form);
+
+  function renderPreviews() {
+    previews.innerHTML = "";
+    pendingFiles.forEach(function (f, i) {
+      var chip = el("span", "chip");
+      chip.textContent = f.name.length > 18 ? f.name.slice(0, 16) + "…" : f.name;
+      var x = el("button");
+      x.type = "button";
+      x.textContent = "×";
+      x.addEventListener("click", function () {
+        pendingFiles.splice(i, 1);
+        renderPreviews();
+      });
+      chip.appendChild(x);
+      previews.appendChild(chip);
+    });
+  }
+
+  clip.addEventListener("click", function () {
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", function () {
+    for (var i = 0; i < fileInput.files.length; i++) {
+      if (pendingFiles.length >= 10) break;
+      pendingFiles.push(fileInput.files[i]);
+    }
+    fileInput.value = "";
+    renderPreviews();
+  });
 
   var launcher = el("button", "launcher");
   launcher.type = "button";
@@ -179,13 +231,35 @@
     var wrap = el("div", "bubble");
     if (item.text) wrap.appendChild(document.createTextNode(item.text));
 
-    if (item.mediaUrl && item.type !== "audio" && item.type !== "video") {
-      var img = el("img");
-      img.src = item.mediaUrl;
-      img.alt = "Attachment";
-      img.loading = "lazy";
-      wrap.appendChild(img);
-    }
+    var mediaItems = item.media && item.media.length ? item.media : item.mediaUrl ? [{ url: item.mediaUrl, type: item.type }] : [];
+    mediaItems.forEach(function (m) {
+      var src = m.url && m.url[0] === "/" ? ORIGIN + m.url : m.url;
+      if (!src) return;
+      if (m.type === "image" || m.type === "sticker" || (!m.type && item.type === "text")) {
+        var img = el("img");
+        img.src = src;
+        img.alt = m.name || "Attachment";
+        img.loading = "lazy";
+        wrap.appendChild(img);
+      } else if (m.type === "audio") {
+        var au = el("audio");
+        au.src = src;
+        au.controls = true;
+        wrap.appendChild(au);
+      } else if (m.type === "video") {
+        var vi = el("video");
+        vi.src = src;
+        vi.controls = true;
+        wrap.appendChild(vi);
+      } else {
+        var link = el("a");
+        link.href = src;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "📎 " + (m.name || "Attachment");
+        wrap.appendChild(link);
+      }
+    });
 
     row.appendChild(wrap);
     log.appendChild(row);
@@ -245,28 +319,49 @@
 
   function postMessage() {
     var text = input.value.trim();
-    if (!text || !token) return Promise.resolve();
+    if ((!text && pendingFiles.length === 0) || !token) return Promise.resolve();
 
+    var files = pendingFiles.slice();
     input.value = "";
+    pendingFiles = [];
+    renderPreviews();
     send.disabled = true;
     err.style.display = "none";
 
     return authenticate()
       .then(askName)
       .then(function () {
+        var uploads = files.map(function (f) {
+          var form = new FormData();
+          form.append("file", f);
+          return api("/upload", {
+            method: "POST",
+            headers: { authorization: "Bearer " + token },
+            body: form,
+          }).then(function (body) {
+            return body.media;
+          });
+        });
+        return Promise.all(uploads);
+      })
+      .then(function (media) {
         return api("/message", {
           method: "POST",
           headers: { "content-type": "application/json", authorization: "Bearer " + token },
-          body: JSON.stringify({ text: text, name: name }),
+          body: JSON.stringify({ text: text, name: name, media: media }),
+        }).then(function () {
+          return media;
         });
       })
-      .then(function () {
-        bubble({ text: text, type: "text" }, true);
+      .then(function (media) {
+        bubble({ text: text, type: media && media.length ? media[0].type : "text", media: media }, true);
       })
       .catch(function () {
         err.textContent = "Message could not be sent. Try again.";
         err.style.display = "block";
         input.value = text;
+        pendingFiles = files;
+        renderPreviews();
       })
       .then(function () {
         send.disabled = false;
@@ -274,10 +369,17 @@
       });
   }
 
+  var failures = 0;
+
+  function pollDelay() {
+    return failures === 0 ? POLL_MS : Math.min(POLL_MS * Math.pow(2, failures), 15000);
+  }
+
   function poll() {
     if (!token) return;
     api("/poll", { headers: { authorization: "Bearer " + token } })
       .then(function (body) {
+        failures = 0;
         var messages = body.messages || [];
         if (!messages.length) return;
 
@@ -291,8 +393,17 @@
         });
       })
       .catch(function () {
-        /* keep polling; the next tick is free to succeed */
+        failures += 1;
       });
+  }
+
+  function pollLoop() {
+    if (open) {
+      poll();
+      setTimeout(pollLoop, pollDelay());
+    } else {
+      setTimeout(pollLoop, POLL_MS);
+    }
   }
 
   /* ------------------------------------------------------------------ wiring */
@@ -323,7 +434,5 @@
 
   mount();
   authenticate().then(poll);
-  setInterval(function () {
-    if (open) poll();
-  }, POLL_MS);
+  setTimeout(pollLoop, POLL_MS);
 })();

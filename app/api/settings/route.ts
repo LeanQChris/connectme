@@ -104,6 +104,13 @@ export async function PUT(request: Request): Promise<Response> {
     pageId: pageId || undefined,
     telegramBotId: botId ?? undefined,
     widgetId: record?.widgetId,
+    widgetAllowedOrigins:
+      Array.isArray(payload.widgetAllowedOrigins) &&
+      payload.widgetAllowedOrigins.every((o) => typeof o === "string")
+        ? (payload.widgetAllowedOrigins as string[])
+            .map((o) => o.trim())
+            .filter(Boolean)
+        : record?.widgetAllowedOrigins,
     updatedAt: new Date().toISOString(),
   });
 

@@ -1,5 +1,6 @@
 import { tenantByWidgetId } from "@/lib/tenant";
 import { preflight, widgetResponse } from "@/lib/widget/cors";
+import { originAllowed } from "@/lib/widget/origin";
 import { signWidgetSession } from "@/lib/widget/session";
 
 export const runtime = "nodejs";
@@ -27,6 +28,10 @@ export async function POST(request: Request): Promise<Response> {
   // Unknown ids answer 404: nothing to serve, and no signal that a tenant exists.
   const tenant = await tenantByWidgetId(widgetId);
   if (!tenant) return widgetResponse({ error: "Unknown widget" }, 404);
+
+  if (!originAllowed(request.headers.get("origin"), tenant.widgetAllowedOrigins)) {
+    return widgetResponse({ error: "Origin not allowed" }, 403);
+  }
 
   // The browser supplies the session id, so a returning visitor keeps the same
   // conversation and its pending replies.

@@ -305,6 +305,8 @@ export interface CredentialRecord {
   slackBotId?: string;
   /** Public id of this tenant's website widget; routes widget API calls. */
   widgetId?: string;
+  /** Extra origins allowed to call the widget API; empty/absent means any site. */
+  widgetAllowedOrigins?: string[];
   updatedAt: string;
 }
 
@@ -320,6 +322,7 @@ export interface TenantSettings {
   slackTeamId: string | null;
   slackBotId: string | null;
   widgetId: string | null;
+  widgetAllowedOrigins: string[];
   updatedAt: string | null;
   webhookUrl: string | null;
   agents: string[];
@@ -339,6 +342,7 @@ export interface SettingsPayload {
     slackTeamId: string | null;
     slackBotId: string | null;
     widgetId: string | null;
+    widgetAllowedOrigins: string[];
     /** Copyable <script> tag for the tenant's website. */
     widgetScriptUrl: string | null;
     updatedAt: string | null;

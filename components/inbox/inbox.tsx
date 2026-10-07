@@ -280,7 +280,8 @@ export default function Inbox({ initialSelectedId }: InboxProps) {
   }
 
   async function handleSend(payload: ReplyPayload) {
-    await sendMutation.mutateAsync(payload);
+    const result = await sendMutation.mutateAsync(payload);
+    return result as { skipped?: string[]; supportedTypes?: string[] };
   }
 
   async function handleNote(text: string) {

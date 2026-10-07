@@ -25,7 +25,7 @@ import {
 } from "./telegram-rich-cards";
 import ImageGallery, { Lightbox } from "./image-gallery";
 import LinkPreviewCard from "./link-preview-card";
-import ReplyBox, { type ReplyPayload } from "./reply-box";
+import ReplyBox, { type ReplyPayload, type SendOutcome } from "./reply-box";
 import ReplyWindowBar from "./reply-window";
 import { extractUrlsFromMessage } from "@/lib/link-extractor";
 import { getProxiedMediaUrl } from "@/lib/media";
@@ -34,7 +34,7 @@ interface Props {
   conversation: ConversationSummary;
   messages: Message[];
   onBack: () => void;
-  onSend: (payload: ReplyPayload) => Promise<void>;
+  onSend: (payload: ReplyPayload) => Promise<SendOutcome | void>;
   onNote: (text: string) => Promise<void>;
   onArchive: (status: ConversationStatus) => void;
   onDelete?: () => void;
@@ -1294,6 +1294,7 @@ export default function Thread({
             onSend={onSend}
             onNote={onNote}
             conversationId={conversation.id}
+            channel={conversation.channel}
           />
         </div>
 

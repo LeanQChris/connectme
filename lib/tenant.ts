@@ -131,6 +131,7 @@ export async function tenantSettings(userId: string): Promise<TenantSettings> {
     slackTeamId: record?.slackTeamId ?? null,
     slackBotId: record?.slackBotId ?? null,
     widgetId: record?.widgetId ?? null,
+    widgetAllowedOrigins: record?.widgetAllowedOrigins ?? [],
     updatedAt: record?.updatedAt ?? null,
     webhookUrl: userSettings.webhookUrl,
     agents: userSettings.agents,
@@ -164,6 +165,7 @@ export async function settingsPayload(
       slackTeamId: settings.slackTeamId,
       slackBotId: settings.slackBotId,
       widgetId: settings.widgetId,
+      widgetAllowedOrigins: settings.widgetAllowedOrigins,
       widgetScriptUrl: settings.widgetId
         ? `${origin}/widget.js?wid=${encodeURIComponent(settings.widgetId)}`
         : null,

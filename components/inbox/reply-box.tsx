@@ -1,18 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MAX_UPLOAD_BYTES, type MessageType, type UploadedMedia, type Snippet } from "@/lib/types";
+import { MAX_UPLOAD_BYTES, type Channel, type MessageMedia, type UploadedMedia, type Snippet } from "@/lib/types";
+import { canSendMedia, supportedMediaKinds } from "@/lib/channels/types";
 import { useSettings } from "@/lib/hooks/use-inbox";
 
 export interface ReplyPayload {
   text: string;
-  mediaUrl?: string | null;
-  mimeType?: string;
-  type?: MessageType;
+  media?: MessageMedia[];
+}
+
+/** What the reply API hands back beyond the stored message. */
+export interface SendOutcome {
+  skipped?: string[];
+  supportedTypes?: string[];
 }
 
 interface Props {
-  onSend: (payload: ReplyPayload) => Promise<void>;
+  onSend: (payload: ReplyPayload) => Promise<SendOutcome | void>;
+  channel?: Channel;
   onNote?: (text: string) => Promise<void>;
   disabled: boolean;
   conversationId?: string | null;
@@ -42,12 +48,12 @@ const EMOJI_CATEGORIES = [
 
 const QUICK_EMOJIS = ["👍", "❤️", "😊", "😂", "🙏", "🔥", "🎉", "✨", "🚀", "💯"];
 
-export default function ReplyBox({ onSend, onNote, disabled, conversationId }: Props) {
+export default function ReplyBox({ onSend, onNote, disabled, conversationId, channel }: Props) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"reply" | "note">("reply");
-  const [attachment, setAttachment] = useState<UploadedMedia | null>(null);
+  const [attachments, setAttachments] = useState<UploadedMedia[]>([]);
   const [uploading, setUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
@@ -57,6 +63,13 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: settingsData } = useSettings();
   const templates = settingsData?.settings?.templates ?? [];
+
+  function kindForMime(mimeType: string): import("@/lib/types").MediaKind {
+    if (mimeType.startsWith("image/")) return "image";
+    if (mimeType.startsWith("audio/")) return "audio";
+    if (mimeType.startsWith("video/")) return "video";
+    return "document";
+  }
 
   // Snippets loaded once and refreshed after add/delete.
   useEffect(() => {
@@ -178,6 +191,14 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
       setError(`File is too large (max ${(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(0)} MB)`);
       return;
     }
+    if (channel && !canSendMedia(channel, kindForMime(file.type || "application/octet-stream"))) {
+      setError(`${channel} does not support ${file.type || "this file type"}`);
+      return;
+    }
+    if (attachments.length >= 10) {
+      setError("At most 10 attachments per message");
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
@@ -186,7 +207,12 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
       const res = await fetch("/api/media", { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Upload failed");
-      setAttachment(data as UploadedMedia);
+      const uploaded = data as UploadedMedia;
+      if (channel && !canSendMedia(channel, uploaded.type)) {
+        setError(`${channel} does not support ${uploaded.type} files`);
+        return;
+      }
+      setAttachments((prev) => [...prev, uploaded]);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed");
     } finally {
@@ -196,7 +222,7 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
 
   async function submit() {
     const body = text.trim();
-    if ((!body && !attachment) || pending || uploading) return;
+    if ((!body && attachments.length === 0) || pending || uploading) return;
 
     setPending(true);
     setError(null);
@@ -205,19 +231,27 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
       if (noteMode) {
         await onNote!(body);
       } else {
-        await onSend(
-          attachment
+        const outcome = await onSend(
+          attachments.length > 0
             ? {
                 text: body,
-                mediaUrl: attachment.url,
-                mimeType: attachment.mimeType,
-                type: attachment.type,
+                media: attachments.map((a) => ({
+                  url: a.url,
+                  type: a.type,
+                  mimeType: a.mimeType,
+                  name: a.name,
+                  size: a.size,
+                })),
               }
             : { text: body },
         );
+        if (outcome && outcome.skipped && outcome.skipped.length > 0) {
+          const kinds = outcome.supportedTypes?.join(", ") || "fewer types";
+          setError(`Skipped ${outcome.skipped.length} file(s): ${outcome.skipped.join(", ")}. This channel accepts ${kinds} only.`);
+        }
       }
       setText("");
-      setAttachment(null);
+      setAttachments([]);
       if (textareaRef.current) textareaRef.current.style.height = "auto";
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Failed to send message");
@@ -331,9 +365,9 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
         </div>
       )}
 
-      {/* Attachment Preview Card */}
-      {attachment && (
-        <div className="mb-2.5 flex items-center gap-2.5 rounded-[10px] border border-hairline bg-canvas-elevated p-2 text-[12px] shadow-2xs">
+      {/* Attachment Preview Cards */}
+      {attachments.map((attachment, i) => (
+        <div key={attachment.url} className="mb-2.5 flex items-center gap-2.5 rounded-[10px] border border-hairline bg-canvas-elevated p-2 text-[12px] shadow-2xs">
           {attachment.type === "image" ? (
             <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[8px] border border-hairline bg-surface-well">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -364,14 +398,14 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
           </div>
           <button
             type="button"
-            onClick={() => setAttachment(null)}
+            onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
             aria-label="Remove attachment"
             className="flex h-7 w-7 items-center justify-center rounded-[6px] text-mute transition-colors hover:bg-surface-well hover:text-ink"
           >
             ✕
           </button>
         </div>
-      )}
+      ))}
 
       {/* Snippet suggestions for "/" tokens */}
       {snippetMatches.length > 0 && (
@@ -435,11 +469,15 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
         <input
           ref={fileRef}
           type="file"
+          multiple
           className="hidden"
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
+          accept={(channel ? supportedMediaKinds(channel) : (["image","audio","video","document"] as const))
+            .map((k) => (k === "image" || k === "sticker" ? "image/*" : k === "audio" ? "audio/*" : k === "video" ? "video/*" : ".pdf,.doc,.docx,.xls,.xlsx,.zip,.txt,*/*"))
+            .filter((v, i, a) => a.indexOf(v) === i)
+            .join(",")}
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void upload(file);
+            const files = Array.from(event.target.files ?? []);
+            for (const file of files) void upload(file);
             event.target.value = "";
           }}
         />
@@ -526,7 +564,7 @@ export default function ReplyBox({ onSend, onNote, disabled, conversationId }: P
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={pending || uploading || (!text.trim() && !attachment)}
+          disabled={pending || uploading || (!text.trim() && attachments.length === 0)}
           className={`flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-[8px] px-3.5 text-[12.5px] sm:text-[13px] font-medium transition-all hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 shadow-2xs ${
             noteMode ? "bg-amber-500 text-neutral-950 font-semibold" : "bg-primary text-on-primary"
           }`}

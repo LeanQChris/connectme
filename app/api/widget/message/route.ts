@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import { recordInbound } from "@/lib/store";
+import { isMediaKind, type MessageMedia, type MessageType } from "@/lib/types";
 import { preflight, widgetResponse } from "@/lib/widget/cors";
+import { requestOriginAllowed } from "@/lib/widget/origin";
 import { allowWidgetMessage, bearerToken, verifyWidgetSession } from "@/lib/widget/session";
 
 export const runtime = "nodejs";
@@ -18,6 +20,9 @@ export function OPTIONS(): Response {
 export async function POST(request: Request): Promise<Response> {
   const session = verifyWidgetSession(bearerToken(request));
   if (!session) return widgetResponse({ error: "Invalid session" }, 401);
+  if (!(await requestOriginAllowed(session.userId, request))) {
+    return widgetResponse({ error: "Origin not allowed" }, 403);
+  }
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (
@@ -27,19 +32,48 @@ export async function POST(request: Request): Promise<Response> {
     return widgetResponse({ error: "Slow down" }, 429);
   }
 
-  let payload: { text?: unknown; name?: unknown };
+  let payload: { text?: unknown; name?: unknown; media?: unknown };
   try {
-    payload = (await request.json()) as { text?: unknown; name?: unknown };
+    payload = (await request.json()) as { text?: unknown; name?: unknown; media?: unknown };
   } catch {
     return widgetResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  if (typeof payload.text !== "string" || !payload.text.trim()) {
+  const hasText = typeof payload.text === "string" && payload.text.trim();
+
+  // Attachments are only trusted when they came back through our own upload route.
+  const media: MessageMedia[] = [];
+  if (Array.isArray(payload.media)) {
+    if (payload.media.length > 10) {
+      return widgetResponse({ error: "At most 10 attachments" }, 400);
+    }
+    for (const entry of payload.media) {
+      const item = entry as Partial<MessageMedia>;
+      if (
+        !item ||
+        typeof item.url !== "string" ||
+        !item.url.startsWith("/api/media?file=") ||
+        !isMediaKind(item.type)
+      ) {
+        return widgetResponse({ error: "Invalid attachment" }, 400);
+      }
+      media.push({
+        url: item.url,
+        type: item.type,
+        mimeType: typeof item.mimeType === "string" ? item.mimeType : "application/octet-stream",
+        name: typeof item.name === "string" ? item.name.slice(0, 200) : null,
+        size: typeof item.size === "number" ? item.size : null,
+      });
+    }
+  }
+
+  if (!hasText && media.length === 0) {
     return widgetResponse({ error: "Message cannot be empty" }, 400);
   }
 
-  const text = payload.text.slice(0, MAX_CHARS);
+  const text = hasText ? (payload.text as string).slice(0, MAX_CHARS) : "";
   const name = typeof payload.name === "string" ? payload.name.trim().slice(0, 80) : null;
+  const type: MessageType = media.length > 0 ? (media[0]?.type ?? "text") : "text";
 
   // recordInbound creates the contact and conversation on first contact, so the
   // session needs no state of its own before this point.
@@ -51,8 +85,9 @@ export async function POST(request: Request): Promise<Response> {
     externalId: randomUUID(),
     senderExternalId: session.sid,
     senderName: name || "Website visitor",
-    text,
-    type: "text",
+    text: text || null,
+    media,
+    type,
     createdAt: new Date(),
   });
 

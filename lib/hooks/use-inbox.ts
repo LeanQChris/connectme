@@ -226,7 +226,7 @@ export function useSendReply(conversationId: string | null) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send message");
-      return data as { message: Message };
+      return data as { message: Message; skipped?: string[]; supportedTypes?: string[] };
     },
 
     // When mutate is called:
@@ -269,7 +269,7 @@ export function useSendReply(conversationId: string | null) {
           ...previousDetail,
           conversation: {
             ...previousDetail.conversation,
-            lastMessage: text,
+            lastMessage: text || (media[0] ? `📎 ${media[0].name ?? media[0].type}` : null),
             lastMessageAt: now,
           },
           messages: [...previousDetail.messages, optimisticMessage],
@@ -284,7 +284,7 @@ export function useSendReply(conversationId: string | null) {
             conv.id === conversationId
               ? {
                   ...conv,
-                  lastMessage: text,
+                  lastMessage: text || (media[0] ? `📎 ${media[0].name ?? media[0].type}` : null),
                   lastMessageAt: now,
                 }
               : conv,
