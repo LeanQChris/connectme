@@ -18,6 +18,12 @@ const KEYS = [
   "discordPublicKey",
   "slackBotToken",
   "slackSigningSecret",
+  "twilioAccountSid",
+  "twilioAuthToken",
+  "twilioPhoneNumber",
+  "viberAuthToken",
+  "emailApiKey",
+  "emailFrom",
   "graphVersion",
   "aiProvider",
   "aiApiKey",
@@ -103,6 +109,9 @@ export async function PUT(request: Request): Promise<Response> {
     waPhoneNumberId: secrets.waPhoneNumberId || undefined,
     pageId: pageId || undefined,
     telegramBotId: botId ?? undefined,
+    twilioPhoneNumber: secrets.twilioPhoneNumber || undefined,
+    viberTokenPrefix: secrets.viberAuthToken ? secrets.viberAuthToken.slice(0, 12) : record?.viberTokenPrefix,
+    emailAddress: secrets.emailFrom || record?.emailAddress,
     widgetId: record?.widgetId,
     widgetAllowedOrigins:
       Array.isArray(payload.widgetAllowedOrigins) &&

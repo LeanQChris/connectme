@@ -149,3 +149,74 @@ export async function verifySlack(secrets: ProviderSecrets): Promise<VerifyResul
     return { ok: false, detail: err instanceof Error ? err.message : "Connection failed" };
   }
 }
+
+export async function verifySms(secrets: ProviderSecrets): Promise<VerifyResult> {
+  if (!secrets.twilioAccountSid || !secrets.twilioAuthToken) {
+    return { ok: false, detail: "Twilio Account SID and Auth Token are both required." };
+  }
+  try {
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(secrets.twilioAccountSid)}.json`,
+      {
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${secrets.twilioAccountSid}:${secrets.twilioAuthToken}`).toString("base64")}`,
+        },
+        cache: "no-store",
+      },
+    );
+    const payload = (await response.json().catch(() => null)) as {
+      friendly_name?: string;
+      message?: string;
+    } | null;
+    if (!response.ok || !payload?.friendly_name) {
+      return { ok: false, detail: payload?.message ?? `Twilio replied HTTP ${response.status}` };
+    }
+    return { ok: true, detail: `Connected to ${payload.friendly_name}` };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : "Connection failed" };
+  }
+}
+
+export async function verifyViber(secrets: ProviderSecrets): Promise<VerifyResult> {
+  const token = secrets.viberAuthToken?.trim();
+  if (!token) return { ok: false, detail: "Viber Auth Token is required." };
+  try {
+    const response = await fetch("https://chatapi.viber.com/pa/get_account_info", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Viber-Auth-Token": token },
+      body: "{}",
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      status?: number;
+      status_message?: string;
+      name?: string;
+    } | null;
+    if (!response.ok || payload?.status !== 0) {
+      return { ok: false, detail: payload?.status_message ?? `Viber replied HTTP ${response.status}` };
+    }
+    return { ok: true, detail: `Connected to ${payload?.name ?? "Viber bot"}` };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : "Connection failed" };
+  }
+}
+
+export async function verifyEmail(secrets: ProviderSecrets): Promise<VerifyResult> {
+  if (!secrets.emailApiKey || !secrets.emailFrom) {
+    return { ok: false, detail: "Email API key and sender address are both required." };
+  }
+  try {
+    // Resend exposes GET /domains to validate the key without sending.
+    const response = await fetch("https://api.resend.com/domains", {
+      headers: { Authorization: `Bearer ${secrets.emailApiKey}` },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      return { ok: false, detail: payload?.message ?? `Email provider replied HTTP ${response.status}` };
+    }
+    return { ok: true, detail: `Connected as ${secrets.emailFrom}` };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : "Connection failed" };
+  }
+}

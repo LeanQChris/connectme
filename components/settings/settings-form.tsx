@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ChannelIcon } from "@/components/inbox/channel-badge";
 import type { ConnectedAccount, SettingsPayload } from "@/lib/types";
 
-type TabId = "whatsapp" | "meta" | "telegram" | "discord" | "slack" | "widget" | "webhooks";
+type TabId = "whatsapp" | "meta" | "telegram" | "discord" | "slack" | "widget" | "sms" | "viber" | "email" | "webhooks";
 
 export default function SettingsForm({ initial }: { initial: SettingsPayload }) {
   const searchParams = useSearchParams();
@@ -93,6 +93,21 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   const [slackForm, setSlackForm] = useState({
     slackBotToken: "",
     slackSigningSecret: "",
+  });
+
+  const [smsForm, setSmsForm] = useState({
+    twilioAccountSid: "",
+    twilioAuthToken: "",
+    twilioPhoneNumber: "",
+  });
+
+  const [viberForm, setViberForm] = useState({
+    viberAuthToken: "",
+  });
+
+  const [emailForm, setEmailForm] = useState({
+    emailApiKey: "",
+    emailFrom: "",
   });
 
   const [showManualMeta, setShowManualMeta] = useState(false);
@@ -252,7 +267,7 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   }
 
   // Verification helper for WhatsApp, Page (Facebook/Instagram), Telegram, Discord, Slack
-  async function verifyChannel(channel: "whatsapp" | "page" | "telegram" | "discord" | "slack") {
+  async function verifyChannel(channel: "whatsapp" | "page" | "telegram" | "discord" | "slack" | "sms" | "viber" | "email") {
     setBusy(`verify-${channel}`);
     setChannelStatus((prev) => ({ ...prev, [channel]: { ok: true, detail: "Verifying…" } }));
 
@@ -414,6 +429,9 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
   const isTelegramConnected = data.settings.connected.telegram;
   const isDiscordConnected = data.settings.connected.discord;
   const isSlackConnected = data.settings.connected.slack;
+  const isSmsConnected = data.settings.connected.sms;
+  const isViberConnected = data.settings.connected.viber;
+  const isEmailConnected = data.settings.connected.email;
   const isWidgetEnabled = Boolean(data.settings.widgetId);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -576,6 +594,60 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
           <span
             className={`h-2 w-2 rounded-full ${
               isWidgetEnabled ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+            }`}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("sms")}
+          className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "sms"
+              ? "border-ink text-ink font-semibold"
+              : "border-transparent text-mute hover:text-body"
+          }`}
+        >
+          <ChannelIcon channel="sms" className="h-4 w-4 text-rose-500" />
+          <span>SMS</span>
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isSmsConnected ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+            }`}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("viber")}
+          className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "viber"
+              ? "border-ink text-ink font-semibold"
+              : "border-transparent text-mute hover:text-body"
+          }`}
+        >
+          <ChannelIcon channel="viber" className="h-4 w-4 text-violet-500" />
+          <span>Viber</span>
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isViberConnected ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
+            }`}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("email")}
+          className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "email"
+              ? "border-ink text-ink font-semibold"
+              : "border-transparent text-mute hover:text-body"
+          }`}
+        >
+          <ChannelIcon channel="email" className="h-4 w-4 text-amber-500" />
+          <span>Email</span>
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isEmailConnected ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-700"
             }`}
           />
         </button>
@@ -1592,6 +1664,202 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
         </div>
       )}
 
+      {activeTab === "sms" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-hairline">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                  <ChannelIcon channel="sms" className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-[16px] font-semibold text-ink">SMS &amp; MMS (Twilio)</h2>
+                  <p className="text-[12.5px] text-body">
+                    Send and receive SMS/MMS with a Twilio phone number.
+                  </p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium self-start sm:self-auto ${isSmsConnected ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-surface-well text-mute border border-hairline"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${isSmsConnected ? "bg-emerald-500" : "bg-neutral-400"}`} />
+                {isSmsConnected ? "Connected" : "Not connected"}
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {(
+                [
+                  { key: "twilioAccountSid", label: "Account SID", placeholder: "ACxxxxxxxxxxxxxxxx" },
+                  { key: "twilioAuthToken", label: "Auth Token", placeholder: "Auth token" },
+                  { key: "twilioPhoneNumber", label: "Phone Number (E.164)", placeholder: "+15551234567" },
+                ] as const
+              ).map((f) => (
+                <div className="flex flex-col gap-1.5" key={f.key}>
+                  <label className="text-[12.5px] font-medium text-ink">{f.label} <span className="text-error">*</span></label>
+                  <div className="relative">
+                    <input
+                      type={visibleSecrets[f.key] ? "text" : f.key === "twilioPhoneNumber" ? "text" : "password"}
+                      value={smsForm[f.key]}
+                      onChange={(e) => setSmsForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      placeholder={isSmsConnected ? "••••••••••••  (Active & Encrypted)" : f.placeholder}
+                      className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 pr-10 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                    />
+                    {f.key !== "twilioPhoneNumber" && (
+                      <button type="button" onClick={() => toggleSecret(f.key)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1">
+                        {visibleSecrets[f.key] ? "Hide" : "Show"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => void saveChannel({ ...smsForm }, "sms", "Twilio credentials saved!", () => setSmsForm({ twilioAccountSid: "", twilioAuthToken: "", twilioPhoneNumber: "" }))} disabled={busy !== null} className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer">
+                    {busy === "save-sms" ? "Saving…" : "Save Twilio Credentials"}
+                  </button>
+                  {isSmsConnected && (
+                    <button type="button" onClick={() => void verifyChannel("sms")} disabled={busy !== null} className="h-9 rounded-lg border border-hairline bg-canvas-elevated px-3 text-[13px] font-medium text-ink transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer">
+                      {busy === "verify-sms" ? "Testing…" : "Test Connection"}
+                    </button>
+                  )}
+                </div>
+                {channelStatus.sms && (
+                  <span className={`text-[12.5px] font-medium ${channelStatus.sms.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"}`}>{channelStatus.sms.detail}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "viber" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-hairline">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-500">
+                  <ChannelIcon channel="viber" className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-[16px] font-semibold text-ink">Viber Bot</h2>
+                  <p className="text-[12.5px] text-body">
+                    Messages and files through your Viber Public Account bot.
+                  </p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium self-start sm:self-auto ${isViberConnected ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-surface-well text-mute border border-hairline"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${isViberConnected ? "bg-emerald-500" : "bg-neutral-400"}`} />
+                {isViberConnected ? "Connected" : "Not connected"}
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-medium text-ink">Viber Auth Token <span className="text-error">*</span></label>
+                <div className="relative">
+                  <input
+                    type={visibleSecrets.viberAuthToken ? "text" : "password"}
+                    value={viberForm.viberAuthToken}
+                    onChange={(e) => setViberForm({ viberAuthToken: e.target.value })}
+                    placeholder={isViberConnected ? "••••••••••••  (Active & Encrypted)" : "Auth token from Viber Admin Panel"}
+                    className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 pr-10 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                  />
+                  <button type="button" onClick={() => toggleSecret("viberAuthToken")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1">
+                    {visibleSecrets.viberAuthToken ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <span className="text-[11px] text-mute">Create a bot in the Viber Admin Panel, then set the webhook URL from the Webhooks tab.</span>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => void saveChannel({ viberAuthToken: viberForm.viberAuthToken }, "viber", "Viber token saved!", () => setViberForm({ viberAuthToken: "" }))} disabled={busy !== null} className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer">
+                    {busy === "save-viber" ? "Saving…" : "Save Viber Token"}
+                  </button>
+                  {isViberConnected && (
+                    <button type="button" onClick={() => void verifyChannel("viber")} disabled={busy !== null} className="h-9 rounded-lg border border-hairline bg-canvas-elevated px-3 text-[13px] font-medium text-ink transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer">
+                      {busy === "verify-viber" ? "Testing…" : "Test Connection"}
+                    </button>
+                  )}
+                </div>
+                {channelStatus.viber && (
+                  <span className={`text-[12.5px] font-medium ${channelStatus.viber.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"}`}>{channelStatus.viber.detail}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "email" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-hairline bg-canvas-elevated p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-hairline">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                  <ChannelIcon channel="email" className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-[16px] font-semibold text-ink">Email</h2>
+                  <p className="text-[12.5px] text-body">
+                    Send via a Resend-compatible API key; receive through the inbound webhook URL.
+                  </p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium self-start sm:self-auto ${isEmailConnected ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-surface-well text-mute border border-hairline"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${isEmailConnected ? "bg-emerald-500" : "bg-neutral-400"}`} />
+                {isEmailConnected ? "Connected" : "Not connected"}
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-medium text-ink">API Key <span className="text-error">*</span></label>
+                <div className="relative">
+                  <input
+                    type={visibleSecrets.emailApiKey ? "text" : "password"}
+                    value={emailForm.emailApiKey}
+                    onChange={(e) => setEmailForm((prev) => ({ ...prev, emailApiKey: e.target.value }))}
+                    placeholder={isEmailConnected ? "••••••••••••  (Active & Encrypted)" : "re_..."}
+                    className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 pr-10 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                  />
+                  <button type="button" onClick={() => toggleSecret("emailApiKey")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-mute hover:text-ink text-xs p-1">
+                    {visibleSecrets.emailApiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-medium text-ink">Sender Address <span className="text-error">*</span></label>
+                <input
+                  type="text"
+                  value={emailForm.emailFrom}
+                  onChange={(e) => setEmailForm((prev) => ({ ...prev, emailFrom: e.target.value }))}
+                  placeholder={isEmailConnected ? "Saved & encrypted — enter a new one to replace" : "support@yoursite.com"}
+                  className="h-10 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-hairline">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => void saveChannel({ ...emailForm }, "email", "Email settings saved!", () => setEmailForm({ emailApiKey: "", emailFrom: "" }))} disabled={busy !== null} className="h-9 rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer">
+                    {busy === "save-email" ? "Saving…" : "Save Email Settings"}
+                  </button>
+                  {isEmailConnected && (
+                    <button type="button" onClick={() => void verifyChannel("email")} disabled={busy !== null} className="h-9 rounded-lg border border-hairline bg-canvas-elevated px-3 text-[13px] font-medium text-ink transition-colors hover:bg-surface-well disabled:opacity-50 cursor-pointer">
+                      {busy === "verify-email" ? "Testing…" : "Test Connection"}
+                    </button>
+                  )}
+                </div>
+                {channelStatus.email && (
+                  <span className={`text-[12.5px] font-medium ${channelStatus.email.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"}`}>{channelStatus.email.detail}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* =======================================================================
           TAB 7: WEBHOOKS & ENDPOINTS
          ======================================================================= */}
@@ -1639,6 +1907,30 @@ export default function SettingsForm({ initial }: { initial: SettingsPayload }) 
                   label="Slack Event Subscriptions Request URL"
                   value={data.webhookUrls.slack}
                   hint="Paste into Slack API Dashboard → Event Subscriptions → Request URL"
+                />
+              )}
+
+              {data.webhookUrls.sms && (
+                <CopyCard
+                  label="Twilio SMS Webhook URL"
+                  value={data.webhookUrls.sms}
+                  hint="Paste into Twilio Console → Phone Number → Messaging → A message comes in → Webhook"
+                />
+              )}
+
+              {data.webhookUrls.viber && (
+                <CopyCard
+                  label="Viber Webhook URL"
+                  value={data.webhookUrls.viber}
+                  hint="Register with Viber Admin Panel / set_webhook API"
+                />
+              )}
+
+              {data.webhookUrls.email && (
+                <CopyCard
+                  label="Inbound Email Webhook URL"
+                  value={data.webhookUrls.email}
+                  hint="Configure your email provider's inbound webhook (e.g. Postmark) to POST here"
                 />
               )}
             </div>

@@ -11,6 +11,9 @@ export const CHANNELS = [
   "discord",
   "slack",
   "widget",
+  "sms",
+  "viber",
+  "email",
 ] as const;
 export type Channel = (typeof CHANNELS)[number];
 
@@ -199,7 +202,7 @@ export interface TenantUser {
 /** A connected social messaging account (Facebook Page, Instagram handle, etc.) */
 export interface ConnectedAccount {
   id: string;
-  provider: "meta" | "telegram" | "discord" | "whatsapp" | "slack" | "widget";
+  provider: "meta" | "telegram" | "discord" | "whatsapp" | "slack" | "widget" | "sms" | "viber" | "email";
   channel: Channel;
   name: string;
   externalId: string;
@@ -232,6 +235,14 @@ export interface ProviderSecrets {
   discordPublicKey: string;
   slackBotToken: string;
   slackSigningSecret: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioPhoneNumber: string;
+  viberAuthToken: string;
+  /** Email API key for outbound (Resend-compatible). */
+  emailApiKey: string;
+  /** Sender address, e.g. support@yoursite.com. */
+  emailFrom: string;
   graphVersion: string;
   /** BYOK: which AI provider the tenant's key unlocks. */
   aiProvider?: string;
@@ -255,6 +266,12 @@ export const EMPTY_SECRETS: ProviderSecrets = {
   discordPublicKey: "",
   slackBotToken: "",
   slackSigningSecret: "",
+  twilioAccountSid: "",
+  twilioAuthToken: "",
+  twilioPhoneNumber: "",
+  viberAuthToken: "",
+  emailApiKey: "",
+  emailFrom: "",
   graphVersion: "",
 };
 
@@ -266,7 +283,10 @@ export type ConnectionFlag =
   | "telegram"
   | "discord"
   | "slack"
-  | "widget";
+  | "widget"
+  | "sms"
+  | "viber"
+  | "email";
 
 /** A reply queued in a website visitor's browser until they poll for it. */
 export interface WidgetOutboxItem {
@@ -305,6 +325,12 @@ export interface CredentialRecord {
   slackBotId?: string;
   /** Public id of this tenant's website widget; routes widget API calls. */
   widgetId?: string;
+  /** Twilio phone number in E.164; routes SMS webhooks. */
+  twilioPhoneNumber?: string;
+  /** Viber bot token prefix; routes Viber webhooks. */
+  viberTokenPrefix?: string;
+  /** Sender email address; routes inbound email webhooks. */
+  emailAddress?: string;
   /** Extra origins allowed to call the widget API; empty/absent means any site. */
   widgetAllowedOrigins?: string[];
   updatedAt: string;
@@ -365,5 +391,8 @@ export interface SettingsPayload {
     telegram: string | null;
     discord: string | null;
     slack: string | null;
+    sms: string | null;
+    viber: string | null;
+    email: string | null;
   };
 }

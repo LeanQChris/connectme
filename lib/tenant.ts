@@ -67,6 +67,12 @@ export async function tenantSecrets(userId: string): Promise<ProviderSecrets> {
       discordPublicKey: "",
       slackBotToken: "",
       slackSigningSecret: "",
+      twilioAccountSid: "",
+      twilioAuthToken: "",
+      twilioPhoneNumber: "",
+      viberAuthToken: "",
+      emailApiKey: "",
+      emailFrom: "",
       graphVersion: GRAPH_VERSION_FALLBACK,
     },
   );
@@ -97,6 +103,9 @@ function connectedFlags(
       Boolean(secrets.slackBotToken) ||
       accounts.some((a) => a.channel === "slack"),
     widget: Boolean(record?.widgetId),
+    sms: Boolean(secrets.twilioAccountSid && secrets.twilioAuthToken && secrets.twilioPhoneNumber),
+    viber: Boolean(secrets.viberAuthToken),
+    email: Boolean(secrets.emailApiKey && secrets.emailFrom),
   };
 }
 
@@ -188,6 +197,15 @@ export async function settingsPayload(
       telegram: botId ? `${origin}/api/webhook/telegram/${botId}` : null,
       discord: `${origin}/api/webhook/discord`,
       slack: `${origin}/api/webhook/slack`,
+      sms: settings.secrets.twilioPhoneNumber
+        ? `${origin}/api/webhook/sms/${encodeURIComponent(settings.secrets.twilioPhoneNumber)}`
+        : null,
+      viber: settings.secrets.viberAuthToken
+        ? `${origin}/api/webhook/viber/${settings.secrets.viberAuthToken.slice(0, 12)}`
+        : null,
+      email: settings.secrets.emailFrom
+        ? `${origin}/api/webhook/email/${encodeURIComponent(settings.secrets.emailFrom)}`
+        : null,
     },
   };
 }
@@ -456,6 +474,61 @@ export async function syncProviderMetadata(userId: string): Promise<ConnectedAcc
     }
   }
 
+  // 6. Twilio SMS
+  if (secrets.twilioAccountSid && secrets.twilioAuthToken && secrets.twilioPhoneNumber) {
+    discovered.push({
+      id: `twilio_${secrets.twilioPhoneNumber}`,
+      provider: "sms",
+      channel: "sms",
+      name: secrets.twilioPhoneNumber,
+      externalId: secrets.twilioPhoneNumber,
+      token: secrets.twilioAuthToken,
+      connectedAt: now,
+    });
+  }
+
+  // 7. Viber
+  if (secrets.viberAuthToken) {
+    try {
+      const viberRes = await fetch("https://chatapi.viber.com/pa/get_account_info", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Viber-Auth-Token": secrets.viberAuthToken.trim(),
+        },
+        body: "{}",
+        cache: "no-store",
+      });
+      const viberData = await viberRes.json().catch(() => null);
+      if (viberRes.ok && viberData?.status === 0 && viberData?.id) {
+        discovered.push({
+          id: `viber_${viberData.id}`,
+          provider: "viber",
+          channel: "viber",
+          name: viberData.name ?? "Viber Bot",
+          externalId: secrets.viberAuthToken.slice(0, 12),
+          token: secrets.viberAuthToken,
+          connectedAt: now,
+        });
+      }
+    } catch (err) {
+      console.warn("[sync] Viber discovery failed:", err);
+    }
+  }
+
+  // 8. Email
+  if (secrets.emailApiKey && secrets.emailFrom) {
+    discovered.push({
+      id: `email_${secrets.emailFrom}`,
+      provider: "email",
+      channel: "email",
+      name: secrets.emailFrom,
+      externalId: secrets.emailFrom,
+      token: secrets.emailApiKey,
+      connectedAt: now,
+    });
+  }
+
   if (discovered.length > 0) {
     await addOrUpdateConnectedAccounts(userId, discovered);
   }
@@ -552,6 +625,24 @@ export async function tenantByTelegramBotId(botId: string): Promise<CredentialRe
 }
 
 /** The tenant behind a website widget embed id. */
+export async function tenantByTwilioPhoneNumber(phoneNumber: string): Promise<CredentialRecord | null> {
+  const { credentialsByRoutingId } = await import("./store");
+  const [record] = await credentialsByRoutingId({ twilioPhoneNumber: phoneNumber });
+  return record ?? null;
+}
+
+export async function tenantByViberTokenPrefix(prefix: string): Promise<CredentialRecord | null> {
+  const { credentialsByRoutingId } = await import("./store");
+  const [record] = await credentialsByRoutingId({ viberTokenPrefix: prefix });
+  return record ?? null;
+}
+
+export async function tenantByEmailAddress(address: string): Promise<CredentialRecord | null> {
+  const { credentialsByRoutingId } = await import("./store");
+  const [record] = await credentialsByRoutingId({ emailAddress: address });
+  return record ?? null;
+}
+
 export async function tenantByWidgetId(widgetId: string): Promise<CredentialRecord | null> {
   if (!widgetId) return null;
   const { credentialsByRoutingId } = await import("./store");

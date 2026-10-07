@@ -411,7 +411,9 @@ function summarize(conv: Conversation, data: StoreData): ConversationSummary | n
       contact.channel === "telegram" ||
       contact.channel === "discord" ||
       contact.channel === "slack" ||
-      contact.channel === "widget"
+      contact.channel === "widget" ||
+      contact.channel === "sms" ||
+      contact.channel === "email"
         ? { open: true, msRemaining: null }
         : replyWindow(conv.lastInboundAt),
   };
@@ -1496,6 +1498,9 @@ export async function credentialsByRoutingId(field: {
   pageId?: string;
   telegramBotId?: string;
   widgetId?: string;
+  twilioPhoneNumber?: string;
+  viberTokenPrefix?: string;
+  emailAddress?: string;
 }): Promise<CredentialRecord[]> {
   const data = await read();
   return data.credentials.filter((c) => {
@@ -1504,6 +1509,9 @@ export async function credentialsByRoutingId(field: {
       if (field.pageId && acc.externalId === field.pageId) return true;
       if (field.waPhoneNumberId && acc.externalId === field.waPhoneNumberId) return true;
       if (field.telegramBotId && acc.externalId === field.telegramBotId) return true;
+      if (field.twilioPhoneNumber && acc.externalId === field.twilioPhoneNumber) return true;
+      if (field.viberTokenPrefix && acc.externalId === field.viberTokenPrefix) return true;
+      if (field.emailAddress && acc.externalId === field.emailAddress) return true;
       return false;
     });
     if (hasAccountMatch) return true;
@@ -1513,6 +1521,9 @@ export async function credentialsByRoutingId(field: {
     if (field.pageId && c.pageId === field.pageId) return true;
     if (field.telegramBotId && c.telegramBotId === field.telegramBotId) return true;
     if (field.widgetId && c.widgetId === field.widgetId) return true;
+    if (field.twilioPhoneNumber && c.twilioPhoneNumber === field.twilioPhoneNumber) return true;
+    if (field.viberTokenPrefix && c.viberTokenPrefix === field.viberTokenPrefix) return true;
+    if (field.emailAddress && c.emailAddress === field.emailAddress) return true;
 
     return false;
   });

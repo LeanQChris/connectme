@@ -1,5 +1,8 @@
 import type { Channel } from "../types";
 import { discordAdapter } from "./discord";
+import { emailAdapter } from "./email";
+import { smsAdapter } from "./sms";
+import { viberAdapter } from "./viber";
 import { instagramAdapter } from "./instagram";
 import { messengerAdapter } from "./messenger";
 import { slackAdapter } from "./slack";
@@ -23,6 +26,9 @@ const adapters: Partial<Record<Channel, ChannelAdapter>> = {
   discord: discordAdapter,
   slack: slackAdapter,
   widget: widgetAdapter,
+  sms: smsAdapter,
+  viber: viberAdapter,
+  email: emailAdapter,
 };
 
 export function getChannel(channel: Channel): ChannelAdapter | undefined {

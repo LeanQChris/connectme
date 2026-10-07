@@ -1,9 +1,9 @@
-import { verifyDiscord, verifyPage, verifySlack, verifyTelegram, verifyWhatsApp } from "@/lib/providers";
+import { verifyDiscord, verifyEmail, verifyPage, verifySlack, verifySms, verifyTelegram, verifyViber, verifyWhatsApp } from "@/lib/providers";
 import { requireUserId, syncProviderMetadata, tenantSecrets } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
-const CHANNELS = ["whatsapp", "page", "telegram", "discord", "slack"] as const;
+const CHANNELS = ["whatsapp", "page", "telegram", "discord", "slack", "sms", "viber", "email"] as const;
 type Channel = (typeof CHANNELS)[number];
 
 /**
@@ -41,6 +41,15 @@ export async function POST(request: Request): Promise<Response> {
       break;
     case "slack":
       res = await verifySlack(secrets);
+      break;
+    case "sms":
+      res = await verifySms(secrets);
+      break;
+    case "viber":
+      res = await verifyViber(secrets);
+      break;
+    case "email":
+      res = await verifyEmail(secrets);
       break;
     default:
       res = await verifyTelegram(secrets);

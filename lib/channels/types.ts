@@ -65,6 +65,9 @@ const SUPPORT: Record<Channel, MediaKind[]> = {
   discord: ["image", "audio", "video", "document"],
   slack: ["image", "audio", "video", "document"],
   widget: ["image", "audio", "video", "document"],
+  sms: ["image"],
+  viber: ["image", "video", "document"],
+  email: ["image", "audio", "video", "document"],
 };
 
 export function supportedMediaKinds(channel: Channel): MediaKind[] {
