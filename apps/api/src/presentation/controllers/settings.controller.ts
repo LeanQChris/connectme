@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Query, Body, Inject } from "@nestjs/common";
+import { Controller, Get, Post, Query, Body, Inject, Req } from "@nestjs/common";
+import type { Request } from "express";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
 import { AesVaultService } from "@connectme/channels";
 import { ChannelType } from "@connectme/database";
@@ -13,6 +14,7 @@ import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
 import { ensureWebhookVerifyToken } from "../webhook-verify-token";
 import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import { SaveSettingsBodySchema, ChannelSchema } from "../validation/schemas";
+import { resolveAppUrl } from "./auth-meta.controller";
 
 @Controller("api/settings")
 export class SettingsController {
@@ -23,7 +25,10 @@ export class SettingsController {
   ) {}
 
   @Get()
-  async getSettings(@TenantId() tenantId: string): Promise<SettingsPayloadDto> {
+  async getSettings(
+    @TenantId() tenantId: string,
+    @Req() req?: Request,
+  ): Promise<SettingsPayloadDto> {
     const creds = await this.tenantRepo.getCredentials(tenantId);
     const accounts = await this.tenantRepo.findConnectedAccounts(tenantId);
 
@@ -38,7 +43,7 @@ export class SettingsController {
       ai: Boolean(creds?.aiApiKeyEnc),
     };
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+    const baseUrl = resolveAppUrl(req);
 
     const mappedAccounts: ConnectedAccountDto[] = accounts.map((a) => ({
       id: a.id,
@@ -90,7 +95,10 @@ export class SettingsController {
         },
       },
       oauth: {
-        metaConfigured: Boolean(process.env.META_CLIENT_ID && process.env.META_CLIENT_SECRET),
+        metaConfigured: Boolean(
+          (process.env.META_CLIENT_ID || process.env.META_APP_ID || process.env.APP_ID) &&
+          (process.env.META_CLIENT_SECRET || process.env.META_APP_SECRET || process.env.APP_SECRET),
+        ),
       },
       webhookUrls: {
         meta: `${baseUrl}/api/webhook/meta`,

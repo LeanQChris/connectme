@@ -86,7 +86,7 @@ export function WhatsAppTemplateManager() {
       setDraftHeaderText("");
       setDraftBodyText("");
       setDraftFooterText("");
-      setSuccess("Template saved successfully!");
+      setSuccess("Template draft saved successfully!");
       setTimeout(() => setSuccess(null), 4000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create template draft");
@@ -96,7 +96,7 @@ export function WhatsAppTemplateManager() {
   };
 
   return (
-    <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-xs space-y-6">
+    <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-2xs space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hairline pb-4">
         <div>
@@ -109,11 +109,11 @@ export function WhatsAppTemplateManager() {
             </span>
           </div>
           <p className="text-[12.5px] text-mute mt-0.5">
-            Meta-approved message templates used to initiate conversations or bypass the 24-hour reply window limit.
+            Meta-approved message templates used to initiate conversations or re-engage customers outside the 24-hour window limit.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             type="button"
             variant="outline"
@@ -122,7 +122,7 @@ export function WhatsAppTemplateManager() {
             onClick={handleSync}
             className="h-8 text-[12px] cursor-pointer"
           >
-            {syncing ? "Syncing…" : "🔄 Sync from Meta WABA"}
+            {syncing ? "Syncing…" : "🔄 Sync from Meta"}
           </Button>
           <Button
             type="button"
@@ -137,14 +137,16 @@ export function WhatsAppTemplateManager() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-error/30 bg-error/10 p-3 text-[12px] text-error">
-          {error}
+        <div className="rounded-xl border border-error/30 bg-error/10 p-3.5 text-[12.5px] text-error flex items-center justify-between">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="cursor-pointer">✕</button>
         </div>
       )}
 
       {success && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-[12px] text-emerald-700 dark:text-emerald-300">
-          {success}
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-[12.5px] text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+          <span>✓ {success}</span>
+          <button type="button" onClick={() => setSuccess(null)} className="cursor-pointer">✕</button>
         </div>
       )}
 
@@ -157,7 +159,7 @@ export function WhatsAppTemplateManager() {
         </div>
       ) : templates.length === 0 ? (
         <div className="py-8 text-center text-mute text-[13px]">
-          No WhatsApp templates configured yet. Click Sync or Create Template above.
+          No WhatsApp templates configured yet. Click Sync from Meta or Create Template above.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,9 +173,9 @@ export function WhatsAppTemplateManager() {
             return (
               <div
                 key={tmpl.id}
-                className="flex flex-col justify-between rounded-xl border border-hairline bg-canvas p-4 shadow-2xs hover:border-ink transition-colors"
+                className="flex flex-col justify-between rounded-xl border border-hairline bg-canvas p-4 shadow-2xs hover:border-hairline-strong transition-colors"
               >
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-[13px] font-semibold text-ink">
                       {tmpl.name}
@@ -194,7 +196,7 @@ export function WhatsAppTemplateManager() {
                     </div>
                   )}
 
-                  <p className="text-[12.5px] text-body leading-relaxed bg-surface-well/50 rounded-lg p-2.5 font-sans whitespace-pre-wrap">
+                  <p className="text-[12.5px] text-body leading-relaxed bg-surface-well/50 rounded-lg p-3 font-sans whitespace-pre-wrap">
                     {bodyComp?.text || "No body text"}
                   </p>
 
@@ -205,7 +207,7 @@ export function WhatsAppTemplateManager() {
                   )}
                 </div>
 
-                <div className="mt-3 flex items-center justify-between border-t border-hairline pt-2 font-mono text-[10.5px] text-mute">
+                <div className="mt-3 flex items-center justify-between border-t border-hairline pt-2.5 font-mono text-[10.5px] text-mute">
                   <span>Language: {tmpl.language}</span>
                   {buttonComp?.buttons && buttonComp.buttons.length > 0 && (
                     <span>{buttonComp.buttons.length} Quick Reply Buttons</span>
@@ -226,7 +228,7 @@ export function WhatsAppTemplateManager() {
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-mute hover:text-ink cursor-pointer"
+                className="text-mute hover:text-ink cursor-pointer text-sm"
               >
                 ✕
               </button>
@@ -234,7 +236,7 @@ export function WhatsAppTemplateManager() {
 
             <form onSubmit={handleCreateDraft} className="space-y-4">
               <div>
-                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
+                <label className="block text-[12px] font-semibold text-ink mb-1">
                   Template Name (lowercase with underscores)
                 </label>
                 <input
@@ -243,18 +245,18 @@ export function WhatsAppTemplateManager() {
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value)}
                   placeholder="e.g. order_shipment_notice"
-                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink font-mono placeholder:text-mute focus:border-ink focus:outline-none"
+                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink font-mono placeholder:text-mute focus:border-ink/50 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
+                <label className="block text-[12px] font-semibold text-ink mb-1">
                   Category
                 </label>
                 <select
                   value={draftCategory}
                   onChange={(e) => setDraftCategory(e.target.value as WhatsAppTemplateCategory)}
-                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink focus:border-ink focus:outline-none"
+                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink focus:border-ink/50 focus:outline-none"
                 >
                   <option value="UTILITY">UTILITY (Order, Account, Support updates)</option>
                   <option value="MARKETING">MARKETING (Offers, announcements)</option>
@@ -263,42 +265,42 @@ export function WhatsAppTemplateManager() {
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
-                  Header Text (Optional)
+                <label className="block text-[12px] font-semibold text-ink mb-1">
+                  Header Text <span className="text-mute font-normal text-[11px]">(Optional)</span>
                 </label>
                 <input
                   type="text"
                   value={draftHeaderText}
                   onChange={(e) => setDraftHeaderText(e.target.value)}
                   placeholder="e.g. Order Update"
-                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
-                  Body Text (Use {"{{1}}"}, {"{{2}}"} for placeholders)
+                <label className="block text-[12px] font-semibold text-ink mb-1">
+                  Body Text (Use {"{{1}}"}, {"{{2}}"} for parameters)
                 </label>
                 <textarea
                   rows={4}
                   required
                   value={draftBodyText}
                   onChange={(e) => setDraftBodyText(e.target.value)}
-                  placeholder="Hi {{1}}, your order {{2}} is on its way!"
-                  className="w-full rounded-lg border border-hairline bg-canvas p-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none leading-relaxed resize-y"
+                  placeholder="Hi {{1}}, your order {{2}} has shipped!"
+                  className="w-full rounded-lg border border-hairline bg-canvas p-3 text-[13px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none leading-relaxed resize-y"
                 />
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
-                  Footer Text (Optional)
+                <label className="block text-[12px] font-semibold text-ink mb-1">
+                  Footer Text <span className="text-mute font-normal text-[11px]">(Optional)</span>
                 </label>
                 <input
                   type="text"
                   value={draftFooterText}
                   onChange={(e) => setDraftFooterText(e.target.value)}
                   placeholder="e.g. Reply STOP to opt out"
-                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
                 />
               </div>
 
@@ -308,7 +310,7 @@ export function WhatsAppTemplateManager() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowCreateModal(false)}
-                  className="h-9"
+                  className="h-8 px-3 text-[12px]"
                 >
                   Cancel
                 </Button>
@@ -317,7 +319,7 @@ export function WhatsAppTemplateManager() {
                   variant="primary"
                   size="sm"
                   disabled={savingDraft}
-                  className="h-9 px-5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
+                  className="h-8 px-4 text-[12px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
                 >
                   {savingDraft ? "Saving…" : "Save Template"}
                 </Button>

@@ -20,6 +20,12 @@ export const settingsApi = {
     });
   },
 
+  getMetaAuthUrl: () => {
+    return httpClient<{ authUrl: string }>("/api/auth/meta/url", {
+      cache: "no-store",
+    });
+  },
+
   setupTelegram: (url: string) => {
     return httpClient<{ status?: string; result?: unknown; webhookUrl?: string }>(
       `/api/telegram/setup?url=${encodeURIComponent(url)}`,

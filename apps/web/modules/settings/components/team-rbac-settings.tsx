@@ -112,19 +112,26 @@ export function TeamRbacSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="rounded-xl border border-hairline bg-canvas-elevated shadow-xs overflow-hidden">
-        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas-elevated">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-well border border-hairline text-ink">
-              👥
+      {/* 1. Header Banner & Team Directory */}
+      <div className="rounded-xl border border-hairline bg-canvas-elevated shadow-2xs overflow-hidden">
+        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-canvas-elevated">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-well border border-hairline text-ink shadow-2xs">
+              <svg className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-[16px] font-semibold text-ink">
                   Team Members & RBAC Roles
                 </h2>
-                <span className="rounded bg-surface-well px-1.5 py-0.2 font-mono text-[9.5px] font-medium text-mute border border-hairline">
+                <span className="rounded bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] font-medium text-mute border border-hairline">
                   {members.length} Members
                 </span>
               </div>
@@ -139,47 +146,49 @@ export function TeamRbacSettings() {
             variant="primary"
             size="sm"
             onClick={() => setShowInviteModal(true)}
-            className="h-8 px-3 text-[12.5px] font-medium shrink-0"
+            className="h-8 px-3.5 text-[12px] font-semibold shrink-0 cursor-pointer"
           >
             + Invite Member
           </Button>
         </div>
 
         {error && (
-          <div className="mt-4 rounded-lg border border-error/30 bg-error/10 p-3 text-[12px] text-error">
-            {error}
+          <div className="m-6 rounded-xl border border-error/30 bg-error/10 p-3.5 text-[12.5px] text-error flex items-center justify-between">
+            <span>{error}</span>
+            <button type="button" onClick={() => setError(null)} className="cursor-pointer">✕</button>
           </div>
         )}
 
         {success && (
-          <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-[12px] text-emerald-700 dark:text-emerald-300">
-            {success}
+          <div className="m-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-[12.5px] text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+            <span>✓ {success}</span>
+            <button type="button" onClick={() => setSuccess(null)} className="cursor-pointer">✕</button>
           </div>
         )}
 
         {/* Member Table */}
-        <div className="mt-5 overflow-x-auto">
+        <div className="overflow-x-auto">
           {loading ? (
-            <div className="space-y-3 py-2">
+            <div className="space-y-3 p-6">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-14 animate-pulse rounded-xl border border-hairline bg-surface-well/50" />
+                <div key={i} className="h-12 animate-pulse rounded-lg border border-hairline bg-surface-well/50" />
               ))}
             </div>
           ) : members.length === 0 ? (
-            <div className="py-8 text-center text-mute text-[13px]">
+            <div className="py-12 text-center text-mute text-[13px]">
               No members found in this team.
             </div>
           ) : (
             <table className="w-full text-left text-[13px]">
               <thead>
-                <tr className="border-b border-hairline font-mono text-[10.5px] uppercase tracking-wider text-mute">
-                  <th className="pb-3 pl-2">User / Email</th>
-                  <th className="pb-3">Role</th>
-                  <th className="pb-3">Permissions</th>
-                  <th className="pb-3 pr-2 text-right">Actions</th>
+                <tr className="border-b border-hairline bg-surface-well/30 font-mono text-[10.5px] uppercase tracking-wider text-mute">
+                  <th className="py-3 px-6">User / Email</th>
+                  <th className="py-3 px-4">Role</th>
+                  <th className="py-3 px-4">Permissions</th>
+                  <th className="py-3 px-6 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-hairline">
+              <tbody className="divide-y divide-hairline bg-canvas">
                 {members.map((m) => {
                   const roleStyle = ROLE_BADGE_STYLES[m.role] || ROLE_BADGE_STYLES.agent;
                   const perm = ROLE_PERMISSIONS[m.role];
@@ -187,18 +196,18 @@ export function TeamRbacSettings() {
                   const initials = (m.firstName?.[0] || m.email[0] || "U").toUpperCase();
 
                   return (
-                    <tr key={m.id} className="group hover:bg-surface-well/40 transition-colors">
+                    <tr key={m.id} className="group hover:bg-surface-well/30 transition-colors">
                       {/* Name / Email */}
-                      <td className="py-3.5 pl-2">
+                      <td className="py-3.5 px-6">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/20 to-purple-600/20 border border-hairline text-ink font-semibold text-xs shadow-2xs">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-well border border-hairline text-ink font-semibold text-xs shadow-2xs">
                             {initials}
                           </div>
-                          <div>
-                            <span className="font-semibold text-ink block">
+                          <div className="min-w-0">
+                            <span className="font-semibold text-ink block truncate">
                               {fullName || m.email.split("@")[0]}
                             </span>
-                            <span className="font-mono text-[11px] text-mute block">
+                            <span className="font-mono text-[11px] text-mute block truncate">
                               {m.email}
                             </span>
                           </div>
@@ -206,7 +215,7 @@ export function TeamRbacSettings() {
                       </td>
 
                       {/* Role Selector */}
-                      <td className="py-3.5">
+                      <td className="py-3.5 px-4">
                         <select
                           value={m.role}
                           disabled={updatingMemberId === m.id}
@@ -221,20 +230,20 @@ export function TeamRbacSettings() {
                       </td>
 
                       {/* Permissions description */}
-                      <td className="py-3.5">
+                      <td className="py-3.5 px-4">
                         <p className="max-w-xs text-[11.5px] text-mute leading-snug">
                           {perm?.description || "Team member"}
                         </p>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 pr-2 text-right">
+                      <td className="py-3.5 px-6 text-right">
                         {m.role !== "owner" && (
                           <button
                             type="button"
                             disabled={updatingMemberId === m.id}
                             onClick={() => handleRemove(m.id)}
-                            className="rounded px-2 py-1 text-[11.5px] text-error hover:bg-error/10 transition-colors cursor-pointer disabled:opacity-50"
+                            className="rounded px-2.5 py-1 text-[11.5px] text-error hover:bg-error/10 transition-colors cursor-pointer disabled:opacity-50"
                           >
                             Remove
                           </button>
@@ -249,10 +258,10 @@ export function TeamRbacSettings() {
         </div>
       </div>
 
-      {/* Permissions Matrix Reference Card */}
-      <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-xs space-y-4">
-        <h4 className="font-mono text-[11.5px] font-semibold uppercase tracking-wider text-ink">
-          Role Permissions Reference
+      {/* 2. Permissions Matrix Reference Card */}
+      <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-2xs space-y-4">
+        <h4 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-mute">
+          Role Permissions Matrix Reference
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {(Object.keys(ROLE_PERMISSIONS) as UserRole[]).map((rKey) => {
@@ -272,19 +281,27 @@ export function TeamRbacSettings() {
                 <div className="space-y-1.5 border-t border-hairline pt-2 text-[11px] font-mono">
                   <div className="flex items-center justify-between">
                     <span className="text-mute">Channels & BYOK:</span>
-                    <span>{r.canManageChannels ? "✓ Yes" : "✕ No"}</span>
+                    <span className={r.canManageChannels ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-mute"}>
+                      {r.canManageChannels ? "✓ Yes" : "✕ No"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-mute">Reply to Inboxes:</span>
-                    <span>{r.canReplyMessages ? "✓ Yes" : "✕ No"}</span>
+                    <span className={r.canReplyMessages ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-mute"}>
+                      {r.canReplyMessages ? "✓ Yes" : "✕ No"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-mute">Post Scheduling:</span>
-                    <span>{r.canPostScheduled ? "✓ Yes" : "✕ No"}</span>
+                    <span className={r.canPostScheduled ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-mute"}>
+                      {r.canPostScheduled ? "✓ Yes" : "✕ No"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-mute">Team Management:</span>
-                    <span>{r.canManageTeam ? "✓ Yes" : "✕ No"}</span>
+                    <span className={r.canManageTeam ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-mute"}>
+                      {r.canManageTeam ? "✓ Yes" : "✕ No"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -293,7 +310,7 @@ export function TeamRbacSettings() {
         </div>
       </div>
 
-      {/* Invite Member Modal */}
+      {/* 3. Invite Member Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-2xl border border-hairline bg-canvas-elevated p-6 shadow-2xl space-y-4">
@@ -302,7 +319,7 @@ export function TeamRbacSettings() {
               <button
                 type="button"
                 onClick={() => setShowInviteModal(false)}
-                className="text-mute hover:text-ink cursor-pointer"
+                className="text-mute hover:text-ink cursor-pointer text-sm"
               >
                 ✕
               </button>
@@ -310,7 +327,7 @@ export function TeamRbacSettings() {
 
             <form onSubmit={handleInviteSubmit} className="space-y-4">
               <div>
-                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
+                <label className="block text-[12px] font-semibold text-ink mb-1">
                   Email Address <span className="text-error">*</span>
                 </label>
                 <input
@@ -319,13 +336,13 @@ export function TeamRbacSettings() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="colleague@yourcompany.com"
-                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
+                  <label className="block text-[12px] font-semibold text-ink mb-1">
                     First Name
                   </label>
                   <input
@@ -333,11 +350,11 @@ export function TeamRbacSettings() {
                     value={inviteFirstName}
                     onChange={(e) => setInviteFirstName(e.target.value)}
                     placeholder="Sarah"
-                    className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                    className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
+                  <label className="block text-[12px] font-semibold text-ink mb-1">
                     Last Name
                   </label>
                   <input
@@ -345,19 +362,19 @@ export function TeamRbacSettings() {
                     value={inviteLastName}
                     onChange={(e) => setInviteLastName(e.target.value)}
                     placeholder="Connor"
-                    className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                    className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-ink mb-1">
+                <label className="block text-[12px] font-semibold text-ink mb-1">
                   Select Role
                 </label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as UserRole)}
-                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink focus:border-ink focus:outline-none"
+                  className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-[13px] text-ink focus:border-ink/50 focus:outline-none"
                 >
                   <option value="admin">🛡️ Admin — Can manage channels, AI BYOK & team</option>
                   <option value="agent">💬 Support Agent — Can reply, schedule & add notes</option>
@@ -371,7 +388,7 @@ export function TeamRbacSettings() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowInviteModal(false)}
-                  className="h-9"
+                  className="h-8 px-3 text-[12px]"
                 >
                   Cancel
                 </Button>
@@ -380,9 +397,9 @@ export function TeamRbacSettings() {
                   variant="primary"
                   size="sm"
                   disabled={inviting}
-                  className="h-9 px-5 bg-purple-600 hover:bg-purple-700 text-white cursor-pointer shadow-2xs"
+                  className="h-8 px-4 text-[12px] font-semibold"
                 >
-                  {inviting ? "Inviting…" : "Send Invite"}
+                  {inviting ? "Inviting…" : "Send Invitation"}
                 </Button>
               </div>
             </form>

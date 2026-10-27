@@ -4,11 +4,13 @@ import {
   Post,
   Query,
   Body,
+  Req,
   Res,
   Inject,
   Logger,
+  BadRequestException,
 } from "@nestjs/common";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { createHash, randomBytes } from "node:crypto";
 import { ChannelType } from "@connectme/database";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
@@ -27,6 +29,50 @@ function base64Url(buf: Buffer): string {
   return buf.toString("base64url");
 }
 
+export function resolveAppUrl(req?: Request): string {
+  if (!req || !req.headers) {
+    return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+  }
+
+  const forwardedHost = req.headers["x-forwarded-host"];
+  if (forwardedHost) {
+    const host = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost;
+    const proto =
+      (req.headers["x-forwarded-proto"] as string) ||
+      (host.includes("localhost") ? "http" : "https");
+    return `${proto}://${host}`;
+  }
+
+  const host = req.headers["host"];
+  if (host) {
+    const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+    const proto = isLocal ? "http" : "https";
+    return `${proto}://${host}`;
+  }
+
+  const origin = req.headers["origin"];
+  if (origin && typeof origin === "string" && !origin.includes("facebook.com")) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.origin && parsed.origin !== "null") return parsed.origin;
+    } catch {
+      // ignore
+    }
+  }
+
+  const referer = req.headers["referer"];
+  if (referer && typeof referer === "string" && !referer.includes("facebook.com")) {
+    try {
+      const parsed = new URL(referer);
+      if (parsed.origin && parsed.origin !== "null") return parsed.origin;
+    } catch {
+      // ignore
+    }
+  }
+
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+}
+
 @Controller("api/auth/meta")
 export class AuthMetaController {
   private readonly logger = new Logger(AuthMetaController.name);
@@ -38,14 +84,21 @@ export class AuthMetaController {
     private readonly idempotency: IdempotencyLockService,
   ) {}
 
-  @Get("connect")
-  connect(@TenantId() tenantId: string, @Res() res: Response) {
-    const appId = process.env.META_CLIENT_ID || process.env.META_APP_ID;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+  private generateAuthUrl(
+    tenantId: string,
+    req?: Request,
+  ): { authUrl: string; redirectUri: string } {
+    const appId =
+      process.env.META_CLIENT_ID ||
+      process.env.META_APP_ID ||
+      process.env.APP_ID;
+    const appUrl = resolveAppUrl(req);
     const redirectUri = `${appUrl}/api/auth/meta/callback`;
 
     if (!appId) {
-      return res.redirect(`${appUrl}/settings?error=META_APP_ID_NOT_CONFIGURED`);
+      throw new BadRequestException(
+        "Meta App ID is not configured on the server. Please set META_CLIENT_ID, META_APP_ID, or APP_ID in your environment.",
+      );
     }
 
     const codeVerifier = base64Url(randomBytes(48));
@@ -74,7 +127,24 @@ export class AuthMetaController {
       `&code_challenge_method=S256` +
       `&scope=${encodeURIComponent(scopes)}`;
 
-    return res.redirect(authUrl);
+    return { authUrl, redirectUri };
+  }
+
+  @Get("url")
+  getAuthUrl(@TenantId() tenantId: string, @Req() req?: Request) {
+    const { authUrl } = this.generateAuthUrl(tenantId, req);
+    return { authUrl };
+  }
+
+  @Get("connect")
+  connect(@TenantId() tenantId: string, @Req() req: Request, @Res() res: Response) {
+    const appUrl = resolveAppUrl(req);
+    try {
+      const { authUrl } = this.generateAuthUrl(tenantId, req);
+      return res.redirect(authUrl);
+    } catch {
+      return res.redirect(`${appUrl}/settings?error=META_APP_ID_NOT_CONFIGURED`);
+    }
   }
 
   @Public()
@@ -82,11 +152,18 @@ export class AuthMetaController {
   async callback(
     @Query("code") code: string,
     @Query("state") state: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
-    const appId = process.env.META_CLIENT_ID || process.env.META_APP_ID;
-    const appSecret = process.env.META_CLIENT_SECRET || process.env.META_APP_SECRET;
+    const appUrl = resolveAppUrl(req);
+    const appId =
+      process.env.META_CLIENT_ID ||
+      process.env.META_APP_ID ||
+      process.env.APP_ID;
+    const appSecret =
+      process.env.META_CLIENT_SECRET ||
+      process.env.META_APP_SECRET ||
+      process.env.APP_SECRET;
     const redirectUri = `${appUrl}/api/auth/meta/callback`;
 
     const decoded = decodeOAuthState(state);
@@ -120,6 +197,7 @@ export class AuthMetaController {
       const accountsRes = await fetch(accountsUrl);
       const accountsJson = await accountsRes.json();
 
+      let connectedCount = 0;
       if (accountsJson.data && Array.isArray(accountsJson.data)) {
         for (const page of accountsJson.data) {
           await this.tenantRepo.saveConnectedAccount({
@@ -131,6 +209,7 @@ export class AuthMetaController {
             accessTokenEnc: this.aesVault.encrypt(page.access_token),
             isActive: true,
           });
+          connectedCount++;
 
           if (page.instagram_business_account?.id) {
             await this.tenantRepo.saveConnectedAccount({
@@ -142,11 +221,14 @@ export class AuthMetaController {
               accessTokenEnc: this.aesVault.encrypt(page.access_token),
               isActive: true,
             });
+            connectedCount++;
           }
         }
       }
 
-      return res.redirect(`${appUrl}/settings?connected=meta`);
+      return res.redirect(
+        `${appUrl}/settings?connected=meta&count=${connectedCount}`,
+      );
     } catch (err: any) {
       this.logger.error(`Meta OAuth callback error: ${err.message}`, err.stack);
       return res.redirect(`${appUrl}/settings?error=${encodeURIComponent(err.message)}`);

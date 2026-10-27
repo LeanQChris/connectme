@@ -1,8 +1,15 @@
 export { default as LandingModule } from "./landing-module";
 export { default as AboutModule } from "./about-module";
 export { default as PrivacyModule } from "./privacy-module";
-export * from "./components/console-preview";
-export * from "./components/channels-grid";
+export { default as TermsModule } from "./terms-module";
 export * from "./components/capabilities-section";
+export * from "./components/legal-doc";
+export * from "./components/logo-strip";
+export * from "./components/pricing-section";
+export * from "./components/channels-rail";
+export * from "./components/cta-band";
+export * from "./components/inbox-preview";
+export * from "./components/reply-window";
+export * from "./components/reveal-observer";
 export * from "./components/setup-steps";
 export * from "./components/site-footer";

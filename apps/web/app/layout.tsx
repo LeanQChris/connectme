@@ -22,6 +22,20 @@ export const metadata: Metadata = {
   title: "ConnectMe - Unified Omnichannel Inbox",
   description: "Unified Inbox for WhatsApp, Messenger, Instagram, Telegram & Discord",
   applicationName: "ConnectMe",
+  openGraph: {
+    type: "website",
+    siteName: "ConnectMe",
+    title: "ConnectMe - Unified Omnichannel Inbox",
+    description:
+      "WhatsApp, Messenger, Instagram, Telegram and Discord in one agent inbox, with a live clock on every reply window.",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ConnectMe - Unified Omnichannel Inbox",
+    description:
+      "WhatsApp, Messenger, Instagram, Telegram and Discord in one agent inbox, with a live clock on every reply window.",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -31,11 +45,11 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
+    // app/icon.svg and app/favicon.ico are auto-served by the App Router.
     icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
     ],
     shortcut: "/icon.svg",
     apple: [

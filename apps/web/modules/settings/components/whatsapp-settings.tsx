@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { ChannelIcon } from "@/components/ui/channel-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { SettingsPayload } from "@/core/types";
-
+import { CopyCard } from "./copy-card";
 import { WhatsAppTemplateManager } from "./whatsapp-template-manager";
+import type { SettingsPayload } from "@/core/types";
 
 interface WhatsappSettingsProps {
   data: SettingsPayload;
@@ -44,24 +45,41 @@ export function WhatsappSettings({
   onSave,
   onVerify,
 }: WhatsappSettingsProps) {
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-hairline bg-canvas-elevated shadow-xs overflow-hidden">
+      {/* 1. Main Configuration Card */}
+      <div className="rounded-xl border border-hairline bg-canvas-elevated shadow-2xs overflow-hidden">
         {/* Card Header */}
-        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas-elevated">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-whatsapp/10 text-whatsapp">
+        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-canvas-elevated">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-whatsapp/10 text-whatsapp shadow-2xs">
               <ChannelIcon channel="whatsapp" className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-[16px] font-semibold text-ink">WhatsApp Cloud API</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-[16px] font-semibold text-ink">WhatsApp Cloud API</h2>
+                <span className="rounded bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] text-mute border border-hairline">
+                  Meta Cloud
+                </span>
+              </div>
               <p className="text-[12.5px] text-mute mt-0.5">
-                Official Meta Cloud API for customer conversations and media attachments.
+                Official Cloud API for business messaging, two-way conversations, and rich media.
               </p>
             </div>
           </div>
 
-          <div>
+          <div className="flex items-center gap-2.5">
+            <a
+              href="https://developers.facebook.com/apps"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[12px] font-medium text-mute hover:text-ink transition-colors"
+            >
+              Meta Developer Portal ↗
+            </a>
+
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium ${
                 isWhatsAppConnected
@@ -69,32 +87,68 @@ export function WhatsappSettings({
                   : "bg-surface-well text-mute border border-hairline"
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${isWhatsAppConnected ? "bg-emerald-500" : "bg-neutral-400"}`} />
-              {isWhatsAppConnected ? "Connected" : "Not configured"}
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isWhatsAppConnected ? "bg-emerald-500 ring-2 ring-emerald-500/20" : "bg-neutral-400"
+                }`}
+              />
+              {isWhatsAppConnected ? "Connected" : "Unconfigured"}
             </span>
           </div>
         </div>
 
         {/* Card Body */}
-        <div className="p-6 space-y-5">
-          {/* Active Config Pill */}
+        <div className="p-6 space-y-6">
+          {/* Active Configuration Banner */}
           {data.settings.waPhoneNumberId && (
-            <div className="rounded-lg border border-hairline bg-surface-well/40 px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-[12px]">
-              <span className="text-body">
-                Active Phone ID: <strong className="font-mono text-ink font-semibold">{data.settings.waPhoneNumberId}</strong>
-              </span>
+            <div className="rounded-xl border border-hairline bg-surface-well/40 p-4 flex flex-wrap items-center justify-between gap-3 text-[12.5px]">
+              <div className="flex items-center gap-3">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-body">
+                  Active Phone Number ID:{" "}
+                  <strong className="font-mono text-ink font-semibold">
+                    {data.settings.waPhoneNumberId}
+                  </strong>
+                </span>
+              </div>
               {data.settings.waAppId && (
-                <span className="text-mute font-mono text-[11px]">
-                  Meta App ID: <span className="text-body">{data.settings.waAppId}</span>
+                <span className="text-mute font-mono text-[11.5px]">
+                  App ID: <span className="text-body">{data.settings.waAppId}</span>
                 </span>
               )}
             </div>
           )}
 
-          {/* Form Inputs */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/* Quick Setup Instructions Collapsible */}
+          <div className="rounded-xl border border-hairline bg-surface-well/20 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowSetupGuide(!showSetupGuide)}
+              className="w-full px-4 py-3 text-left flex items-center justify-between text-[12.5px] font-medium text-ink hover:bg-surface-well/40 cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-xs">📘</span>
+                <span>How to get your WhatsApp Cloud API credentials</span>
+              </span>
+              <span className="text-mute font-mono text-xs">
+                {showSetupGuide ? "Hide Guide ↑" : "Show Guide ↓"}
+              </span>
+            </button>
+
+            {showSetupGuide && (
+              <div className="px-4 pb-4 pt-1 border-t border-hairline space-y-2 text-[12px] text-mute">
+                <p>1. Open <a href="https://developers.facebook.com/apps" target="_blank" rel="noreferrer" className="text-ink underline">Meta Developer Apps</a> and create or select a Business App.</p>
+                <p>2. Add the <strong>WhatsApp</strong> product, navigate to <strong>API Setup</strong>, and copy your <strong>Phone number ID</strong>.</p>
+                <p>3. In Business Manager &rarr; System Users, generate a permanent token with <code className="font-mono text-ink">whatsapp_business_messaging</code> and <code className="font-mono text-ink">whatsapp_business_management</code>.</p>
+                <p>4. In WhatsApp &rarr; Configuration, set the Webhook Callback URL to your ConnectMe webhook below and subscribe to <code className="font-mono text-ink">messages</code>.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Form Inputs Grid */}
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="block text-[12.5px] font-medium text-ink">
+              <label className="block text-[12.5px] font-semibold text-ink">
                 Phone Number ID <span className="text-error">*</span>
               </label>
               <Input
@@ -107,12 +161,12 @@ export function WhatsappSettings({
                 className="h-9 font-mono text-[12.5px]"
               />
               <span className="block text-[11px] text-mute">
-                From Meta Developer Portal → WhatsApp → API Setup
+                From Meta Developer Portal &rarr; WhatsApp &rarr; API Setup
               </span>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12.5px] font-medium text-ink">
+              <label className="block text-[12.5px] font-semibold text-ink">
                 Permanent Access Token <span className="text-error">*</span>
               </label>
               <div className="relative">
@@ -122,7 +176,11 @@ export function WhatsappSettings({
                   onChange={(e) =>
                     setWhatsappForm((prev) => ({ ...prev, waAccessToken: e.target.value }))
                   }
-                  placeholder={isWhatsAppConnected ? "••••••••••••••••••••••••••••••••  (Saved)" : "EAAG..."}
+                  placeholder={
+                    isWhatsAppConnected
+                      ? "••••••••••••••••••••••••••••••••  (Saved securely)"
+                      : "EAAG..."
+                  }
                   className="h-9 pr-14 font-mono text-[12.5px]"
                 />
                 <button
@@ -139,8 +197,8 @@ export function WhatsappSettings({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12.5px] font-medium text-ink">
-                Meta App ID <span className="text-mute font-normal">(Optional)</span>
+              <label className="block text-[12.5px] font-semibold text-ink">
+                Meta App ID <span className="text-mute font-normal text-[11px]">(Optional)</span>
               </label>
               <Input
                 type="text"
@@ -152,13 +210,13 @@ export function WhatsappSettings({
                 className="h-9 font-mono text-[12.5px]"
               />
               <span className="block text-[11px] text-mute">
-                Used to address WhatsApp media uploads directly
+                Used to verify webhook payloads and proxy media uploads
               </span>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12.5px] font-medium text-ink">
-                WhatsApp App Secret <span className="text-mute font-normal">(Optional)</span>
+              <label className="block text-[12.5px] font-semibold text-ink">
+                Meta App Secret <span className="text-mute font-normal text-[11px]">(Optional)</span>
               </label>
               <div className="relative">
                 <Input
@@ -167,7 +225,7 @@ export function WhatsappSettings({
                   onChange={(e) =>
                     setWhatsappForm((prev) => ({ ...prev, waAppSecret: e.target.value }))
                   }
-                  placeholder="App secret for webhook verification"
+                  placeholder="••••••••••••••••••••••••••••••••"
                   className="h-9 pr-14 font-mono text-[12.5px]"
                 />
                 <button
@@ -179,52 +237,68 @@ export function WhatsappSettings({
                 </button>
               </div>
               <span className="block text-[11px] text-mute">
-                Dedicated secret for payload signature verification
+                Used for HMAC SHA-256 webhook signature validation
               </span>
             </div>
           </div>
-        </div>
 
-        {/* Card Footer Actions */}
-        <div className="px-6 py-3.5 bg-surface-well/30 border-t border-hairline flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onVerify}
-              disabled={busy !== null}
-              className="h-8 px-3 cursor-pointer text-[12px]"
-            >
-              {busy === "verify-whatsapp" ? "Verifying…" : "Test Connection"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={onSave}
-              disabled={busy !== null}
-              className="h-8 px-4 cursor-pointer text-[12.5px] font-medium"
-            >
-              {busy === "save-whatsapp" ? "Saving…" : "Save Changes"}
-            </Button>
-          </div>
-
-          {channelStatus.whatsapp && (
-            <div
-              className={`text-[12px] font-medium flex items-center gap-1.5 ${
-                channelStatus.whatsapp.ok ? "text-emerald-600 dark:text-emerald-400" : "text-error"
-              }`}
-            >
-              <span>{channelStatus.whatsapp.ok ? "✓" : "!"}</span>
-              <span>{channelStatus.whatsapp.detail}</span>
+          {/* Inline Webhook Helper */}
+          {data.webhookUrls.meta && (
+            <div className="pt-2">
+              <CopyCard
+                label="Meta Webhook Callback URL for WhatsApp"
+                value={data.webhookUrls.meta}
+                hint="In Meta App Dashboard &rarr; WhatsApp &rarr; Configuration, set this Callback URL and subscribe to the 'messages' field."
+                badge="Inbound Webhook"
+              />
             </div>
           )}
+
+          {/* Action Toolbar & Feedback */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-hairline">
+            <div className="flex items-center gap-2">
+              {channelStatus.whatsapp && (
+                <span
+                  className={`inline-flex items-center gap-1.5 font-mono text-[11.5px] px-2.5 py-1 rounded-md ${
+                    channelStatus.whatsapp.ok
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                      : "bg-red-500/10 text-error border border-red-500/20"
+                  }`}
+                >
+                  <span>{channelStatus.whatsapp.ok ? "✓" : "✕"}</span>
+                  <span>{channelStatus.whatsapp.detail}</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onVerify}
+                disabled={busy !== null || !isWhatsAppConnected}
+                className="h-8 px-3 text-[12px] font-medium cursor-pointer"
+              >
+                {busy === "verify-whatsapp" ? "Verifying…" : "Test API Connection"}
+              </Button>
+
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={onSave}
+                disabled={busy !== null}
+                className="h-8 px-4 text-[12px] font-semibold cursor-pointer"
+              >
+                {busy === "save-whatsapp" ? "Saving…" : "Save Credentials"}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* WhatsApp Message Template Manager Component */}
+      {/* 2. WhatsApp Official HSM Template Manager */}
       <WhatsAppTemplateManager />
     </div>
   );

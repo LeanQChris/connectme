@@ -4,7 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ConnectMe - Omnichannel Team Inbox",
     short_name: "ConnectMe",
-    description: "Unified team inbox for WhatsApp Business, Messenger, Instagram Direct, and Telegram.",
+    description:
+      "Unified team inbox for WhatsApp Business, Messenger, Instagram Direct, Telegram, and Discord.",
     start_url: "/inbox",
     display: "standalone",
     background_color: "#0a0a0a",

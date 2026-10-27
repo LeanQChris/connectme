@@ -7,9 +7,10 @@ interface CopyCardProps {
   label: string;
   value: string;
   hint?: string;
+  badge?: string;
 }
 
-export const CopyCard = memo(function CopyCard({ label, value, hint }: CopyCardProps) {
+export const CopyCard = memo(function CopyCard({ label, value, hint, badge }: CopyCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -19,37 +20,45 @@ export const CopyCard = memo(function CopyCard({ label, value, hint }: CopyCardP
   };
 
   return (
-    <div className="rounded-xl border border-hairline bg-canvas p-4 transition-all hover:border-hairline-strong shadow-2xs space-y-2">
+    <div className="rounded-xl border border-hairline bg-canvas p-4 transition-all hover:border-hairline-strong shadow-2xs space-y-2.5">
       <div className="flex items-center justify-between">
-        <p className="text-[12.5px] font-semibold text-ink">{label}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-[13px] font-semibold text-ink">{label}</p>
+          {badge && (
+            <span className="rounded bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] text-mute border border-hairline">
+              {badge}
+            </span>
+          )}
+        </div>
         {copied && (
-          <span className="font-mono text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-            Copied to clipboard!
+          <span className="font-mono text-[11px] font-medium text-emerald-600 dark:text-emerald-400 animate-fadeIn">
+            ✓ Copied to clipboard
           </span>
         )}
       </div>
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-surface-well/60 px-3.5 py-2.5 font-mono text-[12px]">
-        <code className="truncate text-ink select-all">{value}</code>
+
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-surface-well/70 px-3 py-2 font-mono text-[12px]">
+        <code className="truncate text-ink select-all font-mono tracking-tight">{value}</code>
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={handleCopy}
-          className={`h-7 shrink-0 text-[11.5px] font-medium transition-all ${
+          className={`h-7 shrink-0 text-[11.5px] font-medium transition-all cursor-pointer ${
             copied
               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : "hover:bg-canvas-elevated hover:text-ink"
           }`}
         >
           {copied ? (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
               </svg>
               Copied
             </span>
           ) : (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               <svg className="h-3.5 w-3.5 stroke-current" fill="none" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
@@ -63,7 +72,8 @@ export const CopyCard = memo(function CopyCard({ label, value, hint }: CopyCardP
           )}
         </Button>
       </div>
-      {hint && <p className="text-[11px] text-mute leading-relaxed">{hint}</p>}
+
+      {hint && <p className="text-[11.5px] text-mute leading-relaxed">{hint}</p>}
     </div>
   );
 });

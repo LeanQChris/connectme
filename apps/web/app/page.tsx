@@ -4,7 +4,8 @@ import { LandingModule } from "@/modules/site";
 export const metadata = {
   title: "ConnectMe · One inbox for every customer channel",
   description:
-    "ConnectMe puts WhatsApp, Messenger, Instagram, Telegram and Discord into a single agent inbox, with reply-window countdowns and per-page routing.",
+    "WhatsApp, Messenger, Instagram, Telegram and Discord in one agent inbox, with a live countdown on every reply window and per-page routing for Meta.",
+  alternates: { canonical: "/" },
 };
 
 export default async function HomePage() {

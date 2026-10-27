@@ -90,9 +90,6 @@ export default function GoogleSignInButton({ redirectUrl }: GoogleSignInButtonPr
               />
             </svg>
             <span className="font-medium tracking-tight">Continue with Google</span>
-            <span className="ml-auto flex items-center font-mono text-[11px] text-mute group-hover:text-ink transition-colors">
-              SSO →
-            </span>
           </>
         )}
       </button>

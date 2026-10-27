@@ -33,29 +33,32 @@ interface AiByokSettingsProps {
 
 const PROVIDER_MODELS: Record<
   AiProvider,
-  { label: string; badge: string; defaultModel: string; models: string[] }
+  { label: string; badge: string; defaultModel: string; models: string[]; icon: string }
 > = {
   openai: {
     label: "OpenAI",
     badge: "GPT-4o",
     defaultModel: "gpt-4o-mini",
     models: ["gpt-4o-mini", "gpt-4o", "o1-mini", "o3-mini"],
+    icon: "🟢",
   },
   anthropic: {
     label: "Anthropic Claude",
     badge: "Claude 3.5",
     defaultModel: "claude-3-5-haiku-20241022",
     models: ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022"],
+    icon: "🟠",
   },
   gemini: {
     label: "Google Gemini",
-    badge: "Gemini 1.5/2.0",
+    badge: "Gemini 2.0",
     defaultModel: "gemini-1.5-flash",
     models: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"],
+    icon: "🔵",
   },
   openrouter: {
     label: "OpenRouter",
-    badge: "DeepSeek / Llama",
+    badge: "Multi-Model",
     defaultModel: "deepseek/deepseek-chat",
     models: [
       "deepseek/deepseek-chat",
@@ -63,18 +66,21 @@ const PROVIDER_MODELS: Record<
       "meta-llama/llama-3.3-70b-instruct",
       "anthropic/claude-3.5-sonnet",
     ],
+    icon: "🟣",
   },
   "openai-compatible": {
     label: "Custom / Local",
     badge: "Ollama / Groq",
     defaultModel: "llama3.3",
     models: ["llama3.3", "mistral", "qwen2.5"],
+    icon: "⚡",
   },
   azure: {
     label: "Azure OpenAI",
     badge: "Enterprise",
     defaultModel: "gpt-4o",
     models: ["gpt-4o", "gpt-4o-mini"],
+    icon: "🔷",
   },
 };
 
@@ -82,25 +88,25 @@ const ROUTING_STRATEGIES: { id: AiRoutingStrategy; label: string; desc: string; 
   {
     id: "priority",
     label: "Priority Fallback",
-    desc: "Route to Primary provider first; seamlessly switch to Fallback on error.",
+    desc: "Route to Primary provider first; seamlessly switch to Fallback on rate limits or errors.",
     icon: "🛡️",
   },
   {
     id: "balanced",
     label: "Balanced Load",
-    desc: "Distribute API requests proportionally to spread rate limits.",
+    desc: "Distribute API requests proportionally to avoid throttling.",
     icon: "⚖️",
   },
   {
     id: "lowest_latency",
     label: "Lowest Latency",
-    desc: "Prioritize the provider with the fastest observed response times.",
+    desc: "Prioritize the provider with the fastest roundtrip response times.",
     icon: "⚡",
   },
   {
     id: "lowest_cost",
     label: "Lowest Cost",
-    desc: "Optimize token spending by favoring economical models.",
+    desc: "Optimize token expenses by favoring economical lightweight models.",
     icon: "💰",
   },
 ];
@@ -199,14 +205,27 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="rounded-xl border border-hairline bg-canvas-elevated shadow-xs overflow-hidden">
+      <form
+        onSubmit={handleSubmit}
+        className="rounded-xl border border-hairline bg-canvas-elevated shadow-2xs overflow-hidden"
+      >
         {/* Card Header */}
-        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-canvas-elevated">
-          <div>
-            <h2 className="text-[16px] font-semibold text-ink">AI Copilot & Router</h2>
-            <p className="text-[12.5px] text-mute mt-0.5">
-              Configure your model provider keys for intelligent replies and translations.
-            </p>
+        <div className="px-6 py-5 border-b border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-canvas-elevated">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500 shadow-2xs">
+              <span className="text-lg">✨</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-[16px] font-semibold text-ink">AI Copilot & BYOK Multi-Router</h2>
+                <span className="rounded bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] text-mute border border-hairline">
+                  BYOK Engine
+                </span>
+              </div>
+              <p className="text-[12.5px] text-mute mt-0.5">
+                Bring your own API keys for agent smart suggestions, auto-drafting, and conversation summarization.
+              </p>
+            </div>
           </div>
 
           <div>
@@ -217,21 +236,30 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                   : "bg-surface-well text-mute border border-hairline"
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${isConfigured ? "bg-emerald-500" : "bg-neutral-400"}`} />
-              {isConfigured ? `Connected (${initialConfig?.provider})` : "Not Configured"}
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isConfigured ? "bg-emerald-500 ring-2 ring-emerald-500/20" : "bg-neutral-400"
+                }`}
+              />
+              {isConfigured ? `Connected (${initialConfig?.provider})` : "Unconfigured"}
             </span>
           </div>
         </div>
 
         {/* Card Body */}
         <div className="p-6 space-y-6">
-          {/* 1. Primary AI Provider Selection */}
+          {/* 1. Primary AI Provider Selection Tiles */}
           <div className="space-y-2.5">
-            <label className="block text-[12.5px] font-medium text-ink">
-              Primary AI Provider
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-[13px] font-semibold text-ink">
+                Select Primary Provider
+              </label>
+              <span className="text-[11px] font-mono text-mute">
+                AES-256-GCM Encrypted
+              </span>
+            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(Object.keys(PROVIDER_MODELS) as AiProvider[]).map((pKey) => {
                 const pInfo = PROVIDER_MODELS[pKey];
                 const isSelected = provider === pKey;
@@ -240,19 +268,24 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                     key={pKey}
                     type="button"
                     onClick={() => handleProviderChange(pKey)}
-                    className={`flex flex-col justify-between rounded-lg p-3 text-left transition-all cursor-pointer border ${
+                    className={`flex flex-col justify-between rounded-xl p-3.5 text-left transition-all cursor-pointer border ${
                       isSelected
-                        ? "border-ink bg-surface-well text-ink font-semibold shadow-2xs"
+                        ? "border-ink bg-surface-well text-ink font-semibold shadow-2xs ring-1 ring-ink/10"
                         : "border-hairline bg-canvas text-body hover:border-hairline-strong hover:bg-surface-well/40 hover:text-ink"
                     }`}
                   >
-                    <div className="flex w-full items-center justify-between gap-1">
-                      <span className="text-[13px] font-medium text-ink leading-tight">{pInfo.label}</span>
-                      <span className="rounded bg-surface-well px-1 py-0.2 font-mono text-[9px] text-mute border border-hairline shrink-0">
+                    <div className="flex w-full items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">{pInfo.icon}</span>
+                        <span className="text-[13px] font-medium text-ink leading-tight">
+                          {pInfo.label}
+                        </span>
+                      </div>
+                      <span className="rounded bg-surface-well px-1.5 py-0.5 font-mono text-[9px] text-mute border border-hairline shrink-0">
                         {pInfo.badge}
                       </span>
                     </div>
-                    <span className="font-mono text-[10.5px] text-mute mt-2 block truncate">
+                    <span className="font-mono text-[11px] text-mute mt-3 block truncate">
                       {pInfo.defaultModel}
                     </span>
                   </button>
@@ -263,7 +296,7 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
 
           {/* 2. API Key Input */}
           <div className="space-y-1.5">
-            <label className="block text-[12.5px] font-medium text-ink">
+            <label className="block text-[12.5px] font-semibold text-ink">
               {PROVIDER_MODELS[provider]?.label} API Key {isConfigured && "(Encrypted at Rest)"}
             </label>
             <div className="relative">
@@ -271,8 +304,12 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                 type={showKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder={isConfigured ? "••••••••••••••••••••••••••••••••  (Saved)" : "sk-..."}
-                className="h-9 w-full rounded-lg border border-hairline bg-canvas pl-3 pr-14 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink focus:outline-none transition-colors"
+                placeholder={
+                  isConfigured
+                    ? "••••••••••••••••••••••••••••••••  (Saved securely)"
+                    : "sk-..."
+                }
+                className="h-9 w-full rounded-lg border border-hairline bg-canvas pl-3 pr-14 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none transition-colors"
               />
               <button
                 type="button"
@@ -283,14 +320,14 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
               </button>
             </div>
             <p className="text-[11px] text-mute">
-              Encrypted using AES-256-GCM in the tenant credential vault.
+              Your API key is stored in your private vault with AES-256-GCM encryption and is never exposed to visitors.
             </p>
           </div>
 
           {/* 3. Model Identifier & Custom Endpoint */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div className="space-y-1.5">
-              <label className="block text-[12.5px] font-medium text-ink">
+              <label className="block text-[12.5px] font-semibold text-ink">
                 Model Identifier
               </label>
               <input
@@ -298,9 +335,9 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 placeholder="e.g. gpt-4o-mini"
-                className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
               />
-              <div className="pt-0.5 flex flex-wrap gap-1">
+              <div className="pt-1 flex flex-wrap gap-1">
                 {PROVIDER_MODELS[provider]?.models.map((m) => {
                   const isModelActive = model === m;
                   return (
@@ -322,31 +359,31 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[12.5px] font-medium text-ink">
-                Custom Base URL <span className="text-mute font-normal">(Optional)</span>
+              <label className="block text-[12.5px] font-semibold text-ink">
+                Custom Base URL <span className="text-mute font-normal text-[11px]">(Optional)</span>
               </label>
               <input
                 type="text"
                 value={customBaseUrl}
                 onChange={(e) => setCustomBaseUrl(e.target.value)}
                 placeholder="https://openrouter.ai/api/v1"
-                className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
               />
               <p className="text-[11px] text-mute">
-                For OpenRouter, Ollama, Groq, or local vLLM endpoints.
+                For OpenRouter, Ollama, Groq, or local OpenAI-compatible gateways.
               </p>
             </div>
           </div>
 
-          {/* 4. Automatic Fallback Provider */}
-          <div className="rounded-lg border border-hairline bg-surface-well/30 p-4 space-y-3">
+          {/* 4. Automatic Fallback Provider Chain */}
+          <div className="rounded-xl border border-hairline bg-surface-well/30 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-[13px] font-semibold text-ink">
+                <h4 className="text-[13.5px] font-semibold text-ink">
                   Automatic Fallback Chain
                 </h4>
-                <p className="text-[11.5px] text-mute">
-                  Route to a backup provider if your primary API model experiences rate limits.
+                <p className="text-[12px] text-mute">
+                  Automatically route requests to a secondary provider if your primary API hits rate limits or experiences downtime.
                 </p>
               </div>
               <button
@@ -367,16 +404,16 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
             </div>
 
             {enableFallback && (
-              <div className="space-y-3 pt-3 border-t border-hairline">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-[11.5px] font-medium text-ink">
+              <div className="space-y-4 pt-4 border-t border-hairline animate-fadeIn">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[12px] font-medium text-ink">
                       Fallback Provider
                     </label>
                     <select
                       value={fallbackProvider}
                       onChange={(e) => handleFallbackProviderChange(e.target.value as AiProvider)}
-                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-2.5 text-[12.5px] text-ink focus:border-ink focus:outline-none"
+                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-2.5 text-[12.5px] text-ink focus:border-ink/50 focus:outline-none"
                     >
                       {(Object.keys(PROVIDER_MODELS) as AiProvider[])
                         .filter((p) => p !== provider)
@@ -388,8 +425,8 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                     </select>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="block text-[11.5px] font-medium text-ink">
+                  <div className="space-y-1.5">
+                    <label className="block text-[12px] font-medium text-ink">
                       Fallback Model
                     </label>
                     <input
@@ -397,13 +434,13 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                       value={fallbackModel}
                       onChange={(e) => setFallbackModel(e.target.value)}
                       placeholder="e.g. gemini-1.5-flash"
-                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink focus:outline-none"
+                      className="h-9 w-full rounded-lg border border-hairline bg-canvas px-3 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block text-[11.5px] font-medium text-ink">
+                <div className="space-y-1.5">
+                  <label className="block text-[12px] font-medium text-ink">
                     Fallback Provider API Key {isFallbackConfigured && "(Saved)"}
                   </label>
                   <div className="relative">
@@ -413,10 +450,10 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                       onChange={(e) => setFallbackApiKey(e.target.value)}
                       placeholder={
                         isFallbackConfigured
-                          ? "••••••••••••••••••••••••••••••••  (Saved)"
+                          ? "••••••••••••••••••••••••••••••••  (Saved securely)"
                           : "sk-..."
                       }
-                      className="h-9 w-full rounded-lg border border-hairline bg-canvas pl-3 pr-14 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink focus:outline-none transition-colors"
+                      className="h-9 w-full rounded-lg border border-hairline bg-canvas pl-3 pr-14 font-mono text-[12.5px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none transition-colors"
                     />
                     <button
                       type="button"
@@ -432,12 +469,12 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
           </div>
 
           {/* 5. Routing Strategy */}
-          <div className="space-y-2">
-            <label className="block text-[12.5px] font-medium text-ink">
+          <div className="space-y-2.5">
+            <label className="block text-[13px] font-semibold text-ink">
               Multi-Provider Routing Strategy
             </label>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {ROUTING_STRATEGIES.map((strat) => {
                 const isSelected = routingStrategy === strat.id;
                 return (
@@ -445,17 +482,17 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
                     key={strat.id}
                     type="button"
                     onClick={() => setRoutingStrategy(strat.id)}
-                    className={`flex flex-col items-start rounded-lg p-3 text-left transition-all cursor-pointer border ${
+                    className={`flex flex-col items-start rounded-xl p-3.5 text-left transition-all cursor-pointer border ${
                       isSelected
-                        ? "border-ink bg-surface-well text-ink font-semibold shadow-2xs"
+                        ? "border-ink bg-surface-well text-ink font-semibold shadow-2xs ring-1 ring-ink/10"
                         : "border-hairline bg-canvas text-body hover:border-hairline-strong hover:bg-surface-well/40 hover:text-ink"
                     }`}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <span>{strat.icon}</span>
-                      <span className="text-[12.5px] font-medium text-ink">{strat.label}</span>
+                      <span className="text-[13px] font-medium text-ink">{strat.label}</span>
                     </div>
-                    <p className="text-[11px] text-mute mt-1 leading-snug">{strat.desc}</p>
+                    <p className="text-[11.5px] text-mute mt-1 leading-snug">{strat.desc}</p>
                   </button>
                 );
               })}
@@ -464,51 +501,51 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
 
           {/* 6. Custom System Persona */}
           <div className="space-y-1.5">
-            <label className="block text-[12.5px] font-medium text-ink">
-              Brand Persona & Guidelines <span className="text-mute font-normal">(Optional)</span>
+            <label className="block text-[13px] font-semibold text-ink">
+              Brand Persona & Custom System Prompt <span className="text-mute font-normal text-[11px]">(Optional)</span>
             </label>
             <textarea
               rows={3}
               value={customSystemPrompt}
               onChange={(e) => setCustomSystemPrompt(e.target.value)}
-              placeholder="e.g. Always maintain a polite, friendly tone and offer helpful links from our knowledge base."
-              className="w-full rounded-lg border border-hairline bg-canvas p-3 text-[12.5px] text-ink placeholder:text-mute focus:border-ink focus:outline-none leading-relaxed resize-y"
+              placeholder="e.g. Always respond with a professional, friendly demeanor. Reference documentation when resolving technical inquiries."
+              className="w-full rounded-xl border border-hairline bg-canvas p-3 font-mono text-[12px] text-ink placeholder:text-mute focus:border-ink/50 focus:outline-none leading-relaxed resize-y"
             />
           </div>
 
-          {/* Test / Save Alerts */}
+          {/* Alerts */}
           {testResult && (
             <div
-              className={`rounded-lg border p-3 text-[12.5px] flex items-center gap-2 ${
+              className={`rounded-xl border p-3.5 text-[12.5px] flex items-center gap-2.5 ${
                 testResult.success
                   ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                   : "border-error/20 bg-error/10 text-error"
               }`}
             >
-              <span>{testResult.success ? "✓" : "!"}</span>
+              <span className="font-bold">{testResult.success ? "✓" : "✕"}</span>
               <span>{testResult.message}</span>
             </div>
           )}
 
           {savedSuccess && (
-            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-[12.5px] text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-              <span>✓</span>
-              <span>Configuration saved successfully!</span>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-[12.5px] text-emerald-700 dark:text-emerald-300 flex items-center gap-2.5">
+              <span className="font-bold">✓</span>
+              <span>AI Copilot configuration updated successfully!</span>
             </div>
           )}
         </div>
 
         {/* Card Footer Actions */}
-        <div className="px-6 py-3.5 bg-surface-well/30 border-t border-hairline flex items-center justify-between">
+        <div className="px-6 py-4 bg-surface-well/40 border-t border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={testing || (!apiKey.trim() && !isConfigured)}
             onClick={handleTestConnection}
-            className="h-8 px-3 cursor-pointer text-[12px]"
+            className="h-8 px-3 cursor-pointer text-[12px] font-medium"
           >
-            {testing ? "Testing…" : "Test Connection"}
+            {testing ? "Testing Connection…" : "Test API Connection"}
           </Button>
 
           <Button
@@ -516,9 +553,9 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
             variant="primary"
             size="sm"
             disabled={saving}
-            className="h-8 px-4 cursor-pointer text-[12.5px] font-medium"
+            className="h-8 px-4 cursor-pointer text-[12.5px] font-semibold"
           >
-            {saving ? "Saving…" : "Save Changes"}
+            {saving ? "Saving…" : "Save AI Settings"}
           </Button>
         </div>
       </form>

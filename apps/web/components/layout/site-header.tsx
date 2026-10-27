@@ -18,10 +18,12 @@ export interface SiteHeaderProps {
   subHeaderRight?: React.ReactNode;
 }
 
+// "How it works" points at the About page, which now owns that section, so
+// there is no separate About entry and nothing here shares a destination.
 const PUBLIC_NAV_LINKS = [
   { label: "Channels", href: "/#channels" },
-  { label: "How it works", href: "/#setup" },
-  { label: "About", href: "/about" },
+  { label: "How it works", href: "/about" },
+  { label: "Pricing", href: "/#pricing" },
   { label: "Privacy", href: "/privacy" },
   { label: "Terms", href: "/terms" },
 ];

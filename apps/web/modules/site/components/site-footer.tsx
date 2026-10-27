@@ -9,8 +9,8 @@ interface SiteFooterProps {
 
 export function SiteFooter({ userId }: SiteFooterProps) {
   return (
-    <footer className="border-t border-hairline px-4 py-7">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
+    <footer className="border-t border-hairline bg-canvas">
+      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-7 sm:flex-row">
         <div className="flex items-center gap-2 text-[12px] text-mute">
           <span className="flex h-5 w-5 items-center justify-center rounded-[4px] border border-hairline bg-primary text-on-primary">
             <Logo className="h-3 w-3" />
