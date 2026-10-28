@@ -450,6 +450,9 @@ Run commands from the root directory using Turborepo:
 
 ## 🚢 Deployment Guide
 
+See the [production runbook](docs/PRODUCTION_RUNBOOK.md) for configuration validation,
+media storage, encrypted backups, restore drills, and release checks.
+
 ### Option A — Single VPS (Docker Compose)
 
 Everything runs on one box: Postgres, Redis, API, worker, web, and Caddy as the
@@ -474,9 +477,9 @@ What the stack does for you:
 - **Redis runs with AOF.** BullMQ keeps scheduled posts there; the default
   RDB-only config can silently drop the last minute of scheduled sends on an
   unclean restart.
-- **One public origin.** Caddy routes `/api/*` and `/socket.io/*` to the API and
-  everything else to the web app, so the browser never makes a cross-origin
-  request and the page CSP stays satisfied. See [deploy/Caddyfile](deploy/Caddyfile).
+- **One public origin.** Caddy sends authenticated `/api/*` requests through the
+  web app's Clerk proxy. Public webhooks, widget endpoints, health checks, and
+  sockets go directly to the API. See [deploy/Caddyfile](deploy/Caddyfile).
 - **Liveness and readiness are separate** — see the table above.
 
 ```bash
@@ -487,9 +490,9 @@ docker compose --env-file .env.production -f docker-compose.prod.yml logs -f api
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
-**Before real data goes on the box**, set up a `pg_dump` backup cron writing
-somewhere off the server. A single VPS is a single disk, and
-`connectme-prod_pgdata` is where every tenant's conversation history lives.
+The `backup` service stores encrypted Postgres, Redis, and encryption-key snapshots
+in a separate private repository daily. Set the `BACKUP_*` variables before
+launch and run the restore drill in the [runbook](docs/PRODUCTION_RUNBOOK.md).
 
 Set `ufw` to allow only 22, 80, and 443.
 

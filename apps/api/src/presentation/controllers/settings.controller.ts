@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Body, Inject, Req } from "@nestjs/common";
+import { Controller, Get, Post, Query, Body, Inject, Req, BadRequestException } from "@nestjs/common";
 import type { Request } from "express";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
 import { AesVaultService } from "@connectme/channels";
@@ -15,8 +15,10 @@ import { ensureWebhookVerifyToken } from "../webhook-verify-token";
 import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import { SaveSettingsBodySchema, ChannelSchema } from "../validation/schemas";
 import { resolveAppUrl } from "./auth-meta.controller";
+import { RequireRoles } from "../auth/require-roles.decorator";
 
 @Controller("api/settings")
+@RequireRoles("owner", "admin")
 export class SettingsController {
   constructor(
     @Inject("ITenantRepository")
@@ -81,8 +83,11 @@ export class SettingsController {
           creds?.webhookVerifyToken,
         ),
         waPhoneNumberId: creds?.waPhoneNumberId ?? null,
+        waBusinessAccountId: creds?.waBusinessAccountId ?? null,
         waAppId: creds?.waAppId ?? null,
         ai: {
+          autoReplyEnabled: Boolean(creds?.aiAutoReplyEnabled),
+          autoReplyPrompt: creds?.aiAutoReplyPrompt ?? null,
           configured: Boolean(creds?.aiApiKeyEnc),
           provider: creds?.aiProvider ?? "openai",
           model: creds?.aiModel ?? "gpt-4o-mini",
@@ -116,7 +121,13 @@ export class SettingsController {
   ) {
     const s = body.secrets || {};
 
+    if (s.aiAutoReplyEnabled === true && !s.aiApiKey && !(await this.tenantRepo.getCredentials(tenantId))?.aiApiKeyEnc) {
+      throw new BadRequestException("Configure an AI API key before enabling automatic replies.");
+    }
     const partial: any = {};
+    if (s.aiAutoReplyEnabled !== undefined) partial.aiAutoReplyEnabled = s.aiAutoReplyEnabled;
+    if (s.aiAutoReplyPrompt !== undefined) partial.aiAutoReplyPrompt = s.aiAutoReplyPrompt;
+    if (s.waBusinessAccountId !== undefined) partial.waBusinessAccountId = s.waBusinessAccountId;
     if (s.waPhoneNumberId !== undefined) partial.waPhoneNumberId = s.waPhoneNumberId;
     if (s.waAppId !== undefined) partial.waAppId = s.waAppId;
     // Blank means "leave unchanged" in the settings form. Writing an empty
@@ -143,6 +154,11 @@ export class SettingsController {
     if (s.aiApiKey) partial.aiApiKeyEnc = this.aesVault.encrypt(s.aiApiKey);
     if (s.aiFallbackApiKey) partial.aiFallbackApiKeyEnc = this.aesVault.encrypt(s.aiFallbackApiKey);
 
+    if (s.aiFallbackEnabled === false) {
+      partial.aiFallbackApiKeyEnc = null;
+      partial.aiFallbackProvider = null;
+      partial.aiFallbackModel = null;
+    }
     const updated = await this.tenantRepo.updateCredentials(tenantId, partial);
 
     // Register inbound-routing accounts so webhooks can resolve the tenant.

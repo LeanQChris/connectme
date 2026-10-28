@@ -73,6 +73,8 @@ export class AiAgentProcessor extends WorkerHost {
       return;
     }
 
+    if (conv.status !== "OPEN" || conv.assigneeId) return;
+
     const triggering = await this.messageRepo.findOne({
       where: { id: data.messageId, conversationId: conv.id },
     });
@@ -123,7 +125,14 @@ export class AiAgentProcessor extends WorkerHost {
       return;
     }
 
-    const tag = this.resolveMetaTag(conv);
+    // Re-read after generation so disabling auto-reply or taking ownership stops queued replies.
+    const latest = await this.convRepo.findOne({ where: { id: conv.id, tenantId } });
+    if (!latest || latest.status !== "OPEN" || latest.assigneeId || !(await this.aiAgentService.isAutoReplyEnabled(tenantId))) return;
+    const newerOutbound = await this.messageRepo.findOne({ where: {
+      conversationId: conv.id, direction: MessageDirection.OUTBOUND, createdAt: MoreThan(triggering.createdAt),
+    } });
+    if (newerOutbound) return;
+    const tag = this.resolveMetaTag(latest);
 
     const credentials = await this.credentialRepo.findOne({ where: { tenantId } });
     const ctx: ChannelSendContext = {
@@ -191,12 +200,8 @@ export class AiAgentProcessor extends WorkerHost {
     const closed = !last || Date.now() - last > META_WINDOW_MS;
     if (!closed) return undefined;
 
-    if (conv.channel === ChannelType.MESSENGER || conv.channel === ChannelType.INSTAGRAM) {
-      // HUMAN_AGENT tag permits a reply up to 7 days after the last user message.
-      return "HUMAN_AGENT";
-    }
     throw new UnrecoverableError(
-      "24-hour reply window closed; cannot auto-reply on WhatsApp.",
+      "24-hour reply window closed; automated Meta replies are not permitted.",
     );
   }
 }

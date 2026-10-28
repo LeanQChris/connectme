@@ -13,6 +13,7 @@ interface WhatsappSettingsProps {
   isWhatsAppConnected: boolean;
   whatsappForm: {
     waPhoneNumberId: string;
+    waBusinessAccountId: string;
     waAccessToken: string;
     waAppId: string;
     waAppSecret: string;
@@ -20,6 +21,7 @@ interface WhatsappSettingsProps {
   setWhatsappForm: React.Dispatch<
     React.SetStateAction<{
       waPhoneNumberId: string;
+      waBusinessAccountId: string;
       waAccessToken: string;
       waAppId: string;
       waAppSecret: string;
@@ -147,6 +149,13 @@ export function WhatsappSettings({
 
           {/* Form Inputs Grid */}
           <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="wa-business-id" className="block text-[12.5px] font-semibold text-ink">WhatsApp Business Account ID</label>
+              <Input id="wa-business-id" inputMode="numeric" value={whatsappForm.waBusinessAccountId}
+                onChange={(event) => setWhatsappForm((prev) => ({ ...prev, waBusinessAccountId: event.target.value }))}
+                placeholder={data.settings.waBusinessAccountId || "Business Account ID from Meta API Setup"} className="h-9 font-mono text-[12.5px]" />
+              <span className="block text-[11px] text-mute">Required for template submission and sync. This differs from your phone number and app IDs.</span>
+            </div>
             <div className="space-y-1.5">
               <label className="block text-[12.5px] font-semibold text-ink">
                 Phone Number ID <span className="text-error">*</span>

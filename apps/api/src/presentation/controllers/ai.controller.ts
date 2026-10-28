@@ -1,3 +1,4 @@
+import { RequireRoles } from "../auth/require-roles.decorator";
 import {
   Controller,
   Post,
@@ -14,7 +15,7 @@ import {
   AiTestConnectionDto,
 } from "@connectme/contracts";
 
-@Controller("ai")
+@Controller("api/ai")
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
@@ -47,6 +48,7 @@ export class AiController {
   }
 
   @Post("test")
+  @RequireRoles("owner", "admin")
   @HttpCode(HttpStatus.OK)
   public async testConnection(
     @TenantId() _tenantId: string,

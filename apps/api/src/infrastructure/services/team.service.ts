@@ -1,160 +1,122 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ForbiddenException,
-  Logger,
-} from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { EntityManager, IsNull, Repository } from "typeorm";
 import { User, Tenant } from "@connectme/database";
-import type {
-  TeamMemberDto,
-  InviteTeamMemberDto,
-  UpdateTeamMemberRoleDto,
-  UserRole,
-} from "@connectme/contracts";
+import type { TeamMemberDto, InviteTeamMemberDto, UpdateTeamMemberRoleDto, UserRole } from "@connectme/contracts";
+import { ClerkInvitationsService } from "./clerk-invitations.service";
+import { InboxRealtimeGateway } from "../../presentation/gateways/inbox-realtime.gateway";
 
 @Injectable()
 export class TeamService {
-  private readonly logger = new Logger(TeamService.name);
-
   constructor(
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    @InjectRepository(Tenant)
-    private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
+    private readonly invitations: ClerkInvitationsService,
+    private readonly gateway: InboxRealtimeGateway,
   ) {}
 
-  public async listMembers(tenantId: string): Promise<TeamMemberDto[]> {
-    const users = await this.userRepo.find({
-      where: { tenantId },
-      order: { createdAt: "ASC" },
-    });
-
-    return users.map((u) => ({
-      id: u.id,
-      tenantId: u.tenantId,
-      email: u.email,
-      firstName: u.firstName ?? null,
-      lastName: u.lastName ?? null,
-      avatarUrl: u.avatarUrl ?? null,
-      role: (u.role || "agent") as UserRole,
-      createdAt: u.createdAt ? u.createdAt.toISOString() : new Date().toISOString(),
-    }));
+  private memberDto(user: User): TeamMemberDto {
+    return {
+      id: user.id, tenantId: user.tenantId, email: user.email,
+      firstName: user.firstName ?? null, lastName: user.lastName ?? null,
+      avatarUrl: user.avatarUrl ?? null, role: user.role as UserRole,
+      createdAt: user.createdAt.toISOString(), status: "active",
+    };
   }
 
-  public async inviteMember(
-    tenantId: string,
-    dto: InviteTeamMemberDto,
-  ): Promise<TeamMemberDto> {
-    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
-    if (!tenant) {
-      throw new NotFoundException("Tenant not found.");
-    }
+  async listMembers(tenantId: string): Promise<TeamMemberDto[]> {
+    const users = await this.userRepo.find({ where: { tenantId, disabledAt: IsNull() }, order: { createdAt: "ASC" } });
+    const pending = await this.invitations.list(tenantId);
+    return [...users.map((user) => this.memberDto(user)), ...pending.map((invite): TeamMemberDto => ({
+      id: invite.id, tenantId, email: invite.emailAddress,
+      firstName: String(invite.publicMetadata?.connectmeFirstName || "") || null,
+      lastName: String(invite.publicMetadata?.connectmeLastName || "") || null,
+      avatarUrl: null,
+      role: (["admin", "agent", "viewer"].includes(String(invite.publicMetadata?.connectmeRole)) ? invite.publicMetadata?.connectmeRole : "agent") as UserRole,
+      createdAt: new Date(invite.createdAt).toISOString(), status: "pending",
+    }))];
+  }
 
-    const existing = await this.userRepo.findOne({
-      where: { email: dto.email.toLowerCase().trim() },
+  private assertManager(actor: User | null, targetRole?: string, nextRole?: string) {
+    if (!actor || actor.disabledAt || !["owner", "admin"].includes(actor.role)) {
+      throw new ForbiddenException("Team management requires owner or admin access.");
+    }
+    if (actor.role !== "owner" && [targetRole, nextRole].some((role) => role === "owner" || role === "admin")) {
+      throw new ForbiddenException("Only an owner can manage owners and admins.");
+    }
+  }
+
+  async inviteMember(tenantId: string, dto: InviteTeamMemberDto, actorId: string): Promise<TeamMemberDto> {
+    const actor = await this.userRepo.findOne({ where: { id: actorId, tenantId } });
+    this.assertManager(actor, undefined, dto.role);
+    if (dto.role === "owner") throw new BadRequestException("Invite a teammate first, then grant owner access after they join.");
+    if (!(await this.tenantRepo.findOneBy({ id: tenantId }))) throw new NotFoundException("Workspace not found.");
+    const email = dto.email.toLowerCase().trim();
+    // Identity lookup is global because each Clerk identity has one membership;
+    // never move an existing identity into the caller's workspace.
+    if (await this.userRepo.findOne({ where: { email } })) {
+      throw new BadRequestException("This email already belongs to a workspace account.");
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+    const invitation = await this.invitations.create({
+      emailAddress: email, expiresInDays: 7,
+      redirectUrl: new URL("/sign-up", appUrl).toString(),
+      publicMetadata: {
+        connectmeTenantId: tenantId, connectmeRole: dto.role,
+        connectmeFirstName: dto.firstName || "", connectmeLastName: dto.lastName || "",
+      },
     });
+    return {
+      id: invitation.id, tenantId, email, firstName: dto.firstName || null,
+      lastName: dto.lastName || null, avatarUrl: null, role: dto.role,
+      createdAt: new Date(invitation.createdAt).toISOString(), status: "pending",
+    };
+  }
 
-    if (existing && existing.tenantId === tenantId) {
-      throw new BadRequestException("This user is already a member of your team.");
-    }
+  private async lockWorkspace(manager: EntityManager, tenantId: string) {
+    const tenant = await manager.findOne(Tenant, { where: { id: tenantId }, lock: { mode: "pessimistic_write" } });
+    if (!tenant) throw new NotFoundException("Workspace not found.");
+  }
 
-    // Generate a clerk/system user ID if user doesn't exist yet
-    const userId = existing?.id || `user_inv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  async updateRole(tenantId: string, memberId: string, dto: UpdateTeamMemberRoleDto, actorId: string): Promise<TeamMemberDto> {
+    return this.userRepo.manager.transaction(async (manager) => {
+      await this.lockWorkspace(manager, tenantId);
+      const user = await manager.findOne(User, { where: { id: memberId, tenantId, disabledAt: IsNull() } });
+      if (!user) throw new NotFoundException("Active team member not found. Revoke and resend a pending invitation to change its role.");
+      const actor = await manager.findOne(User, { where: { id: actorId, tenantId } });
+      this.assertManager(actor, user.role, dto.role);
+      if (user.role === "owner" && dto.role !== "owner" && await manager.count(User, { where: { tenantId, role: "owner", disabledAt: IsNull() } }) <= 1) {
+        throw new ForbiddenException("Cannot demote the only workspace owner.");
+      }
+      user.role = dto.role;
+      return this.memberDto(await manager.save(User, user));
+    });
+  }
 
-    let user: User;
-    if (existing) {
-      existing.tenantId = tenantId;
-      existing.role = dto.role || "agent";
-      if (dto.firstName) existing.firstName = dto.firstName;
-      if (dto.lastName) existing.lastName = dto.lastName;
-      user = await this.userRepo.save(existing);
+  async removeMember(tenantId: string, memberId: string, actorId: string): Promise<{ success: boolean }> {
+    const removed = await this.userRepo.manager.transaction(async (manager) => {
+      await this.lockWorkspace(manager, tenantId);
+      const actor = await manager.findOne(User, { where: { id: actorId, tenantId } });
+      const user = await manager.findOne(User, { where: { id: memberId, tenantId, disabledAt: IsNull() } });
+      this.assertManager(actor, user?.role);
+      if (!user) return false;
+      if (user.role === "owner" && await manager.count(User, { where: { tenantId, role: "owner", disabledAt: IsNull() } }) <= 1) {
+        throw new ForbiddenException("Cannot remove the only workspace owner.");
+      }
+      // Preserve a tombstone so stale Clerk metadata cannot recreate membership.
+      user.disabledAt = new Date();
+      await manager.save(User, user);
+      return true;
+    });
+    if (removed) {
+      this.gateway.disconnectMember(memberId);
     } else {
-      user = this.userRepo.create({
-        id: userId,
-        tenantId,
-        email: dto.email.toLowerCase().trim(),
-        firstName: dto.firstName || null,
-        lastName: dto.lastName || null,
-        role: dto.role || "agent",
-      });
-      user = await this.userRepo.save(user);
+      const invitation = (await this.invitations.list(tenantId, memberId)).find((invite) => invite.id === memberId);
+      if (!invitation) throw new NotFoundException("Team member not found.");
+      const actor = await this.userRepo.findOne({ where: { id: actorId, tenantId } });
+      this.assertManager(actor, String(invitation.publicMetadata?.connectmeRole));
+      await this.invitations.revoke(memberId);
     }
-
-    return {
-      id: user.id,
-      tenantId: user.tenantId,
-      email: user.email,
-      firstName: user.firstName ?? null,
-      lastName: user.lastName ?? null,
-      avatarUrl: user.avatarUrl ?? null,
-      role: (user.role || "agent") as UserRole,
-      createdAt: user.createdAt.toISOString(),
-    };
-  }
-
-  public async updateRole(
-    tenantId: string,
-    memberId: string,
-    dto: UpdateTeamMemberRoleDto,
-  ): Promise<TeamMemberDto> {
-    const user = await this.userRepo.findOne({
-      where: { id: memberId, tenantId },
-    });
-
-    if (!user) {
-      throw new NotFoundException("Team member not found.");
-    }
-
-    // Protect last owner
-    if (user.role === "owner" && dto.role !== "owner") {
-      const ownerCount = await this.userRepo.count({
-        where: { tenantId, role: "owner" },
-      });
-      if (ownerCount <= 1) {
-        throw new ForbiddenException("Cannot demote the only organization owner.");
-      }
-    }
-
-    user.role = dto.role;
-    const saved = await this.userRepo.save(user);
-
-    return {
-      id: saved.id,
-      tenantId: saved.tenantId,
-      email: saved.email,
-      firstName: saved.firstName ?? null,
-      lastName: saved.lastName ?? null,
-      avatarUrl: saved.avatarUrl ?? null,
-      role: saved.role as UserRole,
-      createdAt: saved.createdAt.toISOString(),
-    };
-  }
-
-  public async removeMember(
-    tenantId: string,
-    memberId: string,
-  ): Promise<{ success: boolean }> {
-    const user = await this.userRepo.findOne({
-      where: { id: memberId, tenantId },
-    });
-
-    if (!user) {
-      throw new NotFoundException("Team member not found.");
-    }
-
-    if (user.role === "owner") {
-      const ownerCount = await this.userRepo.count({
-        where: { tenantId, role: "owner" },
-      });
-      if (ownerCount <= 1) {
-        throw new ForbiddenException("Cannot remove the only organization owner.");
-      }
-    }
-
-    await this.userRepo.remove(user);
     return { success: true };
   }
 }

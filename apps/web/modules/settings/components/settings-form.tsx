@@ -45,6 +45,7 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
     showManualMeta,
     setShowManualMeta,
     saveChannel,
+    saveAiSettings,
     verifyChannel,
     disconnectAccount,
     registerTelegram,
@@ -97,92 +98,77 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
 
   return (
     <div className="w-full space-y-6">
-      {/* Sleek Workspace Header */}
-      <div className="rounded-xl border border-hairline bg-canvas-elevated p-6 shadow-2xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-[12px] font-mono text-mute">
-              <span>ConnectMe</span>
-              <span>/</span>
-              <span>Workspace</span>
-              <span>/</span>
-              <span className="text-ink font-semibold">Settings</span>
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-ink">
-              Workspace & Channels Settings
-            </h1>
-            <p className="text-[13px] text-mute">
-              Manage omnichannel integrations, AI BYOK routing keys, team access, and incoming webhooks.
-            </p>
+      <div className="flex flex-col gap-5 border-b border-hairline pb-6 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">Settings</h1>
+          <p className="max-w-2xl text-sm text-body">
+            Manage channels, team access, AI, and notifications for your workspace.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="inline-flex h-9 items-center gap-2 self-start rounded-lg border border-hairline bg-canvas-elevated px-3 text-xs font-medium text-body">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                connectedChannelsCount > 0
+                  ? "bg-emerald-500 ring-2 ring-emerald-500/20"
+                  : "bg-neutral-400"
+              }`}
+            />
+            <span>{connectedChannelsCount} of 5 channels connected</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Health Status Pill */}
-            <div className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-well/50 px-3 py-1.5 font-mono text-[12px]">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  connectedChannelsCount > 0
-                    ? "bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse"
-                    : "bg-neutral-400"
-                }`}
+          <div className="relative w-full sm:w-64">
+            <input
+              type="text"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              placeholder="Search settings…"
+              aria-label="Search settings"
+              className="h-9 w-full rounded-lg border border-hairline bg-canvas-elevated px-3 pl-9 text-sm text-ink placeholder:text-mute focus:border-ink/40 focus:outline-none focus:ring-2 focus:ring-ink/10"
+            />
+            <svg
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-mute"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
-              <span className="text-body font-medium">
-                {connectedChannelsCount} of 5 Channels Live
-              </span>
-            </div>
-
-            {/* Quick Search Input */}
-            <div className="relative min-w-[200px] sm:min-w-[240px]">
-              <input
-                type="text"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Jump to setting or key..."
-                className="h-8 w-full rounded-lg border border-hairline bg-canvas px-3 pl-8 text-[12.5px] text-ink placeholder:text-mute focus:border-ink/40 focus:outline-none focus:ring-1 focus:ring-ink/20"
-              />
-              <svg
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-mute pointer-events-none"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            </svg>
+            {searchFilter && (
+              <button
+                type="button"
+                onClick={() => setSearchFilter("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-mute hover:text-ink"
+                aria-label="Clear settings search"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              {searchFilter && (
-                <button
-                  type="button"
-                  onClick={() => setSearchFilter("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-mute hover:text-ink cursor-pointer"
-                >
-                  ✕
-                </button>
-              )}
+                ✕
+              </button>
+            )}
 
-              {/* Quick Jump Search Dropdown */}
-              {searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-20 rounded-lg border border-hairline bg-canvas-elevated shadow-lg p-1.5 space-y-0.5 max-h-60 overflow-y-auto">
-                  {searchResults.map((res) => (
-                    <button
-                      key={res.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTab(res.id);
-                        setSearchFilter("");
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-md text-[12px] text-ink hover:bg-surface-well flex items-center justify-between cursor-pointer"
-                    >
-                      <span className="font-medium">{res.label}</span>
-                      <span className="text-[10px] font-mono text-mute">Jump →</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {searchResults.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-60 space-y-0.5 overflow-y-auto rounded-lg border border-hairline bg-canvas-elevated p-1.5 shadow-lg">
+                {searchResults.map((res) => (
+                  <button
+                    key={res.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(res.id);
+                      setSearchFilter("");
+                    }}
+                    className="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm text-ink hover:bg-surface-well"
+                  >
+                    <span className="font-medium">{res.label}</span>
+                    <span className="text-xs text-mute">Open</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -225,9 +211,9 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
       )}
 
       {/* Main 2-Column Responsive Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-[230px_1fr] lg:grid-cols-[250px_1fr] gap-8 items-start">
+      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[230px_minmax(0,1fr)] lg:grid-cols-[250px_minmax(0,1fr)]">
         {/* Left Column: Fixed/Sticky Sidebar Navigation */}
-        <aside className="w-full md:sticky md:top-20">
+        <aside className="w-full rounded-xl border border-hairline bg-canvas-elevated p-3 md:sticky md:top-20">
           <SettingsTabs
             activeTab={activeTab}
             onSelectTab={setActiveTab}
@@ -261,9 +247,7 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
             <AiByokSettings
               initialConfig={data.settings.ai}
               saving={Boolean(busy)}
-              onSave={async (secrets) => {
-                await saveChannel(secrets, "ai", "AI Copilot settings updated successfully!");
-              }}
+              onSave={saveAiSettings}
             />
           )}
 
@@ -281,6 +265,7 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
                 saveChannel(
                   {
                     waPhoneNumberId: whatsappForm.waPhoneNumberId,
+                    waBusinessAccountId: whatsappForm.waBusinessAccountId,
                     waAccessToken: whatsappForm.waAccessToken,
                     waAppId: whatsappForm.waAppId,
                     waAppSecret: whatsappForm.waAppSecret,
@@ -290,6 +275,7 @@ export default function SettingsForm({ initial }: SettingsFormProps) {
                   () =>
                     setWhatsappForm({
                       waPhoneNumberId: "",
+                      waBusinessAccountId: "",
                       waAccessToken: "",
                       waAppId: "",
                       waAppSecret: "",

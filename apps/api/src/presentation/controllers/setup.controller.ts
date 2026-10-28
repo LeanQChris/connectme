@@ -1,3 +1,4 @@
+import { RequireRoles } from "../auth/require-roles.decorator";
 import { Controller, Get, Query, Inject } from "@nestjs/common";
 import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
 import { AesVaultService } from "@connectme/channels";
@@ -6,6 +7,7 @@ import { decryptStrict } from "../../infrastructure/crypto/decrypt-strict";
 import { ensureWebhookVerifyToken } from "../webhook-verify-token";
 
 @Controller("api")
+@RequireRoles("owner", "admin")
 export class SetupController {
   constructor(
     @Inject("ITenantRepository")

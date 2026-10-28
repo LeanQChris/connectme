@@ -19,7 +19,6 @@ interface SettingsTabsProps {
 interface NavItem {
   id: SettingsTabId;
   label: string;
-  subLabel?: string;
   icon: React.ReactNode;
   connected?: boolean;
   badge?: string;
@@ -56,7 +55,6 @@ export const SettingsTabs = memo(function SettingsTabs({
         {
           id: "overview",
           label: "Overview",
-          subLabel: "Channel hub & linked accounts",
           icon: (
             <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -77,14 +75,12 @@ export const SettingsTabs = memo(function SettingsTabs({
         {
           id: "whatsapp",
           label: "WhatsApp Cloud",
-          subLabel: "Meta Cloud API",
           icon: <ChannelIcon channel="whatsapp" className="h-4 w-4 text-whatsapp" />,
           connected: isWhatsAppConnected,
         },
         {
           id: "meta",
           label: "Facebook & Instagram",
-          subLabel: "Pages & Direct Messaging",
           icon: <ChannelIcon channel="messenger" className="h-4 w-4 text-messenger" />,
           connected: isMetaConnected,
           badge: metaAccountsCount > 0 ? `${metaAccountsCount} accounts` : undefined,
@@ -92,21 +88,18 @@ export const SettingsTabs = memo(function SettingsTabs({
         {
           id: "telegram",
           label: "Telegram Bot",
-          subLabel: "Bot API & Webhooks",
           icon: <ChannelIcon channel="telegram" className="h-4 w-4 text-sky-500" />,
           connected: isTelegramConnected,
         },
         {
           id: "discord",
           label: "Discord Bot",
-          subLabel: "Gateway & Slash Commands",
           icon: <ChannelIcon channel="discord" className="h-4 w-4 text-[#5865F2]" />,
           connected: isDiscordConnected,
         },
         {
           id: "slack",
           label: "Slack Workspace",
-          subLabel: "Events API & OAuth",
           icon: <ChannelIcon channel="slack" className="h-4 w-4 text-[#4A154B] dark:text-[#E01E5A]" />,
           connected: isSlackConnected,
         },
@@ -118,7 +111,6 @@ export const SettingsTabs = memo(function SettingsTabs({
         {
           id: "ai",
           label: "AI Copilot & Router",
-          subLabel: "BYOK & Multi-Provider",
           icon: (
             <span className="flex h-4 w-4 items-center justify-center text-xs">
               ✨
@@ -135,7 +127,6 @@ export const SettingsTabs = memo(function SettingsTabs({
         {
           id: "team",
           label: "Team & RBAC",
-          subLabel: "Members & Role Access",
           icon: (
             <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -150,7 +141,6 @@ export const SettingsTabs = memo(function SettingsTabs({
         {
           id: "webhooks",
           label: "Webhooks & Endpoints",
-          subLabel: "Gateway routing & tokens",
           icon: (
             <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -165,7 +155,6 @@ export const SettingsTabs = memo(function SettingsTabs({
         {
           id: "notifications",
           label: "Notifications & Audio",
-          subLabel: "Push alerts & sound chimes",
           icon: (
             <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24">
               <path
@@ -215,10 +204,10 @@ export const SettingsTabs = memo(function SettingsTabs({
       </div>
 
       {/* Desktop Categorized High-Density Sidebar (>= md screens) */}
-      <nav className="hidden md:flex flex-col gap-6 w-full">
+      <nav className="hidden w-full flex-col gap-5 md:flex">
         {sections.map((section) => (
-          <div key={section.title} className="space-y-1.5">
-            <h3 className="px-3 font-mono text-[10px] font-semibold uppercase tracking-wider text-mute">
+          <div key={section.title} className="space-y-2">
+            <h3 className="px-2 text-[11px] font-semibold text-mute">
               {section.title}
             </h3>
             <div className="space-y-0.5">
@@ -229,15 +218,15 @@ export const SettingsTabs = memo(function SettingsTabs({
                     key={item.id}
                     type="button"
                     onClick={() => onSelectTab(item.id)}
-                    className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-all cursor-pointer relative ${
+                    className={`group relative flex w-full items-center justify-between rounded-lg border px-2.5 py-2 text-left transition-colors ${
                       isSelected
-                        ? "bg-surface-well text-ink font-medium shadow-2xs border border-hairline"
-                        : "text-body hover:bg-surface-well/50 hover:text-ink border border-transparent"
+                        ? "border-emerald-500/20 bg-emerald-500/10 font-medium text-ink"
+                        : "border-transparent text-body hover:bg-surface-well/70 hover:text-ink"
                     }`}
                   >
                     {/* Active accent pill on left border */}
                     {isSelected && (
-                      <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r-full bg-ink" />
+                      <span className="absolute bottom-2 left-0 top-2 w-0.5 rounded-r-full bg-emerald-600 dark:bg-emerald-400" />
                     )}
 
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -250,15 +239,10 @@ export const SettingsTabs = memo(function SettingsTabs({
                       >
                         {item.icon}
                       </span>
-                      <div className="flex flex-col min-w-0 leading-tight">
-                        <span className="truncate text-[13px] font-medium text-ink">
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium text-ink">
                           {item.label}
                         </span>
-                        {item.subLabel && (
-                          <span className="truncate text-[10.5px] text-mute font-mono">
-                            {item.subLabel}
-                          </span>
-                        )}
                       </div>
                     </div>
 

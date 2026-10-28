@@ -30,9 +30,9 @@ function toCachedMessage(
     id: message.id ?? `rt-${Date.now()}`,
     conversationId,
     direction:
-      message.direction === "out" || message.direction === "outbound"
+      message.direction?.toLowerCase() === "out" || message.direction?.toLowerCase() === "outbound"
         ? "out"
-        : message.direction === "note"
+        : ["note", "internal_note"].includes(message.direction?.toLowerCase() || "")
           ? "note"
           : "in",
     type: (message.type?.toLowerCase() as MessageType) || "text",
@@ -126,7 +126,7 @@ export function useRealtimeInbox(activeConversationId?: string | null) {
           void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.conversations });
 
           const isInbound =
-            !message?.direction || message.direction === "in" || message.direction === "inbound";
+            !message?.direction || message.direction.toLowerCase() === "in" || message.direction.toLowerCase() === "inbound";
           const isBackgrounded =
             typeof document !== "undefined" &&
             (document.visibilityState === "hidden" || !document.hasFocus());

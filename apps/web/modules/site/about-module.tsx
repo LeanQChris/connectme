@@ -65,7 +65,7 @@ const GUARANTEES = [
   {
     title: "Sub-50ms Real-Time Engine",
     tagline: "Instant multi-agent collaboration",
-    desc: "Real-time bidirectional event streaming with Socket.io and TanStack Query. Private internal notes, typing indicators, read receipts, and keyboard navigation with j and k.",
+    desc: "Real-time bidirectional event streaming with Socket.io and TanStack Query. Private internal notes, read receipts, and keyboard navigation with j and k.",
     icon: "⚡"
   }
 ];

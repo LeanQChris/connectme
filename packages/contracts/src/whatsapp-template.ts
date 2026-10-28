@@ -8,6 +8,12 @@ export const WhatsAppTemplateCategorySchema = z.enum([
 export type WhatsAppTemplateCategory = z.infer<typeof WhatsAppTemplateCategorySchema>;
 
 export const WhatsAppTemplateStatusSchema = z.enum([
+  "DRAFT",
+  "SUBMITTED",
+  "IN_APPEAL",
+  "DELETED",
+  "PENDING_DELETION",
+  "LIMIT_EXCEEDED",
   "APPROVED",
   "PENDING",
   "REJECTED",
@@ -20,7 +26,7 @@ export const WhatsAppTemplateComponentSchema = z.object({
   type: z.enum(["HEADER", "BODY", "FOOTER", "BUTTONS"]),
   format: z.enum(["TEXT", "IMAGE", "DOCUMENT", "VIDEO", "LOCATION"]).optional(),
   text: z.string().optional(),
-  example: z.record(z.unknown()).optional(),
+  example: z.record(z.string(), z.unknown()).optional(),
   buttons: z
     .array(
       z.object({
@@ -41,7 +47,9 @@ export const WhatsAppTemplateDtoSchema = z.object({
   category: WhatsAppTemplateCategorySchema,
   status: WhatsAppTemplateStatusSchema,
   components: z.array(WhatsAppTemplateComponentSchema),
-  rawTemplate: z.record(z.unknown()).optional(),
+  rawTemplate: z.record(z.string(), z.unknown()).optional(),
+  providerId: z.string().optional(),
+  rejectionReason: z.string().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
@@ -63,10 +71,12 @@ export const CreateWhatsAppTemplateDraftSchema = z.object({
     .min(1)
     .max(512)
     .regex(/^[a-z0-9_]+$/, "Template name must be lowercase alphanumeric with underscores only"),
-  language: z.string().default("en_US"),
+  language: z.string().max(16).regex(/^[a-z]{2,3}(?:_[A-Z]{2})?$/, "Use a Meta language code such as en_US").default("en_US"),
   category: WhatsAppTemplateCategorySchema.default("UTILITY"),
   headerText: z.string().max(60).optional(),
   bodyText: z.string().min(1).max(1024),
+  headerExamples: z.array(z.string().trim().min(1).max(1024)).max(1).optional(),
+  bodyExamples: z.array(z.string().trim().min(1).max(1024)).max(100).optional(),
   footerText: z.string().max(60).optional(),
   buttons: z
     .array(
@@ -82,3 +92,12 @@ export const CreateWhatsAppTemplateDraftSchema = z.object({
 export type CreateWhatsAppTemplateDraftDto = z.infer<
   typeof CreateWhatsAppTemplateDraftSchema
 >;
+
+/** Composer supports positional text parameters and static/quick-reply buttons. */
+export function supportsWhatsAppTextTemplate(template: Pick<WhatsAppTemplateDto, "category" | "components">): boolean {
+  return template.category !== "AUTHENTICATION" && Array.isArray(template.components) && template.components.some((c) => c.type === "BODY" && typeof c.text === "string") && template.components.every((c) =>
+    ["HEADER", "BODY", "FOOTER", "BUTTONS"].includes(c.type) &&
+    (c.type !== "HEADER" || c.format === "TEXT") &&
+    (!c.text?.includes("{{") || !c.text.replace(/\{\{[1-9]\d*\}\}/g, "").includes("{{")) &&
+    (!c.buttons || c.buttons.every((b) => b.type === "QUICK_REPLY" || b.type === "PHONE_NUMBER" || (b.type === "URL" && typeof b.url === "string" && !b.url.includes("{{")))));
+}

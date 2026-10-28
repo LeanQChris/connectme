@@ -33,6 +33,9 @@ export class User {
   @Column({ default: "agent" })
   role!: string; // admin, agent, viewer
 
+  @Column({ type: "timestamp with time zone", nullable: true })
+  disabledAt?: Date | null;
+
   @CreateDateColumn({ type: "timestamp with time zone" })
   createdAt!: Date;
 

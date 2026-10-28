@@ -7,6 +7,8 @@ import type { AiProvider, AiRoutingStrategy } from "@connectme/contracts";
 
 interface AiByokSettingsProps {
   initialConfig?: {
+    autoReplyEnabled?: boolean;
+    autoReplyPrompt?: string | null;
     configured: boolean;
     provider: string | null;
     model: string | null;
@@ -18,6 +20,9 @@ interface AiByokSettingsProps {
     routingStrategy?: string | null;
   };
   onSave: (secrets: {
+    aiAutoReplyEnabled?: boolean;
+    aiAutoReplyPrompt?: string;
+    aiFallbackEnabled?: boolean;
     aiApiKey?: string;
     aiProvider?: string;
     aiModel?: string;
@@ -121,6 +126,9 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
   const [customSystemPrompt, setCustomSystemPrompt] = useState(
     initialConfig?.customSystemPrompt || "",
   );
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(Boolean(initialConfig?.autoReplyEnabled));
+  const [autoReplyPrompt, setAutoReplyPrompt] = useState(initialConfig?.autoReplyPrompt || "");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
 
   // Fallback Provider Chain
@@ -186,12 +194,17 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavedSuccess(false);
+    setSaveError(null);
+    try {
     await onSave({
+      aiAutoReplyEnabled: autoReplyEnabled,
+      aiAutoReplyPrompt: autoReplyPrompt.trim(),
+      aiFallbackEnabled: enableFallback,
       aiApiKey: apiKey.trim() || undefined,
       aiProvider: provider,
       aiModel: model.trim(),
-      aiCustomBaseUrl: customBaseUrl.trim() || undefined,
-      aiCustomSystemPrompt: customSystemPrompt.trim() || undefined,
+      aiCustomBaseUrl: customBaseUrl.trim(),
+      aiCustomSystemPrompt: customSystemPrompt.trim(),
       aiFallbackApiKey: enableFallback && fallbackApiKey.trim() ? fallbackApiKey.trim() : undefined,
       aiFallbackProvider: enableFallback ? fallbackProvider : undefined,
       aiFallbackModel: enableFallback ? fallbackModel.trim() : undefined,
@@ -201,6 +214,9 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
     setApiKey("");
     setFallbackApiKey("");
     setTimeout(() => setSavedSuccess(false), 4000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save AI settings");
+    }
   };
 
   return (
@@ -513,6 +529,16 @@ export function AiByokSettings({ initialConfig, onSave, saving }: AiByokSettings
             />
           </div>
 
+          <section className="rounded-xl border border-hairline bg-canvas p-4 space-y-3">
+            <label className="flex items-start gap-3 text-sm font-semibold text-ink">
+              <input type="checkbox" checked={autoReplyEnabled} onChange={(e) => setAutoReplyEnabled(e.target.checked)} className="mt-1 accent-emerald-600" />
+              <span>Automatic customer replies<span className="mt-1 block text-xs font-normal text-mute">Off by default. Sends replies without agent review in open, unassigned conversations on WhatsApp, Messenger, Instagram, Telegram and Discord. Meta replies require an open 24-hour window. Uses your primary provider and may incur API charges.</span></span>
+            </label>
+            <label className="block text-xs font-semibold text-ink">Auto-reply instructions
+              <textarea rows={3} maxLength={4096} value={autoReplyPrompt} onChange={(e) => setAutoReplyPrompt(e.target.value)} placeholder="Business hours, escalation rules, and what the assistant should answer" className="mt-1 w-full rounded-lg border border-hairline bg-canvas p-3 text-sm font-normal text-ink" />
+            </label>
+          </section>
+          {saveError && <p role="alert" className="text-sm text-error">{saveError}</p>}
           {/* Alerts */}
           {testResult && (
             <div

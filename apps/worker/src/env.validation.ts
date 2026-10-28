@@ -1,3 +1,5 @@
+import { validateVapidConfig } from "@connectme/crypto";
+
 const ALLOWED_NODE_ENVS = ["development", "test", "production"] as const;
 const MIN_ENCRYPTION_KEY_LENGTH = 32;
 
@@ -29,5 +31,6 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
     );
   }
 
+  validateVapidConfig(config);
   return config;
 }

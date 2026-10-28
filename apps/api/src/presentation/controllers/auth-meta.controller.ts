@@ -1,3 +1,4 @@
+import { RequireRoles } from "../auth/require-roles.decorator";
 import {
   Controller,
   Get,
@@ -30,6 +31,7 @@ function base64Url(buf: Buffer): string {
 }
 
 export function resolveAppUrl(req?: Request): string {
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   if (!req || !req.headers) {
     return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
   }
@@ -74,6 +76,7 @@ export function resolveAppUrl(req?: Request): string {
 }
 
 @Controller("api/auth/meta")
+@RequireRoles("owner", "admin")
 export class AuthMetaController {
   private readonly logger = new Logger(AuthMetaController.name);
 

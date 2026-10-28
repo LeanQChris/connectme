@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { join } from "node:path";
 import { DataSource } from "typeorm";
 import {
+  BrowserPushSubscription,
   Tenant,
   User,
   TenantCredential,
@@ -11,6 +12,7 @@ import {
   Message,
   ScheduledPost,
   ScheduledMessage,
+  WhatsAppTemplate,
 } from "./entities";
 
 export const AppDataSource = new DataSource({
@@ -19,6 +21,7 @@ export const AppDataSource = new DataSource({
   synchronize: String(process.env.DB_SYNCHRONIZE ?? "false") === "true",
   logging: process.env.NODE_ENV === "development",
   entities: [
+    BrowserPushSubscription,
     Tenant,
     User,
     TenantCredential,
@@ -28,6 +31,7 @@ export const AppDataSource = new DataSource({
     Message,
     ScheduledPost,
     ScheduledMessage,
+    WhatsAppTemplate,
   ],
   migrations: [join(__dirname, "migrations", "*{.ts,.js}")],
   subscribers: [],

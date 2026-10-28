@@ -1,10 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+import { reconcileBackgroundPush } from "@/core/notifications/browser-push";
 import { useRouter } from "next/navigation";
 
 export function PwaProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { user, isLoaded } = useUser();
+  useEffect(() => {
+    if (!isLoaded) return;
+    const reconcile = () => { void reconcileBackgroundPush(user?.id ?? null).catch(() => {
+      // Keep the device preference on a transient API outage; retry on focus/online.
+    }); };
+    reconcile();
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("online", reconcile);
+    return () => { window.removeEventListener("focus", reconcile); window.removeEventListener("online", reconcile); };
+  }, [isLoaded, user?.id]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {

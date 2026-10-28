@@ -19,6 +19,9 @@ export class TenantCredential {
   @Column({ type: "varchar", nullable: true })
   waPhoneNumberId?: string | null;
 
+  @Column({ type: "varchar", nullable: true })
+  waBusinessAccountId?: string | null;
+
   @Column({ type: "text", nullable: true })
   waAccessTokenEnc?: string | null;
 

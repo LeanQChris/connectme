@@ -206,9 +206,9 @@ describe("WebhookController redelivery dedup", () => {
     const sink: Array<{ jobId?: string }> = [];
     const controller = makeController({ queue: capturingQueue(sink) as any });
 
-    await (controller as any).dispatch("telegram", { receivedAt: 1 }, { update_id: 42 });
-    await (controller as any).dispatch("telegram", { receivedAt: 2 }, { update_id: 42 });
-    await (controller as any).dispatch("telegram", { receivedAt: 3 }, { update_id: 43 });
+    await (controller as any).dispatch("telegram", { botId: "bot1", receivedAt: 1 }, { update_id: 42 });
+    await (controller as any).dispatch("telegram", { botId: "bot1", receivedAt: 2 }, { update_id: 42 });
+    await (controller as any).dispatch("telegram", { botId: "bot1", receivedAt: 3 }, { update_id: 43 });
 
     await (controller as any).dispatch("slack", { receivedAt: 1 }, { event_id: "Ev1" });
     await (controller as any).dispatch("slack", { receivedAt: 2 }, { event_id: "Ev1" });
@@ -223,5 +223,35 @@ describe("WebhookController redelivery dedup", () => {
     assert.equal(sink[3].jobId, sink[4].jobId, "slack event_id stable");
 
     assert.equal(sink[5].jobId, sink[6].jobId, "discord interaction id stable");
+  });
+});
+
+describe("Slack webhook verification", () => {
+  test("requires signatures for challenges and rejects missing, stale, future and malformed timestamps", async () => {
+    const controller = makeController();
+    for (const timestamp of ["", "not-a-time", String(Math.floor(Date.now() / 1000) - 301), String(Math.floor(Date.now() / 1000) + 301)]) {
+      await assert.rejects(controller.handleSlackWebhook(rawReq('{}') as any, "v0=forged", timestamp, { type: "url_verification", challenge: "forged" }), ForbiddenException);
+    }
+  });
+
+  test("validates the exact body and workspace secret before dispatch or returning a challenge", async () => {
+    const { createHmac } = await import("node:crypto");
+    const { AesVaultService } = await import("@connectme/channels");
+    const secret = "workspace-signing-secret";
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const body = { type: "url_verification", team_id: "T1", challenge: "signed-challenge" };
+    const raw = JSON.stringify(body);
+    const signature = `v0=${createHmac("sha256", secret).update(`v0:${timestamp}:${raw}`).digest("hex")}`;
+    let dispatched = 0;
+    const repo = {
+      findAccountByExternalId: async (_channel: unknown, workspace: string) => workspace === "T1" ? { tenantId: "tenant1" } : null,
+      getCredentials: async () => ({ slackSigningSecretEnc: "encrypted" }),
+    };
+    const controller = new WebhookController(repo as any, { add: async () => { dispatched++; } } as any, { decrypt: () => secret } as unknown as InstanceType<typeof AesVaultService>);
+    assert.deepEqual(await controller.handleSlackWebhook(rawReq(raw) as any, signature, timestamp, body), { challenge: "signed-challenge" });
+    assert.equal(dispatched, 0);
+    await assert.rejects(controller.handleSlackWebhook(rawReq(raw + ' ') as any, signature, timestamp, body), ForbiddenException);
+    await assert.rejects(controller.handleSlackWebhook(rawReq(raw) as any, "v0=forged", timestamp, body), ForbiddenException);
+    await assert.rejects(controller.handleSlackWebhook(rawReq(raw) as any, signature, timestamp, { ...body, team_id: "other" }), ForbiddenException);
   });
 });

@@ -56,6 +56,7 @@ export const ConnectedAccountDtoSchema = z.object({
 
 export interface ProviderSecretsDto {
   waPhoneNumberId?: string;
+  waBusinessAccountId?: string;
   waAccessToken?: string;
   waAppId?: string;
   waAppSecret?: string;
@@ -70,6 +71,9 @@ export interface ProviderSecretsDto {
   discordPublicKey?: string;
   slackBotToken?: string;
   slackSigningSecret?: string;
+  aiAutoReplyEnabled?: boolean;
+  aiAutoReplyPrompt?: string;
+  aiFallbackEnabled?: boolean;
   aiApiKey?: string;
   aiProvider?: string;
   aiModel?: string;
@@ -85,6 +89,7 @@ export interface ProviderSecretsDto {
 export const ProviderSecretsSchema = z
   .object({
     waPhoneNumberId: z.string().max(64).optional(),
+    waBusinessAccountId: z.string().regex(/^\d{1,64}$/).optional(),
     waAccessToken: z.string().max(4096).optional(),
     waAppId: z.string().max(64).optional(),
     waAppSecret: z.string().max(512).optional(),
@@ -99,6 +104,9 @@ export const ProviderSecretsSchema = z
     discordPublicKey: z.string().max(128).optional(),
     slackBotToken: z.string().max(512).optional(),
     slackSigningSecret: z.string().max(512).optional(),
+    aiAutoReplyEnabled: z.boolean().optional(),
+    aiAutoReplyPrompt: z.string().max(4096).optional(),
+    aiFallbackEnabled: z.boolean().optional(),
     aiApiKey: z.string().max(4096).optional(),
     aiProvider: z.string().max(64).optional(),
     aiModel: z.string().max(128).optional(),
@@ -136,6 +144,8 @@ export interface SettingsPayloadDto {
     metaAppId?: string | null;
     discordPublicKeyConfigured?: boolean;
     ai?: {
+      autoReplyEnabled?: boolean;
+      autoReplyPrompt?: string | null;
       configured: boolean;
       provider: string | null;
       model: string | null;
@@ -149,6 +159,7 @@ export interface SettingsPayloadDto {
     updatedAt: string | null;
     webhookVerifyToken: string;
     waPhoneNumberId?: string | null;
+    waBusinessAccountId?: string | null;
     waAppId?: string | null;
   };
   oauth: {

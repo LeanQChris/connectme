@@ -6,8 +6,11 @@ import {
   Delete,
   Param,
   Body,
+  Req,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { TeamService } from "../../infrastructure/services/team.service";
+import { RequireRoles } from "../auth/require-roles.decorator";
 import { TenantId } from "../auth/tenant-id.decorator";
 import { ZodValidationPipe } from "../pipes/zod-validation.pipe";
 import {
@@ -18,6 +21,7 @@ import {
 } from "@connectme/contracts";
 
 @Controller("api/team")
+@RequireRoles("owner", "admin")
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
@@ -31,8 +35,9 @@ export class TeamController {
   async inviteMember(
     @TenantId() tenantId: string,
     @Body(new ZodValidationPipe(InviteTeamMemberSchema)) dto: InviteTeamMemberDto,
+    @Req() request: Request & { userId: string },
   ) {
-    const member = await this.teamService.inviteMember(tenantId, dto);
+    const member = await this.teamService.inviteMember(tenantId, dto, request.userId);
     return { member };
   }
 
@@ -41,8 +46,9 @@ export class TeamController {
     @TenantId() tenantId: string,
     @Param("id") id: string,
     @Body(new ZodValidationPipe(UpdateTeamMemberRoleSchema)) dto: UpdateTeamMemberRoleDto,
+    @Req() request: Request & { userId: string },
   ) {
-    const member = await this.teamService.updateRole(tenantId, id, dto);
+    const member = await this.teamService.updateRole(tenantId, id, dto, request.userId);
     return { member };
   }
 
@@ -50,7 +56,8 @@ export class TeamController {
   async removeMember(
     @TenantId() tenantId: string,
     @Param("id") id: string,
+    @Req() request: Request & { userId: string },
   ) {
-    return this.teamService.removeMember(tenantId, id);
+    return this.teamService.removeMember(tenantId, id, request.userId);
   }
 }

@@ -129,7 +129,8 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  const targetUrl = event.notification.data?.url || "/inbox";
+  const candidateUrl = new URL(event.notification.data?.url || "/inbox", self.location.origin);
+  const targetUrl = candidateUrl.origin === self.location.origin ? candidateUrl.href : `${self.location.origin}/inbox`;
   const conversationId = event.notification.data?.conversationId;
 
   event.waitUntil(

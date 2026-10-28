@@ -18,12 +18,19 @@
     "check-types": "turbo run check-types",
     "db:sync": "turbo run schema:sync --filter=@connectme/database",
     "db:migrate": "turbo run migration:run --filter=@connectme/database",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "production:check": "tsx --tsconfig apps/api/tsconfig.json scripts/production-check.ts",
+    "check:backup": "sh scripts/check-backup.sh",
+    "check:storage": "sh scripts/check-storage.sh",
+    "push:keys": "node scripts/generate-push-keys.cjs"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
     "turbo": "^2.4.4",
     "typescript": "^5",
     "typescript-eslint": "^8.71.0"
+  },
+  "overrides": {
+    "multer": "2.5.0"
   }
 }

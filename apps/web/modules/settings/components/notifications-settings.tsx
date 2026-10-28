@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 
 export function NotificationsSettings() {
   const {
+    backgroundEnabled,
+    pushError,
+    pushBusy,
+    disablePush,
     isSupported,
     isGranted,
     isDenied,
@@ -35,13 +39,13 @@ export function NotificationsSettings() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-[16px] font-semibold text-ink">Desktop Push Notifications</h2>
+                <h2 className="text-[16px] font-semibold text-ink">Desktop Notifications</h2>
                 <span className="rounded bg-surface-well px-1.5 py-0.5 font-mono text-[9.5px] text-mute border border-hairline">
-                  Web Push
+                  Live alerts
                 </span>
               </div>
               <p className="text-[12.5px] text-mute mt-0.5">
-                Instant desktop alerts when new customer messages and mentions arrive in your inbox.
+                Live desktop alerts and background push for incoming customer messages.
               </p>
             </div>
           </div>
@@ -69,22 +73,23 @@ export function NotificationsSettings() {
         <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <p className="text-[12.5px] text-mute max-w-lg leading-relaxed">
             {isGranted
-              ? "Browser push notifications are currently active for this device."
+              ? backgroundEnabled ? "Background push is enabled for this device, including when the tab is closed. Your browser and OS control delivery. Lock-screen alerts do not include customer message content." : "Live alerts are allowed while ConnectMe is open. Enable background alerts to receive messages after closing the tab."
               : isDenied
                 ? "Notifications are blocked by your browser permissions. Click the lock icon in your address bar to re-enable them."
                 : "Grant browser permission to receive live desktop alerts when incoming messages arrive in real-time."}
           </p>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            {!isGranted && !isDenied && isSupported && (
+            {!backgroundEnabled && !isDenied && isSupported && (
               <Button
                 type="button"
                 variant="primary"
                 size="sm"
+                disabled={pushBusy}
                 onClick={requestPermission}
                 className="h-8 px-3.5 text-[12.5px] font-semibold cursor-pointer"
               >
-                Enable Notifications
+                {isGranted ? "Enable Background Alerts" : "Enable Notifications"}
               </Button>
             )}
 
@@ -93,14 +98,17 @@ export function NotificationsSettings() {
                 type="button"
                 variant="outline"
                 size="sm"
+                disabled={pushBusy}
                 onClick={triggerTestNotification}
                 className="h-8 px-3 text-[12px] font-medium cursor-pointer"
               >
                 Send Test Alert
               </Button>
             )}
+            {backgroundEnabled && <Button type="button" variant="outline" size="sm" disabled={pushBusy} onClick={disablePush}>Disable Background Alerts</Button>}
           </div>
         </div>
+        {pushError && <p role="alert" className="px-6 pb-4 text-xs text-error">{pushError}</p>}
       </div>
 
       {/* 2. Audio Chime Alert Card */}

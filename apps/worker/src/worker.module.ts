@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bullmq";
 import {
+  BrowserPushSubscription,
   Tenant,
   User,
   TenantCredential,
@@ -31,6 +32,7 @@ import { OutboundSchedulerProcessor } from "./processors/outbound-scheduler.proc
 import { AiAgentProcessor } from "./processors/ai-agent.processor";
 import { MediaRehostProcessor } from "./processors/media-rehost.processor";
 import { OutboundRetryProcessor } from "./processors/outbound-retry.processor";
+import { BrowserPushProcessor } from "./processors/browser-push.processor";
 import { AiAgentService } from "./services/ai-agent.service";
 import { S3MediaService } from "./storage/s3-media.service";
 import { WorkerHealthService } from "./health/health-server";
@@ -56,6 +58,7 @@ import { validateEnv } from "./env.validation";
       type: "postgres",
       url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5434/connectme",
       entities: [
+        BrowserPushSubscription,
         Tenant,
         User,
         TenantCredential,
@@ -70,6 +73,7 @@ import { validateEnv } from "./env.validation";
       logging: false,
     }),
     TypeOrmModule.forFeature([
+      BrowserPushSubscription,
       TenantCredential,
       ConnectedAccount,
       Contact,
@@ -93,6 +97,7 @@ import { validateEnv } from "./env.validation";
     BullModule.registerQueue({ name: AI_AGENT_QUEUE }),
     BullModule.registerQueue({ name: MEDIA_REHOST_QUEUE }),
     BullModule.registerQueue({ name: OUTBOUND_RETRY_QUEUE }),
+    BullModule.registerQueue({ name: "browser-push" }),
   ],
   providers: [
     // Infrastructure
@@ -119,6 +124,7 @@ import { validateEnv } from "./env.validation";
     AiAgentProcessor,
     MediaRehostProcessor,
     OutboundRetryProcessor,
+    BrowserPushProcessor,
     AiAgentService,
   ],
 })

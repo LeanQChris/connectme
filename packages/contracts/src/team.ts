@@ -12,6 +12,7 @@ export const TeamMemberDtoSchema = z.object({
   avatarUrl: z.string().nullable().optional(),
   role: UserRoleSchema,
   createdAt: z.string(),
+  status: z.enum(["active", "pending"]).optional(),
 });
 export type TeamMemberDto = z.infer<typeof TeamMemberDtoSchema>;
 

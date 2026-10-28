@@ -174,6 +174,8 @@ export interface SettingsPayload {
     metaAppId?: string | null;
     discordPublicKeyConfigured?: boolean;
     ai?: {
+      autoReplyEnabled?: boolean;
+      autoReplyPrompt?: string | null;
       configured: boolean;
       provider: string | null;
       model: string | null;
@@ -187,6 +189,7 @@ export interface SettingsPayload {
     updatedAt: string | null;
     webhookVerifyToken: string;
     waPhoneNumberId?: string | null;
+    waBusinessAccountId?: string | null;
     waAppId?: string | null;
   };
   oauth: {

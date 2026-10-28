@@ -29,7 +29,7 @@ export class WhatsAppTemplate {
   @Column({ type: "varchar", length: 32, default: "UTILITY" })
   category!: string;
 
-  @Column({ type: "varchar", length: 32, default: "APPROVED" })
+  @Column({ type: "varchar", length: 32, default: "DRAFT" })
   status!: string;
 
   @Column({ type: "jsonb", default: () => "'[]'" })

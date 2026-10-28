@@ -71,9 +71,9 @@ export function MetaSettings({
       } else {
         throw new Error("Did not receive a valid Meta authorization URL.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setOauthError(
-        err.message ||
+        (err instanceof Error ? err.message : null) ||
           "Meta OAuth is unavailable. Please verify your Meta App credentials or use custom keys below.",
       );
       setShowManualMeta(true);

@@ -3,7 +3,7 @@ import { ChannelType } from "@connectme/database";
 import { IChannelClient, ChannelSendContext, ChannelSendResult } from "../channel-adapter.interface";
 import { AesVaultService } from "../aes-vault.service";
 import { graphUrl } from "./graph";
-import { fetchWithTimeout } from "../http";
+import { ChannelHttpError, fetchWithTimeout } from "../http";
 
 @Injectable()
 export class WhatsAppClient implements IChannelClient {
@@ -150,41 +150,39 @@ export class WhatsAppClient implements IChannelClient {
     });
   }
 
-  async fetchTemplates(
-    wabaIdOrPhoneId: string,
-    token: string,
-  ): Promise<Array<Record<string, unknown>>> {
-    // If phone ID is provided, resolve WABA ID first
-    let targetWabaId = wabaIdOrPhoneId;
-    try {
-      const phoneRes = await fetchWithTimeout(
-        graphUrl(`${wabaIdOrPhoneId}?fields=whatsapp_business_account`),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      const phoneJson: any = await phoneRes.json().catch(() => ({}));
-      if (phoneJson?.whatsapp_business_account?.id) {
-        targetWabaId = phoneJson.whatsapp_business_account.id;
-      }
-    } catch {
-      // If direct call fails or is already a WABA ID, fallback to targetWabaId
-    }
-
-    const url = graphUrl(
-      `${targetWabaId}/message_templates?fields=name,status,category,language,components&limit=100`,
-    );
-
-    const res = await fetchWithTimeout(url, {
-      headers: { Authorization: `Bearer ${token}` },
+  private async templateRequest(path: string, token: string, body?: Record<string, unknown>): Promise<Record<string, any>> {
+    const res = await fetchWithTimeout(graphUrl(path), {
+      method: body ? "POST" : "GET",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
-
-    const json: any = await res.json().catch(() => ({}));
+    const json = await res.json();
     if (!res.ok) {
-      this.logger.warn(`Failed to fetch WhatsApp templates: ${JSON.stringify(json)}`);
-      return [];
+      throw new ChannelHttpError(json?.error?.message || "Meta template request failed", res.status, res.status >= 500 || res.status === 429);
     }
+    if (!json || typeof json !== "object" || json.error) throw new Error("Invalid Meta template response");
+    return json;
+  }
 
-    return Array.isArray(json?.data) ? json.data : [];
+  async submitTemplate(wabaId: string, token: string, body: Record<string, unknown>): Promise<Record<string, any>> {
+    return this.templateRequest(`${encodeURIComponent(wabaId)}/message_templates`, token, body);
+  }
+
+  async fetchTemplates(wabaId: string, token: string): Promise<Array<Record<string, unknown>>> {
+    const templates: Array<Record<string, unknown>> = [];
+    const seen = new Set<string>();
+    let after = "";
+    for (let page = 0; page < 100; page++) {
+      const query = new URLSearchParams({ fields: "id,name,status,category,language,components,rejected_reason", limit: "100" });
+      if (after) query.set("after", after);
+      const json = await this.templateRequest(`${encodeURIComponent(wabaId)}/message_templates?${query}`, token);
+      if (!Array.isArray(json.data)) throw new Error("Invalid Meta template list response");
+      templates.push(...json.data);
+      if (!json.paging?.next) return templates;
+      after = json.paging?.cursors?.after;
+      if (!after || seen.has(after)) throw new Error("Meta template pagination did not advance");
+      seen.add(after);
+    }
+    throw new Error("Meta template pagination limit reached; sync was not saved");
   }
 }

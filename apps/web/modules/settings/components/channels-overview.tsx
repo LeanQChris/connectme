@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { ChannelIcon } from "@/components/ui/channel-badge";
 import { Button } from "@/components/ui/button";
+import { isPostSchedulable, POST_SCHEDULING_REQUIREMENTS } from "@/modules/scheduling/data/scheduling.types";
 import { AccountRow } from "./account-row";
 import type { SettingsPayload, SettingsTabId } from "../data/settings.types";
 
@@ -165,7 +166,7 @@ export function ChannelsOverview({
   );
 
   const connectedCount = providers.filter((p) => p.connected).length;
-  const allAccounts = data.settings.accounts || [];
+  const allAccounts = useMemo(() => data.settings.accounts || [], [data.settings.accounts]);
 
   const filteredProviders = useMemo(() => {
     if (selectedCategory === "all") return providers;
@@ -462,12 +463,17 @@ export function ChannelsOverview({
         ) : (
           <div className="divide-y divide-hairline bg-canvas">
             {filteredAccounts.map((acc) => (
+              <div key={acc.id}>
               <AccountRow
                 key={acc.id}
                 account={acc}
                 onDisconnect={() => onDisconnectAccount(acc.id)}
                 isBusy={busy === `disconnect-${acc.id}`}
               />
+              <p className="px-6 pb-3 text-xs text-mute">
+                {isPostSchedulable(acc) ? `Post scheduling supported. ${POST_SCHEDULING_REQUIREMENTS[acc.channel]} Permissions are checked by the provider when publishing.` : "Post scheduling unavailable for this account. Conversation messaging uses the channel reply rules."}
+              </p>
+              </div>
             ))}
           </div>
         )}

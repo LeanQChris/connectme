@@ -62,3 +62,17 @@ describe("shouldSynchronize", () => {
     delete process.env.NODE_ENV;
   });
 });
+
+test("production configuration rejects open widget origins and requires OAuth signing", () => {
+  const config = {
+    NODE_ENV: "production", ENCRYPTION_KEY: VALID_KEY,
+    NEXT_PUBLIC_APP_URL: "https://app.test.local", CLERK_SECRET_KEY: "sk_test_local",
+    DATABASE_URL: "postgres://postgres@postgres/test", REDIS_URL: "redis://redis:6379",
+    OAUTH_STATE_SECRET: "another-separate-secret-with-32-characters", WIDGET_ALLOWED_ORIGINS: "https://shop.test.local",
+  };
+  assert.equal(validateEnv(config), config);
+  assert.throws(() => validateEnv({ ...config, WIDGET_ALLOWED_ORIGINS: "*" }), /WIDGET_ALLOWED_ORIGINS/);
+  assert.throws(() => validateEnv({ ...config, WIDGET_ALLOWED_ORIGINS: " , " }), /WIDGET_ALLOWED_ORIGINS/);
+  assert.throws(() => validateEnv({ ...config, OAUTH_STATE_SECRET: "short" }), /OAUTH_STATE_SECRET/);
+  assert.throws(() => validateEnv({ ...config, CORS_ORIGINS: "*" }), /CORS_ORIGINS/);
+});

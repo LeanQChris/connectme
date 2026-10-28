@@ -39,7 +39,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/connectme
       REDIS_URL: redis://localhost:6379
       ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_fake_for_build
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuY29ubmVjdG1lLnRlc3Qk
       CLERK_SECRET_KEY: sk_test_fake_for_build
 
     steps:
@@ -54,6 +54,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Lint all workspaces
         run: npx turbo run lint
@@ -91,4 +94,28 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build ${{ matrix.image }} image
-        run: docker build -f ${{ matrix.file }} -t connectme/${{ matrix.image }}:ci .
+        run: >-
+          docker build -f ${{ matrix.file }} -t connectme/${{ matrix.image }}:ci
+          --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuY29ubmVjdG1lLnRlc3Qk
+          --build-arg NEXT_PUBLIC_APP_URL=https://connectme.test
+          --build-arg NEXT_PUBLIC_API_URL=https://connectme.test .
+
+  backup-restore:
+    name: Verify encrypted backup and restore
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Postgres and Redis from a test backup
+        run: sh scripts/check-backup.sh
+
+  storage-check:
+    name: Verify signed media uploads
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check:storage

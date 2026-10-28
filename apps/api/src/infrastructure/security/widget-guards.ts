@@ -51,12 +51,9 @@ export function resetWidgetRateLimits(): void {
  *
  * Opt-in: `WIDGET_ALLOWED_ORIGINS` is a comma-separated list of origins
  * (`https://app.example.com`) or bare hostnames (`example.com`, which also
- * covers subdomains). When unset, every origin is accepted — the current
- * behaviour, so enabling the feature is a deliberate configuration change
- * rather than something that silently breaks existing embeds.
+ * covers subdomains). In production, an empty list rejects browser origins.
  *
- * A missing Origin cannot be verified (same-origin requests omit it) and is
- * allowed: the signed token still scopes the session to one tenant.
+ * A missing Origin is rejected in production because it cannot be verified.
  */
 export function isAllowedWidgetOrigin(origin: string | undefined | null): boolean {
   const entries = (process.env.WIDGET_ALLOWED_ORIGINS || "")
@@ -64,22 +61,17 @@ export function isAllowedWidgetOrigin(origin: string | undefined | null): boolea
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
 
-  if (entries.length === 0) return true;
+  if (entries.length === 0) return process.env.NODE_ENV !== "production";
 
   const raw = (origin || "").trim().toLowerCase().replace(/\/+$/, "");
-  if (!raw) return true;
+  if (!raw) return process.env.NODE_ENV !== "production";
 
-  let host: string;
-  try {
-    host = new URL(raw).host;
-  } catch {
-    // Not an absolute origin (e.g. "null" from a sandboxed frame): fall through
-    // to a literal comparison against configured entries.
-    host = raw;
-  }
-
+  let url: URL;
+  try { url = new URL(raw); } catch { return false; }
+  if (!["https:", "http:"].includes(url.protocol) || url.origin !== raw) return false;
+  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") return false;
   return entries.some((entry) => {
-    const bare = entry.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    return raw === bare || host === bare || host.endsWith(`.${bare}`);
+    if (entry.includes("://")) return raw === entry.replace(/\/+$/, "");
+    return url.host === entry || url.host.endsWith(`.${entry}`);
   });
 }

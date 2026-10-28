@@ -7,12 +7,17 @@ import {
   MessageBody,
   ConnectedSocket,
 } from "@nestjs/websockets";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { BrowserPushSubscription, MessageDirection } from "@connectme/database";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
 import { Server, Socket } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { Logger, Inject, OnModuleInit } from "@nestjs/common";
 import { ClerkTokenVerifier } from "../auth/clerk-token-verifier.service";
 import { IConversationRepository } from "../../domain/repositories/i-conversation.repository";
-import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
+import { TenantMembershipService } from "../auth/tenant-membership.service";
 import { RedisService } from "../../infrastructure/redis/redis.service";
 
 function socketOrigins(): string[] | boolean {
@@ -43,9 +48,10 @@ export class InboxRealtimeGateway
     private readonly verifier: ClerkTokenVerifier,
     @Inject("IConversationRepository")
     private readonly convRepo: IConversationRepository,
-    @Inject("ITenantRepository")
-    private readonly tenantRepo: ITenantRepository,
+    private readonly membership: TenantMembershipService,
     private readonly redis: RedisService,
+    @InjectRepository(BrowserPushSubscription) private readonly subscriptions: Repository<BrowserPushSubscription>,
+    @InjectQueue("browser-push") private readonly pushQueue: Queue,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -70,10 +76,13 @@ export class InboxRealtimeGateway
 
     try {
       const session = await this.verifier.verify(token);
-      const tenant = await this.tenantRepo.getOrCreateDefaultTenant(session.sub);
-      client.data.tenantId = tenant.id;
-      client.join(`tenant:${tenant.id}`);
-      this.logger.debug(`Client ${client.id} authenticated for tenant ${tenant.id}`);
+      const member = await this.membership.resolve(session.sub);
+      client.data.tenantId = member.tenantId;
+      client.data.userId = member.id;
+      await client.join([`tenant:${member.tenantId}`, `user:${member.id}`]);
+      // Verify again after joining to close the race with a concurrent removal.
+      await this.membership.resolve(session.sub);
+      this.logger.debug(`Client ${client.id} authenticated for tenant ${member.tenantId}`);
     } catch {
       this.disconnect(client, "Invalid session token");
     }
@@ -103,7 +112,20 @@ export class InboxRealtimeGateway
     client.join(`conv:${data.conversationId}`);
   }
 
+  disconnectMember(userId: string) {
+    this.server?.in(`user:${userId}`).disconnectSockets(true);
+  }
+
   broadcastNewMessage(tenantId: string, conversationId: string, message: unknown) {
+    const inbound = message as { id?: string; direction?: string };
+    if (inbound?.id && inbound.direction === MessageDirection.INBOUND && process.env.VAPID_PUBLIC_KEY) {
+      // API-originated messages (e.g. widget) also need push. The shared job ID
+      // deduplicates worker events forwarded through this gateway.
+      void this.subscriptions.find({ where: { tenantId } }).then((subscriptions) => this.pushQueue.addBulk(subscriptions.map((s) => ({
+        name: "deliver", data: { tenantId, subscriptionId: s.id, messageId: inbound.id },
+        opts: { jobId: `push-${inbound.id}-${s.id}`, attempts: 4, backoff: { type: "exponential", delay: 2000 }, removeOnComplete: { age: 86400, count: 10000 }, removeOnFail: { age: 604800, count: 1000 } },
+      })))).catch(() => this.logger.warn("Could not queue background browser alerts."));
+    }
     if (!this.server) return;
     this.server.to(`tenant:${tenantId}`).emit("message:new", { conversationId, message });
     this.server.to(`conv:${conversationId}`).emit("message:new", { conversationId, message });

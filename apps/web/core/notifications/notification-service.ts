@@ -1,3 +1,4 @@
+import { hasBackgroundPush } from "./browser-push";
 import { playNotificationSound } from "./notification-sound";
 
 export interface SendNotificationOptions {
@@ -40,6 +41,8 @@ export const NotificationService = {
     if (options.playSound !== false) {
       playNotificationSound();
     }
+
+    if (options.conversationId && hasBackgroundPush()) return;
 
     const title = options.title;
     const notificationPayload: NotificationOptions & Record<string, unknown> = {

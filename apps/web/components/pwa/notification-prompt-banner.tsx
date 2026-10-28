@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useNotifications } from "@/core/notifications/use-notifications";
 
 export function NotificationPromptBanner() {
-  const { isSupported, isPromptable, isGranted, requestPermission } = useNotifications();
+  const { isSupported, isPromptable, isGranted, requestPermission, pushError, pushBusy } = useNotifications();
   const [dismissed, setDismissed] = useState(false);
 
   if (!isSupported || !isPromptable || isGranted || dismissed) {
@@ -12,28 +12,31 @@ export function NotificationPromptBanner() {
   }
 
   return (
-    <div className="bg-emerald-950/40 border-b border-emerald-500/20 px-4 py-2.5 flex items-center justify-between text-xs text-emerald-200">
-      <div className="flex items-center gap-2">
-        <span className="flex h-2 w-2 relative">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+    <div className="flex flex-col gap-3 border-y border-hairline border-l-4 border-l-emerald-500 bg-white px-4 py-3 text-sm text-black sm:flex-row sm:items-center sm:justify-between dark:border-hairline dark:border-l-emerald-500 dark:bg-neutral-950/90 dark:text-white">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+        <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0 sm:mt-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-40"></span>
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600 dark:bg-emerald-400"></span>
         </span>
-        <span>
-          <strong>Enable Web Notifications:</strong> Get real-time alerts when customers message you even if the tab is backgrounded.
+        <span className="min-w-0 leading-5">
+          <strong className="font-semibold">Enable web notifications</strong>
+          <span className="text-neutral-700 dark:text-neutral-300"> — Get real-time alerts when customers message you, even when this tab is in the background.</span>
         </span>
       </div>
-      <div className="flex items-center gap-2">
+      {pushError && <p role="alert" className="text-xs">{pushError}</p>}
+      <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
         <button
           type="button"
+          disabled={pushBusy}
           onClick={requestPermission}
-          className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold rounded text-xs transition-colors"
+          className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400"
         >
           Enable Alerts
         </button>
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          className="text-emerald-400/60 hover:text-emerald-300 p-1"
+          className="rounded p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-black dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-white"
           title="Dismiss"
         >
           ✕

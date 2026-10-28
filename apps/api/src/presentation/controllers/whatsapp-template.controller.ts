@@ -1,8 +1,12 @@
+import { RequireRoles } from "../auth/require-roles.decorator";
 import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
+  Param,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { WhatsAppTemplateService } from "../../infrastructure/services/whatsapp-template.service";
 import { TenantId } from "../auth/tenant-id.decorator";
@@ -25,6 +29,7 @@ export class WhatsAppTemplateController {
   }
 
   @Post("sync")
+  @RequireRoles("owner", "admin")
   async syncTemplates(@TenantId() tenantId: string) {
     return this.templateService.syncTemplates(tenantId);
   }
@@ -37,7 +42,21 @@ export class WhatsAppTemplateController {
     return this.templateService.sendTemplateMessage(tenantId, dto);
   }
 
+  @Patch(":id")
+  @RequireRoles("owner", "admin")
+  async updateDraft(@TenantId() tenantId: string, @Param("id", new ParseUUIDPipe()) id: string,
+    @Body(new ZodValidationPipe(CreateWhatsAppTemplateDraftSchema)) dto: CreateWhatsAppTemplateDraftDto) {
+    return { template: await this.templateService.updateDraft(tenantId, id, dto) };
+  }
+
+  @Post(":id/submit")
+  @RequireRoles("owner", "admin")
+  async submitTemplate(@TenantId() tenantId: string, @Param("id", new ParseUUIDPipe()) id: string) {
+    return { template: await this.templateService.submitTemplate(tenantId, id) };
+  }
+
   @Post()
+  @RequireRoles("owner", "admin")
   async createTemplateDraft(
     @TenantId() tenantId: string,
     @Body(new ZodValidationPipe(CreateWhatsAppTemplateDraftSchema))

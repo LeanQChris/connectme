@@ -26,6 +26,7 @@ export class WorkerHealthService implements OnModuleInit, OnModuleDestroy {
     @InjectQueue(AI_AGENT_QUEUE) private readonly aiQueue: Queue,
     @InjectQueue(MEDIA_REHOST_QUEUE) private readonly mediaQueue: Queue,
     @InjectQueue(OUTBOUND_RETRY_QUEUE) private readonly retryQueue: Queue,
+    @InjectQueue("browser-push") private readonly pushQueue: Queue,
   ) {}
 
   onModuleInit(): void {
@@ -106,6 +107,7 @@ export class WorkerHealthService implements OnModuleInit, OnModuleDestroy {
       { name: AI_AGENT_QUEUE, queue: this.aiQueue },
       { name: MEDIA_REHOST_QUEUE, queue: this.mediaQueue },
       { name: OUTBOUND_RETRY_QUEUE, queue: this.retryQueue },
+      { name: "browser-push", queue: this.pushQueue },
     ];
 
     const counts: Record<string, Record<string, number>> = {};

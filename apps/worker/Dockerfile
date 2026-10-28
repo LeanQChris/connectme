@@ -65,8 +65,10 @@ COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
 
 USER node
 
-# The worker is a headless application context with no HTTP server, so there is
-# nothing to probe. Docker's own process supervision is the only liveness
-# signal it has — do not add a HEALTHCHECK here that assumes a port.
+# The worker's private readiness server checks its database and queue connection.
+# No host port is published; an unhealthy status can be monitored without
+# restarting the worker during a temporary dependency outage.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${WORKER_HEALTH_PORT:-4100}/health >/dev/null || exit 1
 
 CMD ["node", "apps/worker/dist/main.js"]

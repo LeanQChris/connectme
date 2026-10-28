@@ -4,7 +4,6 @@ import { useState } from "react";
 import { ChannelIcon } from "@/components/ui/channel-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CopyCard } from "./copy-card";
 import type { SettingsPayload } from "@/core/types";
 
 interface TelegramSettingsProps {

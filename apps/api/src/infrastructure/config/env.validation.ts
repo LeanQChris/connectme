@@ -1,3 +1,5 @@
+import { validateVapidConfig } from "@connectme/crypto";
+
 const ALLOWED_NODE_ENVS = ["development", "test", "production"] as const;
 const MIN_ENCRYPTION_KEY_LENGTH = 32;
 
@@ -24,7 +26,7 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
 
   const required = ["ENCRYPTION_KEY"];
   if (nodeEnv === "production") {
-    required.push("CLERK_SECRET_KEY", "DATABASE_URL", "REDIS_URL");
+    required.push("CLERK_SECRET_KEY", "DATABASE_URL", "REDIS_URL", "NEXT_PUBLIC_APP_URL", "OAUTH_STATE_SECRET", "WIDGET_ALLOWED_ORIGINS");
     if (!config.CORS_ORIGINS && !config.NEXT_PUBLIC_APP_URL) {
       throw new Error(
         "Production requires CORS_ORIGINS or NEXT_PUBLIC_APP_URL so CORS is not left open.",
@@ -39,6 +41,28 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
     );
   }
 
+  if (nodeEnv === "production") {
+    if (String(config.OAUTH_STATE_SECRET).trim().length < 32) throw new Error("OAUTH_STATE_SECRET must be at least 32 characters in production.");
+    const originKeys = ["NEXT_PUBLIC_APP_URL", "CORS_ORIGINS", "CLERK_AUTHORIZED_PARTIES"];
+    for (const key of originKeys) {
+      if (!config[key]) continue;
+      for (const origin of String(config[key]).split(",")) {
+        try {
+          const url = new URL(origin.trim());
+          if (url.protocol !== "https:" || url.username || url.password || url.origin !== origin.trim().replace(/\/$/, "")) throw new Error();
+        } catch { throw new Error(`${key} must contain explicit HTTPS origins, without paths or wildcards.`); }
+      }
+    }
+    const widgetOrigins = String(config.WIDGET_ALLOWED_ORIGINS).split(",").map((value) => value.trim()).filter(Boolean);
+    if (!widgetOrigins.length || widgetOrigins.some((value) => {
+      try {
+        const url = new URL(value.includes("://") ? value : `https://${value}`);
+        return url.protocol !== "https:" || Boolean(url.username || url.password || url.search || url.hash) || url.pathname !== "/" || !/^[a-z0-9.-]+(?::[0-9]+)?$/i.test(url.host);
+      } catch { return true; }
+    })) throw new Error("WIDGET_ALLOWED_ORIGINS requires explicit HTTPS origins or hostnames.");
+  }
+
+  validateVapidConfig(config);
   return config;
 }
 

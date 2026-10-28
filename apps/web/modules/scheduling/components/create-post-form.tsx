@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ChannelIcon } from "@/components/ui/channel-badge";
 import {
   isPostSchedulable,
+  POST_SCHEDULING_REQUIREMENTS,
   type ScheduledPost,
 } from "../data/scheduling.types";
 import {
@@ -90,6 +91,7 @@ export function CreatePostForm({
   const handleSchedule = async (scheduledForIso: string) => {
     setError(null);
     try {
+      if (selectedAccounts.some((a) => a.channel === "instagram") && mediaUrls.length === 0) throw new Error("Instagram posts require an image or video.");
       if (editing) {
         await updateMutation.mutateAsync({
           id: editing.id,
@@ -126,7 +128,7 @@ export function CreatePostForm({
   if (schedulable.length === 0) {
     return (
       <div className="rounded-[8px] border border-hairline bg-canvas-elevated p-4 text-[12.5px] text-body">
-        Connect a Facebook Page or Instagram account in Settings to schedule posts.
+        Connect an active Facebook Page, Instagram account, Telegram channel or Discord channel in Settings to schedule posts.
       </div>
     );
   }
@@ -177,6 +179,12 @@ export function CreatePostForm({
             );
           })}
         </div>
+      </div>
+
+      <div className="mb-3 rounded-lg border border-hairline bg-surface-well/40 p-3 text-xs text-mute space-y-1">
+        <p className="font-medium text-ink">Publishing requirements</p>
+        {[...new Set(selectedAccounts.map((a) => a.channel))].map((channel) => <p key={channel}>{POST_SCHEDULING_REQUIREMENTS[channel]}</p>)}
+        <p>Connected accounts still require valid provider permissions. Failed publishes appear in the schedule with the provider error.</p>
       </div>
 
       <textarea

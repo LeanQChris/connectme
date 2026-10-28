@@ -15,10 +15,13 @@ function isPublic(pathname: string): boolean {
   return (
     pathname === "/" ||
     pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
     pathname === "/about" ||
     pathname === "/privacy" ||
     pathname === "/terms" ||
     pathname.startsWith("/api/webhook") ||
+    pathname.startsWith("/api/widget/") ||
+    pathname === "/api/health" || pathname.startsWith("/api/health/") ||
     pathname === "/api/auth/meta/callback"
   );
 }

@@ -1,5 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
-import { verifyToken } from "@clerk/backend";
+import { createClerkClient, verifyToken } from "@clerk/backend";
 
 export interface VerifiedSession {
   sub: string;
@@ -13,6 +13,16 @@ export interface VerifiedSession {
 export class ClerkTokenVerifier {
   private readonly logger = new Logger(ClerkTokenVerifier.name);
 
+  async getProfile(userId: string) {
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) throw new ServiceUnavailableException("Authentication is not configured.");
+    try {
+      return await createClerkClient({ secretKey }).users.getUser(userId);
+    } catch {
+      throw new ServiceUnavailableException("Account verification is temporarily unavailable. Please retry.");
+    }
+  }
+
   async verify(token: string): Promise<VerifiedSession> {
     const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) {
@@ -22,7 +32,12 @@ export class ClerkTokenVerifier {
     }
 
     try {
-      const payload = await verifyToken(token, { secretKey });
+      const parties = (process.env.CLERK_AUTHORIZED_PARTIES || process.env.NEXT_PUBLIC_APP_URL || "")
+        .split(",").map((origin) => origin.trim()).filter(Boolean);
+      const payload = await verifyToken(token, {
+        secretKey,
+        authorizedParties: parties.length ? parties : undefined,
+      });
       if (!payload?.sub || typeof payload.sub !== "string") {
         throw new UnauthorizedException("Session token is missing a subject.");
       }

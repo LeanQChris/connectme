@@ -42,6 +42,7 @@ export function useSettingsForm(initial: SettingsPayload) {
 
   const [whatsappForm, setWhatsappForm] = useState({
     waPhoneNumberId: "",
+    waBusinessAccountId: "",
     waAccessToken: "",
     waAppId: "",
     waAppSecret: "",
@@ -84,7 +85,7 @@ export function useSettingsForm(initial: SettingsPayload) {
     mutationFn: async ({
       patch,
     }: {
-      patch: Record<string, string>;
+      patch: Record<string, unknown>;
       channelKey: string;
       successMsg: string;
       onSuccessReset?: () => void;
@@ -135,6 +136,13 @@ export function useSettingsForm(initial: SettingsPayload) {
     setGlobalSuccess(null);
 
     saveMutation.mutate({ patch: cleaned, channelKey, successMsg, onSuccessReset });
+  };
+
+  const saveAiSettings = async (patch: Record<string, unknown>) => {
+    setBusy("save-ai");
+    setGlobalError(null);
+    setGlobalSuccess(null);
+    await saveMutation.mutateAsync({ patch, channelKey: "ai", successMsg: "AI settings saved." });
   };
 
   // Verify Channel Mutation
@@ -304,6 +312,7 @@ export function useSettingsForm(initial: SettingsPayload) {
     showManualMeta,
     setShowManualMeta,
     saveChannel,
+    saveAiSettings,
     verifyChannel,
     disconnectAccount,
     registerTelegram,

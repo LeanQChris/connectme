@@ -4,17 +4,9 @@
 # ports that must be reachable from the internet are 80 and 443; everything else
 # (Postgres, Redis, API, web) lives on the internal Docker network.
 #
-# Routing contract:
-#   /api/*       → the NestJS API        (REST; the browser sees same-origin,
-#                                         so Next's own /api rewrite never fires)
-#   /socket.io/* → the NestJS API        (Socket.IO; WebSocket upgrade is
-#                                         handled automatically by reverse_proxy)
-#   /*          → the Next.js web app
-#
-# Keeping everything on one origin is deliberate. The web client's CSP allows
-# `connect-src` for the API origin, and it derives that from API_URL. If the
-# browser had to reach the API on a second host, every realtime socket would be
-# blocked by CSP with nothing in the server logs to explain it.
+# Authenticated REST requests pass through Next's Clerk proxy, which adds the
+# bearer token before rewriting to the API's private address. Public endpoints
+# and socket connections authenticate at the API directly.
 
 {
 	email {$ACME_EMAIL}
@@ -32,9 +24,13 @@
 		-Server
 	}
 
-	# REST. Caddy strips the hop count the API needs via TRUST_PROXY=1.
-	handle /api/* {
+	@publicApi path /api/webhook /api/webhook/* /api/widget/* /api/health /api/health/* /api/auth/meta/callback
+	handle @publicApi {
 		reverse_proxy api:8081
+	}
+
+	handle /api/* {
+		reverse_proxy web:3001
 	}
 
 	# Realtime. Long-lived connections must not be cut by the default timeouts.

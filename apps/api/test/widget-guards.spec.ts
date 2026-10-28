@@ -47,16 +47,27 @@ describe("allowWidgetMessage", () => {
 
 describe("isAllowedWidgetOrigin", () => {
   const original = process.env.WIDGET_ALLOWED_ORIGINS;
+  const originalNodeEnv = process.env.NODE_ENV;
 
   afterEach(() => {
     if (original === undefined) delete process.env.WIDGET_ALLOWED_ORIGINS;
     else process.env.WIDGET_ALLOWED_ORIGINS = original;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
   });
 
-  test("is open when no allowlist is configured", () => {
+  test("allows all origins in development when no allowlist is configured", () => {
+    process.env.NODE_ENV = "development";
     delete process.env.WIDGET_ALLOWED_ORIGINS;
     assert.equal(isAllowedWidgetOrigin("https://evil.example"), true);
     assert.equal(isAllowedWidgetOrigin(undefined), true);
+  });
+
+  test("rejects browser origins in production when no allowlist is configured", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.WIDGET_ALLOWED_ORIGINS;
+    assert.equal(isAllowedWidgetOrigin("https://evil.example"), false);
+    assert.equal(isAllowedWidgetOrigin(undefined), false);
   });
 
   test("allows a configured origin and rejects others", () => {

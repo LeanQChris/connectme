@@ -112,7 +112,8 @@ export const POST_SCHEDULABLE_CHANNELS: Channel[] = [
   "discord",
 ];
 
-export function isPostSchedulable(account: { channel: Channel; provider: string }): boolean {
+export function isPostSchedulable(account: { channel: Channel; provider: string; isActive?: boolean }): boolean {
+  if (account.isActive === false) return false;
   if (!POST_SCHEDULABLE_CHANNELS.includes(account.channel)) return false;
   // A Telegram/Discord bot account is a messaging endpoint; only a registered
   // channel target can receive scheduled posts.
@@ -120,3 +121,9 @@ export function isPostSchedulable(account: { channel: Channel; provider: string 
   if (account.channel === "discord") return account.provider === "discord-channel";
   return true;
 }
+export const POST_SCHEDULING_REQUIREMENTS: Partial<Record<Channel, string>> = {
+  messenger: "Facebook Page: requires pages_manage_posts and a valid Page token. Facebook stores the scheduled post.",
+  instagram: "Instagram: requires a professional account, instagram_content_publish, and public media. ConnectMe publishes at the scheduled time; text-only posts are unavailable.",
+  telegram: "Telegram: add the bot as a channel administrator with permission to post messages.",
+  discord: "Discord: grant the bot View Channel, Send Messages and Attach Files permissions for the target channel.",
+};

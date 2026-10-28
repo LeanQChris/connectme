@@ -19,6 +19,27 @@ export function WhatsAppTemplateManager() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [draftLanguage, setDraftLanguage] = useState("en_US");
+  const [headerExamples, setHeaderExamples] = useState("");
+  const [bodyExamples, setBodyExamples] = useState("");
+
+  const handleSubmit = async (id: string) => {
+    setSubmitting(id);
+    setError(null);
+    setSuccess(null);
+    try {
+      const { template } = await whatsappTemplateApi.submitTemplate(id);
+      setTemplates((prev) => prev.map((t) => t.id === id ? template : t));
+      setSuccess("Submitted to Meta for review. Sync later to check approval.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Submission failed");
+      const list = await whatsappTemplateApi.listTemplates().catch(() => null);
+      if (list) setTemplates(list);
+    } finally { setSubmitting(null); }
+  };
+
   // New Draft form
   const [draftName, setDraftName] = useState("");
   const [draftCategory, setDraftCategory] = useState<WhatsAppTemplateCategory>("UTILITY");
@@ -72,20 +93,26 @@ export function WhatsAppTemplateManager() {
     setSavingDraft(true);
     setError(null);
     try {
-      const res = await whatsappTemplateApi.createDraft({
+      const dto = {
         name: draftName.trim().toLowerCase().replace(/\s+/g, "_"),
-        language: "en_US",
+        language: draftLanguage,
+        headerExamples: headerExamples.trim() ? headerExamples.split("\n").map((v) => v.trim()) : undefined,
+        bodyExamples: bodyExamples.trim() ? bodyExamples.split("\n").map((v) => v.trim()) : undefined,
         category: draftCategory,
         headerText: draftHeaderText.trim() || undefined,
         bodyText: draftBodyText.trim(),
         footerText: draftFooterText.trim() || undefined,
-      });
-      setTemplates((prev) => [res.template, ...prev]);
+      };
+      const res = editingId ? await whatsappTemplateApi.updateDraft(editingId, dto) : await whatsappTemplateApi.createDraft(dto);
+      setTemplates((prev) => editingId ? prev.map((t) => t.id === editingId ? res.template : t) : [res.template, ...prev]);
+      setEditingId(null);
       setShowCreateModal(false);
       setDraftName("");
       setDraftHeaderText("");
       setDraftBodyText("");
       setDraftFooterText("");
+      setHeaderExamples("");
+      setBodyExamples("");
       setSuccess("Template draft saved successfully!");
       setTimeout(() => setSuccess(null), 4000);
     } catch (err: unknown) {
@@ -109,7 +136,7 @@ export function WhatsAppTemplateManager() {
             </span>
           </div>
           <p className="text-[12.5px] text-mute mt-0.5">
-            Meta-approved message templates used to initiate conversations or re-engage customers outside the 24-hour window limit.
+            Save a text template draft, submit it to Meta, then sync to confirm approval before sending. Manage rejected, authentication, media and button templates in Meta WhatsApp Manager.
           </p>
         </div>
 
@@ -128,7 +155,7 @@ export function WhatsAppTemplateManager() {
             type="button"
             variant="primary"
             size="sm"
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => { setEditingId(null); setDraftName(""); setDraftLanguage("en_US"); setDraftCategory("UTILITY"); setDraftHeaderText(""); setDraftBodyText(""); setDraftFooterText(""); setHeaderExamples(""); setBodyExamples(""); setShowCreateModal(true); }}
             className="h-8 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
           >
             + Create Template
@@ -184,12 +211,14 @@ export function WhatsAppTemplateManager() {
                       <span className={`rounded-full border px-2 py-0.2 font-mono text-[9.5px] uppercase ${catBadge}`}>
                         {tmpl.category}
                       </span>
-                      <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.2 font-mono text-[9.5px] text-emerald-600 dark:text-emerald-400">
+                      <span className={`rounded-full border px-2 py-0.2 font-mono text-[9.5px] ${tmpl.status === "APPROVED" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400" : tmpl.status === "REJECTED" ? "bg-error/10 border-error/20 text-error" : "bg-surface-well border-hairline text-body"}`}>
                         {tmpl.status}
                       </span>
                     </div>
                   </div>
 
+                  {tmpl.rejectionReason && <p className="text-[12px] text-error">{tmpl.rejectionReason}</p>}
+                  {tmpl.status === "SUBMITTED" && <p className="text-[12px] text-mute">Submission unconfirmed. Sync from Meta before retrying.</p>}
                   {headerComp?.text && (
                     <div className="text-[12px] font-bold text-ink">
                       {headerComp.text}
@@ -209,6 +238,20 @@ export function WhatsAppTemplateManager() {
 
                 <div className="mt-3 flex items-center justify-between border-t border-hairline pt-2.5 font-mono text-[10.5px] text-mute">
                   <span>Language: {tmpl.language}</span>
+                  {tmpl.status === "DRAFT" && !tmpl.providerId && (
+                    <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => {
+                      setEditingId(tmpl.id); setDraftName(tmpl.name); setDraftLanguage(tmpl.language); setDraftCategory(tmpl.category);
+                      setDraftHeaderText(headerComp?.text || ""); setDraftBodyText(bodyComp?.text || ""); setDraftFooterText(footerComp?.text || "");
+                      setHeaderExamples((headerComp?.example?.header_text as string[] | undefined)?.join("\n") || "");
+                      setBodyExamples((bodyComp?.example?.body_text as string[][] | undefined)?.[0]?.join("\n") || "");
+                      setError(null); setShowCreateModal(true);
+                    }}>Edit draft</Button>
+                    <Button type="button" size="sm" disabled={submitting !== null} onClick={() => handleSubmit(tmpl.id)}>
+                      {submitting === tmpl.id ? "Submitting…" : "Submit to Meta"}
+                    </Button>
+                    </div>
+                  )}
                   {buttonComp?.buttons && buttonComp.buttons.length > 0 && (
                     <span>{buttonComp.buttons.length} Quick Reply Buttons</span>
                   )}
@@ -224,7 +267,7 @@ export function WhatsAppTemplateManager() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-lg rounded-2xl border border-hairline bg-canvas-elevated p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-hairline pb-3">
-              <h3 className="text-[15px] font-semibold text-ink">Create WhatsApp Template</h3>
+              <h3 className="text-[15px] font-semibold text-ink">{editingId ? "Edit draft" : "Create WhatsApp Template"}</h3>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
@@ -234,7 +277,11 @@ export function WhatsAppTemplateManager() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateDraft} className="space-y-4">
+            <form onSubmit={handleCreateDraft} className="space-y-4 max-h-[75vh] overflow-y-auto">
+              {error && <p role="alert" className="text-sm text-error">{error}</p>}
+              <label className="block text-[12px] font-semibold text-ink">Language code
+                <input disabled={Boolean(editingId)} required value={draftLanguage} onChange={(e) => setDraftLanguage(e.target.value)} placeholder="en_US" className="mt-1 h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-ink" />
+              </label>
               <div>
                 <label className="block text-[12px] font-semibold text-ink mb-1">
                   Template Name (lowercase with underscores)
@@ -242,6 +289,7 @@ export function WhatsAppTemplateManager() {
                 <input
                   type="text"
                   required
+                  disabled={Boolean(editingId)}
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value)}
                   placeholder="e.g. order_shipment_notice"
@@ -260,7 +308,7 @@ export function WhatsAppTemplateManager() {
                 >
                   <option value="UTILITY">UTILITY (Order, Account, Support updates)</option>
                   <option value="MARKETING">MARKETING (Offers, announcements)</option>
-                  <option value="AUTHENTICATION">AUTHENTICATION (OTPs, verification)</option>
+
                 </select>
               </div>
 
@@ -304,6 +352,12 @@ export function WhatsAppTemplateManager() {
                 />
               </div>
 
+              <label className="block text-[12px] font-semibold text-ink">Header variable example (if used)
+                <input value={headerExamples} onChange={(e) => setHeaderExamples(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-hairline bg-canvas px-3 text-ink" />
+              </label>
+              <label className="block text-[12px] font-semibold text-ink">Body variable examples (one per line, in numbered order)
+                <textarea value={bodyExamples} onChange={(e) => setBodyExamples(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-hairline bg-canvas p-3 text-ink" />
+              </label>
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-hairline">
                 <Button
                   type="button"

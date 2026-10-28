@@ -1,3 +1,4 @@
+import { RequireRoles } from "../auth/require-roles.decorator";
 import {
   Controller,
   Get,
@@ -39,6 +40,7 @@ export class MediaController {
    * The resulting public URL is what Meta fetches when publishing media.
    */
   @Post("presign")
+  @RequireRoles("owner", "admin", "agent")
   async presign(
     @TenantId() tenantId: string,
     @Body(new ZodValidationPipe(PresignBodySchema)) body: { filename?: string; contentType?: string },

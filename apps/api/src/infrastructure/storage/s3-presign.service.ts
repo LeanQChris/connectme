@@ -35,6 +35,14 @@ export class S3PresignService {
    *   pass it; omitting it reproduces the previous behaviour exactly.
    */
   presignPut(key: string, expiresSeconds = 900, contentLength?: number): PresignResult {
+    return this.presignRequest("PUT", key, expiresSeconds, contentLength);
+  }
+
+  presignDelete(key: string): string {
+    return this.presignRequest("DELETE", key, 60).uploadUrl;
+  }
+
+  private presignRequest(method: "PUT" | "DELETE", key: string, expiresSeconds: number, contentLength?: number): PresignResult {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException(
         "Media storage is not configured. Set S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.",
@@ -59,26 +67,26 @@ export class S3PresignService {
       .map((part) => encodeURIComponent(part))
       .join("/")}`;
 
+    const hasLength = typeof contentLength === "number" && Number.isFinite(contentLength) && contentLength >= 0;
+    const signedHeaders = hasLength ? "content-length;host" : "host";
     const params: Array<[string, string]> = [
       ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
       ["X-Amz-Credential", `${accessKey}/${credentialScope}`],
       ["X-Amz-Date", amzDate],
       ["X-Amz-Expires", String(expiresSeconds)],
-      ["X-Amz-SignedHeaders", "host"],
+      ["X-Amz-SignedHeaders", signedHeaders],
     ];
     const canonicalQuery = params
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .sort()
       .join("&");
 
-    const hasLength =
-      typeof contentLength === "number" && Number.isFinite(contentLength) && contentLength >= 0;
     const canonicalRequest = [
-      "PUT",
+      method,
       canonicalUri,
       canonicalQuery,
       hasLength ? `content-length:${contentLength}\nhost:${host}\n` : `host:${host}\n`,
-      hasLength ? "content-length;host" : "host",
+      signedHeaders,
       "UNSIGNED-PAYLOAD",
     ].join("\n");
 

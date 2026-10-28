@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { whatsappTemplateApi } from "../api/whatsapp-template.api";
+import { supportsWhatsAppTextTemplate } from "@connectme/contracts";
 import type { WhatsAppTemplateDto, WhatsAppTemplateCategory } from "@connectme/contracts";
 import { Button } from "@/components/ui/button";
 
@@ -44,7 +45,7 @@ export function WhatsAppTemplatePickerModal({
       const bodyComp = tmpl.components.find((c) => c.type === "BODY");
       if (bodyComp?.text) {
         const matches = bodyComp.text.match(/\{\{(\d+)\}\}/g) || [];
-        const count = matches.length;
+        const count = new Set(matches).size;
         const initialVars = new Array(count).fill("");
         if (initialVars.length > 0 && contactName) {
           initialVars[0] = contactName;
@@ -67,10 +68,18 @@ export function WhatsAppTemplatePickerModal({
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
+    queueMicrotask(() => {
+      if (!isMounted) return;
+      setLoading(true);
+      setError(null);
+      setSelectedTemplate(null);
+    });
     whatsappTemplateApi
       .listTemplates()
-      .then((res) => {
+      .then((all) => {
+        const res = all.filter((t) => t.status === "APPROVED" && t.providerId && supportsWhatsAppTextTemplate(t));
         if (!isMounted) return;
+        setSelectedTemplate(null);
         setTemplates(res);
         if (res.length > 0) {
           selectTemplate(res[0]);
@@ -92,7 +101,8 @@ export function WhatsAppTemplatePickerModal({
     setSyncing(true);
     setError(null);
     try {
-      const res = await whatsappTemplateApi.syncTemplates();
+      const res = { templates: (await whatsappTemplateApi.listTemplates()).filter((t) => t.status === "APPROVED" && t.providerId && supportsWhatsAppTextTemplate(t)) };
+      setSelectedTemplate(null);
       setTemplates(res.templates);
       if (res.templates.length > 0) {
         selectTemplate(res.templates[0]);
@@ -174,7 +184,7 @@ export function WhatsAppTemplatePickerModal({
               onClick={handleSync}
               className="h-8 text-[11.5px] cursor-pointer"
             >
-              {syncing ? "Syncing…" : "🔄 Sync from Meta"}
+              {syncing ? "Syncing…" : "Refresh templates"}
             </Button>
             <button
               type="button"
@@ -233,7 +243,7 @@ export function WhatsAppTemplatePickerModal({
                 </div>
               ) : filteredTemplates.length === 0 ? (
                 <div className="p-4 text-center text-[12px] text-mute">
-                  No templates found.
+                  No approved templates found. Ask an admin to sync templates in settings.
                 </div>
               ) : (
                 filteredTemplates.map((t) => {
@@ -287,6 +297,11 @@ export function WhatsAppTemplatePickerModal({
                   </span>
                 </div>
 
+                {headerVariables.length > 0 && (
+                  <label className="block text-[12px] text-ink">Header variable
+                    <input value={headerVariables[0]} onChange={(e) => setHeaderVariables([e.target.value])} className="mt-1 h-9 w-full rounded-lg border border-hairline bg-canvas px-3" />
+                  </label>
+                )}
                 {/* Variable Inputs */}
                 {bodyVariables.length > 0 && (
                   <div className="rounded-xl border border-hairline bg-canvas p-4 space-y-3">
@@ -368,7 +383,7 @@ export function WhatsAppTemplatePickerModal({
                     type="button"
                     variant="primary"
                     size="sm"
-                    disabled={sending}
+                    disabled={sending || [...bodyVariables, ...headerVariables].some((v) => !v.trim())}
                     onClick={handleSend}
                     className="h-9 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm cursor-pointer"
                   >

@@ -41,6 +41,26 @@ export const whatsappTemplateApi = {
     return res.json();
   },
 
+  async updateDraft(id: string, dto: CreateWhatsAppTemplateDraftDto): Promise<{ template: WhatsAppTemplateDto }> {
+    const res = await fetch(`/api/whatsapp/templates/${encodeURIComponent(id)}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dto),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "Failed to update draft");
+    }
+    return res.json();
+  },
+
+  async submitTemplate(id: string): Promise<{ template: WhatsAppTemplateDto }> {
+    const res = await fetch(`/api/whatsapp/templates/${encodeURIComponent(id)}/submit`, { method: "POST" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "Failed to submit template to Meta");
+    }
+    return res.json();
+  },
+
   async createDraft(
     dto: CreateWhatsAppTemplateDraftDto,
   ): Promise<{ template: WhatsAppTemplateDto }> {

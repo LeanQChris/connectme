@@ -8,3 +8,5 @@ export * from "./message.entity";
 export * from "./scheduled-post.entity";
 export * from "./scheduled-message.entity";
 export * from "./whatsapp-template.entity";
+
+export * from "./browser-push-subscription.entity";

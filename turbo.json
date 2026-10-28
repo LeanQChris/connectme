@@ -5,12 +5,8 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "passThroughEnv": [
-        "NEXT_PUBLIC_API_URL",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
-        "DATABASE_URL"
-      ]
+      "env": ["API_URL", "NEXT_PUBLIC_*"],
+      "passThroughEnv": ["DATABASE_URL"]
     },
     "lint": {
       "dependsOn": ["^lint"]

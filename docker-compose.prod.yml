@@ -66,6 +66,67 @@ services:
       retries: 5
     networks: [internal]
 
+  # Encrypted daily backups to a separate S3/R2/SFTP repository.
+  backup:
+    build:
+      context: .
+      dockerfile: deploy/backup.Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment: &backup-environment
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGDATABASE: ${POSTGRES_DB:-connectme}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      RESTIC_REPOSITORY: ${BACKUP_REPOSITORY:-}
+      RESTIC_PASSWORD: ${BACKUP_PASSWORD:-}
+      AWS_ACCESS_KEY_ID: ${BACKUP_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${BACKUP_REGION:-auto}
+    volumes:
+      - backup_cache:/root/.cache/restic
+      - backup_work:/snapshot
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "connectme-backup", "health"]
+      interval: 60s
+      timeout: 5s
+      start_period: 10m
+    networks: [internal]
+
+  # Disposable restore drill, never attached to the live Postgres volume.
+  restore-postgres:
+    image: postgres:16-alpine
+    profiles: [restore]
+    environment:
+      POSTGRES_USER: restore
+      POSTGRES_PASSWORD: restore-check-only
+      POSTGRES_DB: restore
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restore -d restore"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [internal]
+
+  restore-check:
+    build:
+      context: .
+      dockerfile: deploy/backup.Dockerfile
+    profiles: [restore]
+    command: [verify]
+    environment: *backup-environment
+    depends_on:
+      restore-postgres:
+        condition: service_healthy
+    networks: [internal]
+
   # -------------------------------------------------------------- migrate --
   # Runs once per deploy and gates the API and worker. TypeORM is configured
   # without a `migrations` option in the API, so nothing self-migrates — this
@@ -76,7 +137,7 @@ services:
       dockerfile: apps/api/Dockerfile
       target: runner
     restart: "no"
-    env_file: [.env.production]
+    env_file: ["${CONNECTME_ENV_FILE:-.env.production}"]
     environment:
       NODE_ENV: production
       DB_SYNCHRONIZE: "false"
@@ -102,15 +163,17 @@ services:
       target: runner
     restart: unless-stopped
     logging: *default-logging
-    env_file: [.env.production]
+    env_file: ["${CONNECTME_ENV_FILE:-.env.production}"]
     environment:
       NODE_ENV: production
       DB_SYNCHRONIZE: "false"
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-connectme}
-      # Exactly one proxy (Caddy) in front of the API. Without this, every
+      # Authenticated REST passes through Caddy and Next. Public webhooks
+      # pass through Caddy only; no IP authorization relies on this setting.
+      # Without this, every
       # request appears to originate from Caddy and IP-keyed rate limiting
       # either collapses all tenants into one bucket or is trivially bypassed.
-      TRUST_PROXY: "1"
+      TRUST_PROXY: "2"
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,7 +201,7 @@ services:
       target: runner
     restart: unless-stopped
     logging: *default-logging
-    env_file: [.env.production]
+    env_file: ["${CONNECTME_ENV_FILE:-.env.production}"]
     environment:
       NODE_ENV: production
       DB_SYNCHRONIZE: "false"
@@ -163,13 +226,14 @@ services:
         # Changing any of these requires rebuilding this image.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?set NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?set NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_MEDIA_ORIGINS: ${S3_ENDPOINT:-},${S3_PUBLIC_BASE_URL:-}
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
         NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
         NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/}
         NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/}
     restart: unless-stopped
     logging: *default-logging
-    env_file: [.env.production]
+    env_file: ["${CONNECTME_ENV_FILE:-.env.production}"]
     environment:
       NODE_ENV: production
       # Server-side only: used by the /api rewrite fallback and CSP. Must stay a
@@ -222,3 +286,5 @@ volumes:
   redisdata:
   caddy_data:
   caddy_config:
+  backup_cache:
+  backup_work:

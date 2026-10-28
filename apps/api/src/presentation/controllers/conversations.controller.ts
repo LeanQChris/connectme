@@ -1,3 +1,4 @@
+import { RequireRoles } from "../auth/require-roles.decorator";
 import {
   Controller,
   Get,
@@ -75,6 +76,7 @@ export class ConversationsController {
   }
 
   @Delete(":id")
+  @RequireRoles("owner", "admin")
   async delete(
     @TenantId() tenantId: string,
     @Param("id") id: string,

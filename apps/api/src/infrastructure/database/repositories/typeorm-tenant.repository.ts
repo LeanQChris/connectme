@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { createHash } from "node:crypto";
+import { ForbiddenException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import {
@@ -32,39 +33,24 @@ export class TypeOrmTenantRepository implements ITenantRepository {
   }
 
   async getOrCreateDefaultTenant(userId: string, email?: string, name?: string): Promise<Tenant> {
-    let user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ["tenant"],
+    return this.userRepo.manager.transaction(async (manager) => {
+      // Concurrent first HTTP/socket requests must create exactly one workspace.
+      await manager.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [userId]);
+      const existing = await manager.findOne(User, { where: { id: userId }, relations: ["tenant"] });
+      if (existing) {
+        if (existing.disabledAt) throw new ForbiddenException("Your workspace access has been removed.");
+        return existing.tenant;
+      }
+      const slug = `tenant-${createHash("sha256").update(userId).digest("hex")}`;
+      const tenant = await manager.save(Tenant, manager.create(Tenant, {
+        slug, name: name ? `${name}'s Organization` : "My Workspace",
+      }));
+      await manager.insert(User, {
+        id: userId, tenantId: tenant.id, email: email || "unknown@connectme.local",
+        firstName: name || "User", role: "owner",
+      });
+      return tenant;
     });
-
-    if (user && user.tenant) {
-      return user.tenant;
-    }
-
-    // Default tenant for user
-    const slug = `tenant-${userId.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16)}`;
-    let tenant = await this.tenantRepo.findOne({ where: { slug } });
-
-    if (!tenant) {
-      tenant = this.tenantRepo.create({
-        slug,
-        name: name ? `${name}'s Organization` : "My Workspace",
-      });
-      tenant = await this.tenantRepo.save(tenant);
-    }
-
-    if (!user) {
-      user = this.userRepo.create({
-        id: userId,
-        tenantId: tenant.id,
-        email: email || "unknown@connectme.local",
-        firstName: name || "User",
-        role: "admin",
-      });
-      await this.userRepo.save(user);
-    }
-
-    return tenant;
   }
 
   async getCredentials(tenantId: string): Promise<TenantCredential | null> {
@@ -118,6 +104,8 @@ export class TypeOrmTenantRepository implements ITenantRepository {
   }
 
   async saveUser(user: Partial<User>): Promise<User> {
-    return this.userRepo.save(user);
+    // Do not overwrite an existing membership during concurrent invitation claims.
+    await this.userRepo.createQueryBuilder().insert().into(User).values(user).orIgnore().execute();
+    return this.userRepo.findOneByOrFail({ id: user.id! });
   }
 }

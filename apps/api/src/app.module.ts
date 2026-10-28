@@ -5,6 +5,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { BullModule } from "@nestjs/bullmq";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import {
+  BrowserPushSubscription,
   Tenant,
   User,
   TenantCredential,
@@ -64,6 +65,7 @@ import { RealtimeBridgeService } from "./infrastructure/realtime/realtime-bridge
 import { LinkPreviewService } from "./infrastructure/services/link-preview.service";
 import { AiService } from "./infrastructure/services/ai.service";
 import { WhatsAppTemplateService } from "./infrastructure/services/whatsapp-template.service";
+import { ClerkInvitationsService } from "./infrastructure/services/clerk-invitations.service";
 import { TeamService } from "./infrastructure/services/team.service";
 
 // Use cases
@@ -97,11 +99,13 @@ import { LinkPreviewController } from "./presentation/controllers/link-preview.c
 import { WidgetController } from "./presentation/controllers/widget.controller";
 import { AiController } from "./presentation/controllers/ai.controller";
 import { WhatsAppTemplateController } from "./presentation/controllers/whatsapp-template.controller";
+import { BrowserPushController } from "./presentation/controllers/browser-push.controller";
 import { TeamController } from "./presentation/controllers/team.controller";
 
 import { SetupController } from "./presentation/controllers/setup.controller";
 
 // Auth
+import { TenantMembershipService } from "./presentation/auth/tenant-membership.service";
 import { ClerkAuthGuard } from "./presentation/auth/clerk-auth.guard";
 import { ClerkTokenVerifier } from "./presentation/auth/clerk-token-verifier.service";
 import { validateEnv, shouldSynchronize } from "./infrastructure/config/env.validation";
@@ -126,6 +130,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
       type: "postgres",
       url: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5434/connectme",
       entities: [
+        BrowserPushSubscription,
         Tenant,
         User,
         TenantCredential,
@@ -141,6 +146,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
       logging: false,
     }),
     TypeOrmModule.forFeature([
+      BrowserPushSubscription,
       Tenant,
       User,
       TenantCredential,
@@ -165,6 +171,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     BullModule.registerQueue({ name: OUTBOUND_SCHEDULER_QUEUE }),
     BullModule.registerQueue({ name: INBOUND_WEBHOOKS_QUEUE }),
     BullModule.registerQueue({ name: OUTBOUND_RETRY_QUEUE }),
+    BullModule.registerQueue({ name: "browser-push" }),
   ],
   controllers: [
     WebhookController,
@@ -184,12 +191,14 @@ import { HealthController } from "./presentation/controllers/health.controller";
     AiController,
     WhatsAppTemplateController,
     TeamController,
+    BrowserPushController,
   ],
   providers: [
     // Global guards: rate limiting first, then authentication.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: ClerkAuthGuard },
     ClerkTokenVerifier,
+    TenantMembershipService,
 
     // Ports & Adapters DI
     { provide: "ITenantRepository", useClass: TypeOrmTenantRepository },
@@ -208,6 +217,7 @@ import { HealthController } from "./presentation/controllers/health.controller";
     AiService,
     WhatsAppTemplateService,
     TeamService,
+    ClerkInvitationsService,
 
     // Channel Drivers
     WhatsAppClient,

@@ -2,26 +2,31 @@ import type { NextConfig } from "next";
 
 const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
 
-function apiOrigin(): string {
+function publicOrigin(value: string | undefined): string {
   try {
-    return new URL(API_URL).origin;
-  } catch {
-    return "";
-  }
+    const url = new URL(value || "");
+    return ["https:", "http:"].includes(url.protocol) ? url.origin : "";
+  } catch { return ""; }
 }
 
-const clerk = "https://*.clerk.accounts.dev https://clerk.com https://*.clerk.com";
-const socketOrigin = apiOrigin().replace(/^http/, "ws");
+const apiOrigin = publicOrigin(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081");
+const socketOrigin = apiOrigin.replace(/^http/, "ws");
+const mediaOrigins = (process.env.NEXT_PUBLIC_MEDIA_ORIGINS || "").split(",").map(publicOrigin).filter(Boolean).join(" ");
+const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
+const clerkHost = Buffer.from(publishableKey.replace(/^pk_(test|live)_/, ""), "base64").toString().replace(/\$$/, "");
+const clerkOrigin = /^[a-z0-9.-]+$/i.test(clerkHost) ? `https://${clerkHost}` : "";
+const clerk = `https://*.clerk.accounts.dev https://clerk.com https://*.clerk.com ${clerkOrigin}`;
+const evalPolicy = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
 
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${clerk}`,
+  `script-src 'self' 'unsafe-inline'${evalPolicy} ${clerk} https://challenges.cloudflare.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' ${clerk} ${apiOrigin()} ${socketOrigin}`,
-  "frame-src 'self' https://challenges.cloudflare.com",
+  `connect-src 'self' ${clerk} ${apiOrigin} ${socketOrigin} ${mediaOrigins}`,
+  `frame-src 'self' ${clerkOrigin} https://challenges.cloudflare.com`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

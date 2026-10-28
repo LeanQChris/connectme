@@ -1,42 +1,30 @@
 import {
   CanActivate,
   ExecutionContext,
-  HttpException,
-  Inject,
   Injectable,
   UnauthorizedException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { ClerkTokenVerifier } from "./clerk-token-verifier.service";
-import { ITenantRepository } from "../../domain/repositories/i-tenant.repository";
-import { RedisService } from "../../infrastructure/redis/redis.service";
-
-const TENANT_CACHE_TTL_SECONDS = 300;
+import { REQUIRED_ROLES_KEY } from "./require-roles.decorator";
+import { TenantMembershipService } from "./tenant-membership.service";
 
 export interface AuthenticatedRequest {
   headers: Record<string, string | string[] | undefined>;
   tenantId?: string;
   userId?: string;
+  userRole?: string;
 }
 
-/**
- * Global guard. Every HTTP route requires a valid Clerk session token unless
- * marked `@Public()`. The tenant id is derived from the verified token's `sub`
- * claim (mapped through the user record), never from a request header.
- *
- * The `sub -> tenantId` mapping is cached in Redis (5 min) so most requests
- * avoid a database round-trip; the cache is fail-open (Redis down falls back
- * to Postgres).
- */
+/** Verifies the session and resolves current membership; headers cannot select a tenant. */
 @Injectable()
 export class ClerkAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly verifier: ClerkTokenVerifier,
-    @Inject("ITenantRepository")
-    private readonly tenantRepo: ITenantRepository,
-    private readonly redis: RedisService,
+    private readonly membership: TenantMembershipService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -57,33 +45,21 @@ export class ClerkAuthGuard implements CanActivate {
     const token = value.slice("Bearer ".length).trim();
     if (!token) throw new UnauthorizedException("Missing bearer token.");
 
-    try {
-      const session = await this.verifier.verify(token);
-      request.userId = session.sub;
-      request.tenantId = await this.resolveTenantId(session.sub);
-      return true;
-    } catch (err) {
-      if (err instanceof HttpException) throw err;
-      throw new UnauthorizedException("Invalid or expired session token.");
+    const session = await this.verifier.verify(token);
+    const member = await this.membership.resolve(session.sub);
+    request.userId = member.id;
+    request.tenantId = member.tenantId;
+    request.userRole = member.role;
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(REQUIRED_ROLES_KEY, [context.getHandler(), context.getClass()]);
+    if (requiredRoles?.length && !requiredRoles.includes(member.role)) {
+      throw new ForbiddenException("Your role does not have access to this action.");
     }
-  }
-
-  private async resolveTenantId(userId: string): Promise<string> {
-    const cacheKey = `tenant:sub:${userId}`;
-    try {
-      const cached = await this.redis.get(cacheKey);
-      if (cached) return cached;
-    } catch {
-      /* cache miss on Redis failure; fall through to the database */
+    // All other mutation routes require at least agent access. This also protects
+    // future write endpoints unless they explicitly declare their allowed roles.
+    const method = context.switchToHttp().getRequest<{ method?: string }>().method;
+    if (member.role === "viewer" && method && !["GET", "HEAD", "OPTIONS"].includes(method) && !requiredRoles?.includes("viewer")) {
+      throw new ForbiddenException("Viewers cannot change workspace data.");
     }
-
-    const tenant = await this.tenantRepo.getOrCreateDefaultTenant(userId);
-
-    try {
-      await this.redis.setNxValue(cacheKey, tenant.id, TENANT_CACHE_TTL_SECONDS);
-    } catch {
-      /* best-effort cache warm */
-    }
-    return tenant.id;
+    return true;
   }
 }

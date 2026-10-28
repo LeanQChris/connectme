@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   Controller,
   Get,
@@ -52,17 +52,17 @@ export class WebhookController {
    * batched payloads), falling back to an auto-generated id — never dedup on a
    * key we are unsure about, because a wrong hit would drop a real message.
    */
-  private deriveJobId(jobName: string, payload: unknown): string | undefined {
-    const key = this.providerEventKey(jobName, payload);
+  private deriveJobId(jobName: string, payload: unknown, data: Record<string, unknown>): string | undefined {
+    const key = this.providerEventKey(jobName, payload, data);
     if (!key) return undefined;
     // Hash so arbitrary provider ids cannot collide with our own job naming and
     // so a multi-event payload collapses to a single stable key.
     const digest = createHash("sha256").update(key).digest("hex").slice(0, 40);
-    return `${jobName}:${digest}`;
+    return `${jobName}-${digest}`;
   }
 
   /** The provider's canonical id(s) for the event, or null when unavailable. */
-  private providerEventKey(jobName: string, payload: any): string | null {
+  private providerEventKey(jobName: string, payload: any, data: Record<string, unknown>): string | null {
     switch (jobName) {
       // Meta batches entries/changes/messages/statuses into one payload, so the
       // key is the sorted set of every message and status id it carries.
@@ -70,15 +70,15 @@ export class WebhookController {
         const ids: string[] = [];
         for (const entry of payload?.entry || []) {
           for (const change of entry?.changes || []) {
-            for (const msg of change?.value?.messages || []) if (msg?.id) ids.push(msg.id);
-            for (const status of change?.value?.statuses || []) if (status?.id) ids.push(status.id);
+            for (const msg of change?.value?.messages || []) if (msg?.id) ids.push(`message:${msg.id}`);
+            for (const status of change?.value?.statuses || []) if (status?.id) ids.push(JSON.stringify(["status", status.id, status.status, status.timestamp]));
           }
         }
         if (ids.length === 0) return null;
         return [...new Set(ids)].sort().join("|");
       }
       case "telegram":
-        return payload?.update_id != null ? String(payload.update_id) : null;
+        return payload?.update_id != null && typeof data.botId === "string" ? JSON.stringify([data.botId, payload.update_id]) : null;
       case "discord":
         return payload?.id ? String(payload.id) : null;
       // Slack retries the same delivery with the same event_id; event_ts is the
@@ -112,7 +112,7 @@ export class WebhookController {
         // Dedup: a provider redelivery reuses the event id, so BullMQ ignores the
         // duplicate while the first job is still in the queue or within the
         // retention window above.
-        jobId: this.deriveJobId(jobName, payload),
+        jobId: this.deriveJobId(jobName, payload, data),
       });
     } catch (err) {
       this.logger.error(`Failed to enqueue ${jobName} webhook: ${(err as Error).message}`);
@@ -234,24 +234,26 @@ export class WebhookController {
     @Headers("x-slack-request-timestamp") timestamp: string,
     @Body() body: any,
   ) {
-    // Slack URL Verification Challenge
-    if (body?.type === "url_verification") {
-      return { challenge: body.challenge };
+    const raw = req.rawBody?.toString("utf8");
+    const requestTime = Number(timestamp);
+    if (!this.aesVault || !raw || !signature || !timestamp || !Number.isInteger(requestTime) || Math.abs(Date.now() / 1000 - requestTime) > 300) {
+      throw new ForbiddenException("Invalid Slack webhook request.");
     }
-
-    // Verify Slack signature if secret is present
-    const signingSecret = process.env.SLACK_SIGNING_SECRET;
-    if (signingSecret && signature && timestamp) {
-      const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 60 * 5;
-      if (parseInt(timestamp, 10) >= fiveMinutesAgo) {
-        const sigBasestring = `v0:${timestamp}:${req.rawBody?.toString("utf8") || ""}`;
-        const isValid = verifyHmacSha256(sigBasestring, signingSecret, signature);
-        if (!isValid) {
-          this.logger.warn("Rejected Slack webhook with invalid signature.");
-          throw new ForbiddenException("Invalid Slack webhook signature");
-        }
-      }
+    const workspaceId = body?.team_id || body?.team?.id;
+    const account = workspaceId
+      ? await this.tenantRepo.findAccountByExternalId(ChannelType.SLACK, String(workspaceId), "slack")
+      : null;
+    const credentials = account ? await this.tenantRepo.getCredentials(account.tenantId) : null;
+    const encryptedSecret = credentials?.slackSigningSecretEnc;
+    if (!encryptedSecret) throw new ForbiddenException("Slack signing secret is not configured.");
+    const secret = decryptStrict(this.aesVault, encryptedSecret);
+    const expected = `v0=${createHmac("sha256", secret).update(`v0:${timestamp}:${raw}`).digest("hex")}`;
+    const expectedBuffer = Buffer.from(expected);
+    const actualBuffer = Buffer.from(signature);
+    if (expectedBuffer.length !== actualBuffer.length || !timingSafeEqual(expectedBuffer, actualBuffer)) {
+      throw new ForbiddenException("Invalid Slack webhook signature.");
     }
+    if (body?.type === "url_verification") return { challenge: body.challenge };
 
     await this.dispatch("slack", { payload: body, receivedAt: Date.now() }, body);
     return { ok: true };
